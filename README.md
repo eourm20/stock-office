@@ -58,7 +58,7 @@ uv run pytest -m live -s       # live checks; real analysis runs when keys are s
 | [docs/](docs/) | Sprint reports and portfolio evidence (implemented features only) |
 | [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) | Scope, data/API contracts, sprint plan, progress log |
 | [PROJECT_PLAN.html](PROJECT_PLAN.html) | Visual product blueprint (open in a browser) |
-| [CLAUDE.md](CLAUDE.md), [CODING_AI_PROMPT.md](CODING_AI_PROMPT.md) | Operating rules and kickoff prompt for AI-assisted development |
+| [CLAUDE.md](CLAUDE.md) | Operating rules for AI-assisted development |
 
 ## Principles
 - Agent animation is driven only by stored engine events. Nothing is simulated as if it were real.
