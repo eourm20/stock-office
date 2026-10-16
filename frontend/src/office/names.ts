@@ -40,3 +40,19 @@ export const PHASE_KO: Record<string, string> = {
   IDLE: "대기", QUEUED: "대기열", RUNNING: "진행 중", COMPLETED: "완료", FAILED: "실패",
   INSUFFICIENT_DATA: "데이터 부족",
 };
+
+/** Data-provider codes the AI tends to quote (e.g. Yahoo "005930.KS") → names people use. */
+const TICKER_NAMES: Record<string, string> = {
+  "005930.KS": "삼성전자(005930)",
+  "005930": "삼성전자(005930)",
+};
+
+/** Display only: replace provider ticker codes with company names. Stored text is unchanged. */
+export function humanizeTickers(text: string): string {
+  return text
+    // A bare code, not already inside "(...)" and not part of a longer number.
+    .replace(/(?<![\d(])005930(?:\.KS)?(?!\d)/g, (m) => TICKER_NAMES[m] ?? m)
+    // Collapse doubled names the model sometimes writes around the code.
+    .replace(/삼성전자\s*\(?\s*삼성전자\(005930\)\)?/g, "삼성전자(005930)")
+    .replace(/삼성전자\(005930\)\s*\(삼성전자\)/g, "삼성전자(005930)");
+}

@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { EventType, RunEvent } from "../types";
 import { adaptEvent } from "./eventAdapter";
 import { decisionLines, narrate, shortSpeech } from "./explain";
+import { humanizeTickers } from "./names";
 import { facing, isoToWorld, parseTiledMap, planPath, targetSpot, zoneOf, type TiledMap }
   from "./layout";
 import { characterFor, frameRange, resolveAnimation, type Registry, type SpriteMetadata }
@@ -114,7 +115,7 @@ describe("character state machine", () => {
 
   it("strips speaker prefixes and markdown from bubbles only", () => {
     expect(bubbleText("Bear Analyst: ## Bear case on 005930.KS: **stale** evidence"))
-      .toBe("Bear case on 005930.KS: stale evidence");
+      .toBe("Bear case on 삼성전자(005930): stale evidence");
   });
 
   it("explains the current stage and the decision in plain Korean", () => {
@@ -127,6 +128,15 @@ describe("character state machine", () => {
     expect(narrate(done)).toContain("'매수'");
     expect(narrate(done)).toContain("실제 주문은 하지 않았어요");
     expect(decisionLines(done.decision!)).toContain("AI 등급: 비중 확대 — 조금 더 사기");
+  });
+
+  it("shows company names instead of provider tickers (display only)", () => {
+    expect(bubbleText("Bull Analyst: 005930.KS 강세 논리: 이익 회복"))
+      .toBe("삼성전자(005930) 강세 논리: 이익 회복");
+    expect(humanizeTickers("005930.KS(삼성전자)와 NVDA")).toBe("삼성전자(005930)와 NVDA");
+    expect(humanizeTickers("삼성전자 005930 실적")).toBe("삼성전자(005930) 실적");
+    expect(humanizeTickers("삼성전자(005930)는")).toBe("삼성전자(005930)는");      // already named
+    expect(humanizeTickers("주문번호 1005930 확인")).toBe("주문번호 1005930 확인");  // not a ticker
   });
 
   it("shortens long speech to its first sentence", () => {

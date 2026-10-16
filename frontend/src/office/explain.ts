@@ -2,7 +2,7 @@
  * Plain-Korean explanations of what is on screen. Deterministic templates over the office
  * state — no model calls — so they never invent anything the events do not say.
  */
-import { agentName } from "./names";
+import { agentName, humanizeTickers } from "./names";
 import type { OfficeState } from "./stateMachine";
 
 /** Pipeline order: when several agents are busy, the latest stage describes "now". */
@@ -78,7 +78,7 @@ export function narrate(state: OfficeState): string {
 
 /** Speech-bubble form of a debate line: no speaker prefix or markdown markup. */
 export function bubbleText(text: string): string {
-  return text
+  return humanizeTickers(text)
     .replace(/^\s*[A-Za-z ]+(Analyst|Researcher):\s*/, "")
     .replace(/[#*_`>]+/g, "")
     .replace(/\s+/g, " ")
