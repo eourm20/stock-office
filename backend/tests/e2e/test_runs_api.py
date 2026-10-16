@@ -65,6 +65,29 @@ def test_nvda_demo_run_full_lifecycle(client: TestClient) -> None:
     assert {o["agent_id"] for o in outputs} >= {"market_analyst", "portfolio_manager"}
 
 
+class _KrOnlyProvider:
+    name = "kr-only"
+
+    def supports(self, instrument: object) -> bool:
+        return False
+
+    def fetch(self, instrument: object, as_of: datetime) -> ProviderResult:
+        raise AssertionError("must not be called for an unsupported instrument")
+
+
+def test_not_applicable_provider_is_not_a_coverage_gap(
+    make_client: Callable[..., TestClient]
+) -> None:
+    from stock_office.providers.fixture import FixtureProvider
+
+    client = make_client(providers=[FixtureProvider(), _KrOnlyProvider()])
+    run_id = create(client, "US:NASDAQ:NVDA")
+    run = client.get(f"/api/v1/analysis-runs/{run_id}").json()
+    assert run["status"] == "COMPLETED" and run["coverage_gaps"] == []
+    decision = client.get(f"/api/v1/analysis-runs/{run_id}/decision").json()
+    assert "COVERAGE_GAP" not in decision["risk_flags"]
+
+
 def test_samsung_demo_run_reports_coverage_gap(client: TestClient) -> None:
     run_id = create(client, "KR:KRX:005930")
     run = client.get(f"/api/v1/analysis-runs/{run_id}").json()

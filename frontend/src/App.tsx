@@ -7,7 +7,10 @@ type Engine = "demo" | "tradingagents";
 export function App() {
   const [instrument, setInstrument] = useState("US:NASDAQ:NVDA");
   const [engine, setEngine] = useState<Engine>("demo");
-  const [runId, setRunId] = useState<string | null>(null);
+  // `?run=<id>` follows an existing run (e.g. one started by the worker or CLI).
+  const [runId, setRunId] = useState<string | null>(
+    () => new URLSearchParams(window.location.search).get("run"),
+  );
   const [error, setError] = useState<string | null>(null);
   const view = useRunEvents(runId);
 
@@ -62,7 +65,12 @@ export function App() {
           <ol>
             {view.feed.map((ev) => (
               <li key={ev.seq}>
-                #{ev.seq} {ev.type} {ev.agent_id ?? ""}
+                #{ev.seq} {ev.occurred_at.slice(11, 19)} {ev.type} {ev.agent_id ?? ""}
+                {typeof ev.payload.text === "string" && (
+                  <blockquote style={{ margin: "4px 0 8px 16px", color: "#555" }}>
+                    {ev.payload.text}
+                  </blockquote>
+                )}
               </li>
             ))}
           </ol>

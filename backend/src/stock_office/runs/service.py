@@ -163,7 +163,8 @@ class RunService:
         sources: list[str] = []
         for provider in self.providers(run.engine):
             if not provider.supports(instrument):
-                gaps.append(f"{provider.name}: does not cover {instrument.id}")
+                # Not applicable (e.g. OpenDART for a US stock) is not a data gap. If no provider
+                # applies, the run still ends INSUFFICIENT_DATA below.
                 continue
             try:
                 result = provider.fetch(instrument, run.as_of)

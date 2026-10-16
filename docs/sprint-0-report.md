@@ -8,8 +8,8 @@ Legend: ✅ verified by executed test/command · ⚠️ implemented, unverified 
 ## 1. Sprint 0 gate (IMPLEMENTATION_PLAN §9)
 | Criterion | Status | Evidence |
 |---|---|---|
-| US 1 instrument real analysis (NVDA) | ❌ blocked | No `OPENAI_API_KEY`. Real path implemented; without a key the run ends `FAILED/ENGINE_NOT_CONFIGURED` (smoke test §4.6). `tests/live::test_real_tradingagents_run` skipped. |
-| KR 1 instrument real analysis (005930) | ❌ blocked | Same LLM blocker. KR price data path verified live (§4.5); DART unverified (no key). |
+| US 1 instrument real analysis (NVDA) | ✅ (economy profile) | Real run `641430f80ae149b9` COMPLETED in 163 s, 35 ordered events, 13 agents, 0 failed (§10). |
+| KR 1 instrument real analysis (005930) | ⏳ pending | Keys now present; real run not executed yet. KR prices and OpenDART verified live (§10). |
 | Agent event order, storage, replay | ✅ | e2e + unit tests; real server + separate worker smoke test (§4.6) |
 | No account/order integration | ✅ | `tests/unit/test_no_live_orders.py`; `/health` → `live_orders:false` |
 
@@ -119,3 +119,36 @@ Raw provider responses are kept only in git-ignored `data/`.
 - Real-LLM live tests now need `STOCK_OFFICE_ALLOW_PAID_TESTS=1` in addition to the key.
 - Tests: `uv run pytest -q` → **77 passed**, 5 deselected (live) (+5 unit `test_cost_profile.py`, +2 contract: profile keys exist upstream and the graph builds under both profiles). ruff clean, mypy strict clean. Free live run: 2 passed, 3 skipped.
 - Token savings are **not measured yet** (no LLM key). Plan: one `economy` and one `standard` run of the same instrument and date, recording tokens only.
+
+## 10. First real runs and live verification (2026-10-16)
+### Key checks (free)
+- OpenAI key valid: `GET /v1/models` → 200, `gpt-6-sol` and `gpt-6-luna` listed. No tokens spent.
+- **OpenDART verified live:** 005930 returned 15 disclosures over the last 30 days, all point-in-time allowed, Korean titles intact (UTF-8).
+- Yahoo: NVDA 10 daily bars, 005930 9 daily bars.
+
+### NVDA real analysis — run `641430f80ae149b9` (engine TradingAgents 0.6.0@1394a3f, profile `economy`)
+| Item | Value |
+|---|---|
+| Status | COMPLETED; 13 agents started/completed, 0 failed; 5 debate messages; 35 events in seq order |
+| Latency | 162.8 s total. Analysts run in parallel (~33–43 s); Research Manager → PM ≈ 2 min |
+| Evidence | 22 Stock Office snapshots (Yahoo daily bars) |
+| Decision | **BUY** (engine rating *Overweight*), `PROPOSED_ONLY`. Flags `ENGINE_DATA_NOT_SNAPSHOTTED`, `COVERAGE_GAP`* |
+| Tokens, gpt-6-luna | input 81,422 (15,674 cached), output 15,797 (5,170 reasoning) |
+| Tokens, gpt-6-sol | input 6,503, output 1,092 (344 reasoning) |
+| **Cost (computed)** | luna ≈ $0.0146 + sol ≈ $0.0239 = **≈ $0.04 per run** |
+
+Prices used, per 1M tokens: Sol $2 in / $10 out; Luna $0.10 in / $0.01 cached / $0.50 out. These come from secondary sources (2026-10) and have not been checked against OpenAI's pricing page.
+The measurement is **~6–25× below the earlier pre-run estimate ($0.25–1)**: the deep model received only ~6.5K input tokens. At this rate, 2 instruments daily (~44 runs/month) ≈ $1.7/month. This is one sample; the next runs will confirm it.
+
+This BUY/Overweight is a single, unevaluated model proposal. It is not a performance result or a signal, and nothing was executed.
+
+\* The `COVERAGE_GAP` flag came from OpenDART "not covering" a US stock. That is not applicable, not a gap. **Fixed:** providers that do not apply to an instrument no longer count as gaps (new e2e test). Re-runs will not carry this flag.
+
+### Coverage gaps observed inside the engine
+- Polymarket (prediction markets, a News Analyst tool) returned **HTTP 451 (unavailable for legal reasons)** from this network, 3 queries. Upstream continued without it. These failures are not yet surfaced as events (TODO: route upstream tool failures into `coverage_gaps`).
+- FRED key present; whether it was used in this run is not yet captured (same TODO).
+
+### Viewing a run
+`?run=<run_id>` in the dev console (`http://localhost:5173/?run=641430f80ae149b9`) replays any stored run, including debate text.
+
+Tests after these changes: backend **78 passed** (+1 e2e), frontend 3 passed; ruff and mypy strict clean.
