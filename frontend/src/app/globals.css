@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0b1020;
+  --panel: #141d32;
+  --line: #2b3952;
+  --ink: #f2f5fb;
+  --muted: #9daec7;
+  --accent: #6fb0ff;
+  --mint: #5cddb3;
+  --warn: #ffc47f;
+}
+
+body {
+  background: radial-gradient(ellipse at top right, #1a2c4b, var(--background) 55%);
+  color: var(--ink);
+  font-family: Inter, Pretendard, "Segoe UI", Arial, sans-serif;
+}
+
+.pixel {
+  font-family: "Press Start 2P", "Courier New", monospace;
+  letter-spacing: 0.02em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

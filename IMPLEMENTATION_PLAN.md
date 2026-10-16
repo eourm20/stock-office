@@ -200,3 +200,11 @@ DataProvider/IndicatorProvider 어댑터, KR·US 시점 정합성, 테스트 3�
 - 신규 이벤트 `tool.called`(2B), `risk.rejected`·`order.filled`(Sprint 3) 계약 추가. 기존 이벤트 계약은 변경 없음.
 - Sprint 2를 2A/2B/2C로 분리하고 권장 순서를 기록. Sprint 0 결과·백엔드는 변경 없음.
 - 캐릭터 제작 방침: 초기에는 라이선스 확인된 Placeholder 캐릭터를 Character Registry로 관리하고, 업로드·관리 UI는 2C로 미룬다(§3a).
+### 2026-10-16 — Sprint 2A 구현 (상세: `docs/sprint-2a-report.md`)
+- [x] Next.js 16 + Tailwind 4로 이관(Vite 콘솔은 `/console`), Phaser 3.90 아이소메트릭 사무실(Tiled `office.tmj`), 카메라 줌·이동
+- [x] 캐릭터 4명(Market, News, Bull, Bear) 이동·착석·작업·토론·말풍선. Event Adapter → Character State Machine → Scene 분리, 결정론 테스트
+- [x] 저장된 실제 실행(NVDA·005930)과 DEMO 재생(1×/4×/즉시), 실시간 SSE도 같은 대기열로 처리. 토론 발언 후 읽기 대기(연출 타이밍만, 상태 불변)
+- [x] Placeholder 픽셀아트는 `tools/gen_placeholder_art.py`로 직접 생성(CC0), 파일 기반 Character Registry로 교체 가능
+- [x] reduced-motion, Activity Feed 텍스트 대체, 결정 패널(제안만·주문 없음), 직원 클릭 상세
+- [~] 성능: 개발 빌드 실측 44–60fps(평균 약 54). 프로덕션 빌드 미측정
+- [ ] shadcn/ui 미도입(2B), 나머지 9개 Agent 입장·`tool.called`·Analysis Mode는 2B

@@ -18,6 +18,11 @@ __pycache__/
 node_modules/
 frontend/dist/
 
+# Next.js
+frontend/.next/
+frontend/next-env.d.ts
+*.tsbuildinfo
+
 # ---- GitHub Python template (from initial remote commit) ----
 # Byte-compiled / optimized / DLL files
 __pycache__/

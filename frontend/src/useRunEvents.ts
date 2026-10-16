@@ -1,4 +1,5 @@
 import { useEffect, useReducer } from "react";
+import { API_BASE } from "./lib/api";
 import { applyEvent, initialRunView, type RunView } from "./runState";
 import type { EventType, RunEvent } from "./types";
 
@@ -18,7 +19,7 @@ export function useRunEvents(runId: string | null): RunView {
   useEffect(() => {
     dispatch({ kind: "reset" });
     if (!runId) return;
-    const source = new EventSource(`/api/v1/analysis-runs/${runId}/events`);
+    const source = new EventSource(`${API_BASE}/api/v1/analysis-runs/${runId}/events`);
     const onEvent = (msg: MessageEvent<string>) => {
       const ev = JSON.parse(msg.data) as RunEvent;
       dispatch({ kind: "event", ev });

@@ -1,0 +1,94 @@
+{
+  "frame_width": 64,
+  "frame_height": 64,
+  "animations": {
+    "idle": {
+      "down": {
+        "row": 0,
+        "frames": 4,
+        "fps": 3
+      },
+      "up": {
+        "row": 1,
+        "frames": 4,
+        "fps": 3
+      },
+      "left": {
+        "row": 2,
+        "frames": 4,
+        "fps": 3
+      },
+      "right": {
+        "row": 3,
+        "frames": 4,
+        "fps": 3
+      }
+    },
+    "walk": {
+      "down": {
+        "row": 4,
+        "frames": 4,
+        "fps": 8
+      },
+      "up": {
+        "row": 5,
+        "frames": 4,
+        "fps": 8
+      },
+      "left": {
+        "row": 6,
+        "frames": 4,
+        "fps": 8
+      },
+      "right": {
+        "row": 7,
+        "frames": 4,
+        "fps": 8
+      }
+    },
+    "work": {
+      "down": {
+        "row": 8,
+        "frames": 4,
+        "fps": 6
+      },
+      "up": {
+        "row": 9,
+        "frames": 4,
+        "fps": 6
+      },
+      "left": {
+        "row": 10,
+        "frames": 4,
+        "fps": 6
+      },
+      "right": {
+        "row": 11,
+        "frames": 4,
+        "fps": 6
+      }
+    },
+    "talk": {
+      "down": {
+        "row": 12,
+        "frames": 4,
+        "fps": 5
+      },
+      "up": {
+        "row": 13,
+        "frames": 4,
+        "fps": 5
+      },
+      "left": {
+        "row": 14,
+        "frames": 4,
+        "fps": 5
+      },
+      "right": {
+        "row": 15,
+        "frames": 4,
+        "fps": 5
+      }
+    }
+  }
+}

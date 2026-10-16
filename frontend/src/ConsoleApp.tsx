@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { API_BASE } from "./lib/api";
 import { useRunEvents } from "./useRunEvents";
 
 type Engine = "demo" | "tradingagents";
@@ -8,9 +9,10 @@ export function App() {
   const [instrument, setInstrument] = useState("US:NASDAQ:NVDA");
   const [engine, setEngine] = useState<Engine>("demo");
   // `?run=<id>` follows an existing run (e.g. one started by the worker or CLI).
-  const [runId, setRunId] = useState<string | null>(
-    () => new URLSearchParams(window.location.search).get("run"),
-  );
+  const [runId, setRunId] = useState<string | null>(null);
+  useEffect(() => {
+    setRunId(new URLSearchParams(window.location.search).get("run"));
+  }, []);
   const [error, setError] = useState<string | null>(null);
   const view = useRunEvents(runId);
 
@@ -26,7 +28,7 @@ export function App() {
     ) {
       return;
     }
-    const resp = await fetch("/api/v1/analysis-runs", {
+    const resp = await fetch(`${API_BASE}/api/v1/analysis-runs`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ instrument_id: instrument, engine }),

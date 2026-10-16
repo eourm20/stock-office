@@ -20,6 +20,15 @@ paper trading exists.
 Test totals: backend 70 passed (unit/contract/e2e), live 2 passed / 3 skipped (missing keys);
 frontend 3 passed. ruff + mypy strict clean. Details: [sprint-0-report.md](sprint-0-report.md).
 
+## Sprint 2A (2026-10-16) — implemented
+| Feature | Code | Verification |
+|---|---|---|
+| Isometric pixel-art office (Phaser 3 + Tiled map), camera pan/zoom | [OfficeScene.ts](../frontend/src/game/OfficeScene.ts), [office.tmj](../frontend/public/office/office.tmj) | Edge browser run, screenshots in `docs/screenshots/` |
+| Event Adapter → deterministic Character State Machine | [eventAdapter.ts](../frontend/src/office/eventAdapter.ts), [stateMachine.ts](../frontend/src/office/stateMachine.ts) | 18 vitest tests incl. whole/chunked/duplicate/replay equality |
+| Replay and live SSE with paced queue, debate dwell, catch-up | [replay.ts](../frontend/src/office/replay.ts) | tests + replays of real NVDA/005930 runs |
+| Character Registry with generated CC0 placeholders | [registry.ts](../frontend/src/office/registry.ts), [gen_placeholder_art.py](../tools/gen_placeholder_art.py) | registry fallback tests |
+| Measured frame rate | — | dev build 44–60 fps (mean ≈ 54); production not measured |
+
 ## Not yet achieved (do not present as results)
 - Real LLM analysis of NVDA / 005930 (blocked: no API key). Cost and latency not measured.
 - OpenDART live verification.

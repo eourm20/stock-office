@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     # "external": the API only enqueues; `python -m stock_office.worker` executes.
     worker_mode: Literal["thread", "external"] = "thread"
     sse_poll_interval_s: float = 0.25
+    # Browser origins allowed to call the API directly (the office UI streams SSE from it).
+    cors_origins: str = "http://localhost:3000"
 
     # TradingAgents LLM settings (keys themselves are read by upstream from OPENAI_API_KEY etc.)
     ta_llm_provider: str = "openai"

@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from typing import Annotated, Protocol
 
 from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
 from stock_office import __version__
@@ -71,6 +72,10 @@ def create_app(
             thread_dispatcher.shutdown()
 
     app = FastAPI(title="Stock Office API", version=__version__, lifespan=lifespan)
+    origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
+    if origins:
+        app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["GET", "POST"],
+                           allow_headers=["Content-Type", "Last-Event-ID"])
 
     def _run_or_404(run_id: str) -> AnalysisRun:
         run = service.repo.get_run(run_id)

@@ -256,6 +256,13 @@ def test_bad_requests(client: TestClient, body: dict[str, object], code: int) ->
     assert client.post("/api/v1/analysis-runs", json=body).status_code == code
 
 
+def test_cors_allows_only_the_configured_ui_origin(client: TestClient) -> None:
+    ok = client.get("/health", headers={"Origin": "http://localhost:3000"})
+    assert ok.headers["access-control-allow-origin"] == "http://localhost:3000"
+    other = client.get("/health", headers={"Origin": "https://evil.example"})
+    assert "access-control-allow-origin" not in other.headers
+
+
 def test_unknown_run_404(client: TestClient) -> None:
     for suffix in ("", "/events", "/decision", "/outputs"):
         assert client.get(f"/api/v1/analysis-runs/nope{suffix}").status_code == 404
