@@ -23,6 +23,7 @@ from stock_office.events.sanitize import redact_text
 from stock_office.providers.dart import DartDisclosureProvider
 
 KR_NEWS_VENDOR = "stockoffice_dart"
+PREDICTION_OFF_VENDOR = "stockoffice_off"
 MAX_GAPS = 10
 
 
@@ -70,6 +71,22 @@ def register_kr_news_vendor(provider_factory: Callable[[], DartDisclosureProvide
     from tradingagents.dataflows.router import VENDOR_METHODS
 
     VENDOR_METHODS["get_news"][KR_NEWS_VENDOR] = make_kr_news_vendor(provider_factory)
+
+
+def register_prediction_markets_off() -> None:
+    """A prediction-markets vendor that is honestly unavailable, without any network call.
+
+    Upstream treats prediction markets as optional: an unavailable vendor degrades to a
+    "data unavailable" note for the model and a logged warning (recorded as a coverage gap).
+    """
+    from tradingagents.dataflows.errors import VendorUnavailableError
+    from tradingagents.dataflows.router import VENDOR_METHODS
+
+    def off(*_args: object, **_kwargs: object) -> str:
+        raise VendorUnavailableError("prediction markets disabled in Stock Office "
+                                     "(Polymarket blocks this network: HTTP 451)")
+
+    VENDOR_METHODS["get_prediction_markets"][PREDICTION_OFF_VENDOR] = off
 
 
 class UpstreamDataGapCollector(logging.Handler):

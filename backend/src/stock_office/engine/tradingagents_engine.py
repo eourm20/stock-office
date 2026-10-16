@@ -26,7 +26,13 @@ from .adapter import (
     TradingAgentsProjection,
     outcome_from_state,
 )
-from .ta_extensions import KR_NEWS_VENDOR, collect_upstream_data_gaps, register_kr_news_vendor
+from .ta_extensions import (
+    KR_NEWS_VENDOR,
+    PREDICTION_OFF_VENDOR,
+    collect_upstream_data_gaps,
+    register_kr_news_vendor,
+    register_prediction_markets_off,
+)
 
 _PROVIDER_KEY_ENV = {
     "openai": "OPENAI_API_KEY",
@@ -86,6 +92,7 @@ class TradingAgentsEngine:
                            "cost_profile": self.settings.ta_cost_profile,
                            "upstream_env": _upstream_env_overrides(),
                            "kr_news_vendor": KR_NEWS_VENDOR if self.kr_news_enabled else None,
+                           "prediction_markets": self.settings.ta_prediction_markets,
                            "engine": self.version()}, sort_keys=True)
         return hashlib.sha256(blob.encode()).hexdigest()[:16]
 
@@ -128,6 +135,9 @@ class TradingAgentsEngine:
             # Yahoo first; OpenDART disclosures when Yahoo has no company news for a KRX stock.
             config["tool_vendors"] = {**config.get("tool_vendors", {}),
                                       "get_news": f"yfinance,{KR_NEWS_VENDOR}"}
+        if not self.settings.ta_prediction_markets:
+            config["tool_vendors"] = {**config.get("tool_vendors", {}),
+                                      "get_prediction_markets": PREDICTION_OFF_VENDOR}
         config["results_dir"] = str(work_dir / "ta_results")
         config["data_cache_dir"] = str(work_dir.parent.parent / "ta_cache")
         # Fresh, empty memory log per run: no reflection from earlier decisions leaks in.
@@ -143,6 +153,8 @@ class TradingAgentsEngine:
 
         if self.kr_news_enabled:
             register_kr_news_vendor(self._dart_provider)
+        if not self.settings.ta_prediction_markets:
+            register_prediction_markets_off()
         usage = UsageMetadataCallbackHandler()
         graph = TradingAgentsGraph(
             selected_analysts=self.analysts,

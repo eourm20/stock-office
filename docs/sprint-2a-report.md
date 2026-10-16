@@ -44,3 +44,16 @@ Edge window 1500×860, **Next.js dev build**, 4× replay with characters walking
 - Placeholder art is intentionally simple. The meeting spot for Bear overlaps the table edge slightly.
 - No shadcn/ui yet; the Analysis Mode (React Flow) is not built.
 - FPS dips while walking (sprite and text depth updates every frame); to optimize in 2B if it persists in a production build.
+
+## 6. Follow-ups after the first slice (2026-10-16, same day)
+| Change | Why | Verification |
+|---|---|---|
+| **Korean output by default** (`STOCK_OFFICE_TA_OUTPUT_LANGUAGE=Korean`); Korean DEMO lines, agent/room/status names | User request. Upstream keeps the machine-read `**Rating**:` line in English and uses structured output, so ratings still parse | Real runs `3ec11363…` (NVDA, BUY/Overweight, 189 s, ≈ $0.050) and `a1e851f3…` (005930, SELL/Underweight, 186 s, ≈ $0.050): 5/5 debate lines in Korean. Korean output costs ≈ 25% more than English |
+| **Plain-language layer**: "지금" narrator, decision explained (action, rating, flags in plain Korean, "not a verified signal"), first-sentence speech bubbles, "보는 법" help dialog | The user could not tell how to read the screen | Unit tests (`narrate`, `decisionLines`, `shortSpeech`); browser check |
+| **Safe markdown** in the detail panel (react-markdown + GFM; raw HTML is not rendered) | Reports showed raw `##`/`**` | Browser check |
+| Provider codes shown as names (`005930.KS` → `삼성전자(005930)`), display only | The AI quotes the Yahoo code | Unit tests |
+| **Auto mode**: follows a meeting in progress live, otherwise shows the newest real decision; polls every 15 s. **Decision cards** per instrument (latest real decision, time ago; DEMO excluded). **/history** page with every run | The user cannot watch live all day | `GET /api/v1/office/summary` tests; `chooseAutoRun`/`timeAgo` tests; browser check |
+| Fix: a run opened by URL while it was running did not stream live | It was treated as finished before the run list loaded | Browser: badge "● 실시간", feed growing 19→23 |
+| Prediction markets (Polymarket) off by default (`STOCK_OFFICE_TA_PREDICTION_MARKETS=false`): an offline vendor answers "unavailable" | Polymarket returns HTTP 451 from this network on every run | Contract test (no network call, gap recorded) |
+
+Tests at this point: backend 89 passed, frontend 23 passed.

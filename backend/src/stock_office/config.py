@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     # economy: dev/test default, trims low-risk levers only. standard: upstream defaults,
     # for acceptance and evaluation runs. Recorded in config_hash and model_version.
     ta_cost_profile: Literal["economy", "standard"] = "economy"
+    # Polymarket answers HTTP 451 from Korea; when off, the tool reports "unavailable" at once
+    # instead of making blocked requests.
+    ta_prediction_markets: bool = False
 
     dart_api_key: SecretStr | None = None
 

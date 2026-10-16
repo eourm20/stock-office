@@ -179,3 +179,5 @@ An additional real run, `2f44b9a3dfe047f2` (005930), was started from the dev co
 **Action recommended:** the OpenDART key appeared in a local log and in the development session transcript. Re-issue it at opendart.fss.or.kr (free) and update `backend/.env`.
 
 Tests: backend **85 passed**, 5 deselected (live); ruff and mypy strict clean; frontend 3 passed and builds. The KR news fix is not yet exercised in a full LLM run.
+
+**Decision (2026-10-16):** the OpenDART key is not re-issued. It is a read-only public-data key; the worst case of misuse is exhausting the daily call quota. The log file that held it was deleted, and log redaction now prevents a repeat.

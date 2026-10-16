@@ -178,3 +178,37 @@ def test_langgraph_tasks_stream_shape_feeds_projection() -> None:
         (EventType.AGENT_COMPLETED, "bull_researcher"),
     ]
     assert projection.final_state["market_report"] == "ok"
+
+
+def test_prediction_markets_off_answers_unavailable_without_network(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tradingagents.dataflows.config import run_config
+    from tradingagents.dataflows.router import VENDOR_METHODS, route_to_vendor
+
+    from stock_office.domain.instruments import get_instrument
+    from stock_office.engine.ta_extensions import (
+        PREDICTION_OFF_VENDOR,
+        collect_upstream_data_gaps,
+        register_prediction_markets_off,
+    )
+
+    def network_call(*_: object, **__: object) -> str:
+        raise AssertionError("must not reach Polymarket")
+
+    monkeypatch.setitem(VENDOR_METHODS["get_prediction_markets"], "polymarket", network_call)
+    register_prediction_markets_off()
+    engine = TradingAgentsEngine(Settings(data_dir=tmp_path, _env_file=None))  # type: ignore[call-arg]
+    work = tmp_path / "runs" / "r1"
+    work.mkdir(parents=True)
+    config = engine.build_config(work, get_instrument("US:NASDAQ:NVDA"))
+    assert config["tool_vendors"]["get_prediction_markets"] == PREDICTION_OFF_VENDOR
+    with collect_upstream_data_gaps() as gaps, run_config(config):
+        text = route_to_vendor("get_prediction_markets", "Fed rate cut", 6, None)
+    assert "unavailable" in text.lower() or "DATA_UNAVAILABLE" in text
+    assert any("451" in g for g in gaps.gaps)
+
+    on = TradingAgentsEngine(Settings(data_dir=tmp_path, ta_prediction_markets=True,  # type: ignore[call-arg]
+                                      _env_file=None))
+    assert "get_prediction_markets" not in on.build_config(work).get("tool_vendors", {})
+    assert on.config_hash() != engine.config_hash()

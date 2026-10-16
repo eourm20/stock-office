@@ -18,6 +18,7 @@ evaluated only through risk-gated **paper trading**.
 | OpenDART disclosures (KR), also used as KR company news for the engine | ✅ verified live |
 | **Real LLM analysis of NVDA / 005930** | ✅ completed (≈140–165 s, ≈ $0.04 per run, economy profile) |
 | Game-like office (Phaser 3 + Tiled), 4 placeholder characters, replay/live | ✅ Sprint 2A (see [report](docs/sprint-2a-report.md)) |
+| Korean reports and debate, plain-language explanations, auto mode, decision cards, history page | ✅ |
 | All 13 agents in the office, Analysis Mode, custom character upload | planned (Sprint 2B, 2C) |
 | PostgreSQL, paper trading, strategy comparison | planned (Sprints 1, 3, 4) |
 
