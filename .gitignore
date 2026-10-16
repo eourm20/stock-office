@@ -247,3 +247,6 @@ __marimo__/
 
 # Re-allow the env template (the Python template ignores .env* variants above)
 !.env.example
+
+# The Python template's `lib/` rule must not hide frontend source
+!frontend/src/lib/
