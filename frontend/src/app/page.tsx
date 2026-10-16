@@ -7,7 +7,7 @@ import { ReplayPlayer, type Speed } from "../office/replay";
 import { ROSTER_2A } from "../office/roster";
 import { initialOfficeState, reduceEvent, type OfficeState } from "../office/stateMachine";
 import type { EventType, RunEvent } from "../types";
-import { agentName, PHASE_KO, STATUS_KO } from "../office/names";
+import { agentName, humanizeTickers, PHASE_KO, STATUS_KO } from "../office/names";
 import { ACTION_KO, decisionLines, FLAG_KO, narrate } from "../office/explain";
 import HelpPanel from "./HelpPanel";
 import Markdown from "./Markdown";
@@ -264,7 +264,7 @@ export default function OfficePage() {
               {sel.summary && (
                 <details className="mt-2 text-xs text-[#c7d7ee]" open={!sel.bubble}>
                   <summary className="cursor-pointer text-[var(--muted)]">전체 내용 보기</summary>
-                  <div className="mt-1 max-h-80 overflow-y-auto pr-1"><Markdown text={sel.summary.replace(/^\s*[A-Za-z ]+(Analyst|Researcher):\s*/, "")} /></div>
+                  <div className="mt-1 max-h-80 overflow-y-auto pr-1"><Markdown text={humanizeTickers(sel.summary).replace(/^\s*[A-Za-z ]+(Analyst|Researcher):\s*/, "")} /></div>
                 </details>
               )}
               {sel.error && <p className="mt-2 text-xs text-rose-300">{sel.error}</p>}
