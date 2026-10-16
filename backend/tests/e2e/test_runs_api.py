@@ -162,6 +162,24 @@ def test_engine_failure_is_explicit(make_client: Callable[..., TestClient]) -> N
     assert client.get(f"/api/v1/analysis-runs/{run_id}/decision").status_code == 404
 
 
+class _GappyEngine(DemoEngine):
+    """Engine that, like real TradingAgents, reports data it could not obtain."""
+
+    def run(self, ctx):  # type: ignore[no-untyped-def]
+        outcome = super().run(ctx)
+        outcome.coverage_gaps = ["tradingagents: Polymarket search failed for 'Fed': 451"]
+        return outcome
+
+
+def test_engine_data_gaps_are_recorded(make_client: Callable[..., TestClient]) -> None:
+    client = make_client(demo_engine=_GappyEngine())
+    run_id = create(client, "US:NASDAQ:NVDA")
+    run = client.get(f"/api/v1/analysis-runs/{run_id}").json()
+    assert run["coverage_gaps"] == ["tradingagents: Polymarket search failed for 'Fed': 451"]
+    decision = client.get(f"/api/v1/analysis-runs/{run_id}/decision").json()
+    assert "COVERAGE_GAP" in decision["risk_flags"]
+
+
 def test_unparseable_rating_becomes_review(make_client: Callable[..., TestClient]) -> None:
     client = make_client(demo_engine=DemoEngine(rating=None))
     run_id = create(client, "US:NASDAQ:NVDA")

@@ -259,6 +259,7 @@ class EngineOutcome:
     results: list[AgentResult]
     warnings: list[str] = field(default_factory=list)
     token_usage: dict[str, Any] | None = None
+    coverage_gaps: list[str] = field(default_factory=list)  # data the engine could not get
 
 
 class EngineNotConfiguredError(RuntimeError):

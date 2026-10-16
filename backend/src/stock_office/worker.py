@@ -12,6 +12,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 from stock_office.config import get_settings
+from stock_office.logging_setup import install_log_redaction
 from stock_office.runs.service import RunService
 from stock_office.wiring import build_service
 
@@ -47,6 +48,7 @@ def main() -> None:
     parser.add_argument("--interval", type=float, default=1.0)
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    install_log_redaction()
     service = build_service(get_settings())
     while True:
         drain(service)

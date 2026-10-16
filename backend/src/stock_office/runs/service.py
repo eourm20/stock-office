@@ -142,6 +142,7 @@ class RunService:
                 work_dir=self.repo.root / run.id,
             ))
             run.token_usage = outcome.token_usage
+            run.coverage_gaps = [*run.coverage_gaps, *outcome.coverage_gaps]
             self.repo.save_outputs(run.id, outcome.results)
             self._decide(run, engine, outcome, snapshots)
             finish(RunStatus.COMPLETED)

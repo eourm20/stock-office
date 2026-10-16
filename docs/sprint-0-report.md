@@ -1,7 +1,7 @@
 # Sprint 0 Report — Technical Validation / First Vertical Slice
 
-**Date:** 2026-10-16 · **Status:** Implementation complete; **acceptance gate NOT yet passed**
-(real LLM analysis blocked: no API key in this environment).
+**Date:** 2026-10-16 · **Status:** **Acceptance gate passed** for NVDA and 005930 (economy profile; see §10–11).
+The original status line "gate NOT yet passed (no API key)" applied before the keys were added.
 
 Legend: ✅ verified by executed test/command · ⚠️ implemented, unverified live · ❌ blocked / not done
 
@@ -9,7 +9,7 @@ Legend: ✅ verified by executed test/command · ⚠️ implemented, unverified 
 | Criterion | Status | Evidence |
 |---|---|---|
 | US 1 instrument real analysis (NVDA) | ✅ (economy profile) | Real run `641430f80ae149b9` COMPLETED in 163 s, 35 ordered events, 13 agents, 0 failed (§10). |
-| KR 1 instrument real analysis (005930) | ⏳ pending | Keys now present; real run not executed yet. KR prices and OpenDART verified live (§10). |
+| KR 1 instrument real analysis (005930) | ✅ (economy profile) | Real run `0950497c54eb44b7` COMPLETED in 139 s, 35 events, 0 failed (§11). Caveat: no company news reached the News Analyst in that run; fixed afterwards (§11). |
 | Agent event order, storage, replay | ✅ | e2e + unit tests; real server + separate worker smoke test (§4.6) |
 | No account/order integration | ✅ | `tests/unit/test_no_live_orders.py`; `/health` → `live_orders:false` |
 
@@ -152,3 +152,30 @@ This BUY/Overweight is a single, unevaluated model proposal. It is not a perform
 `?run=<run_id>` in the dev console (`http://localhost:5173/?run=641430f80ae149b9`) replays any stored run, including debate text.
 
 Tests after these changes: backend **78 passed** (+1 e2e), frontend 3 passed; ruff and mypy strict clean.
+
+## 11. 005930 real run, issues found, fixes (2026-10-16)
+### Run `0950497c54eb44b7` (KR:KRX:005930, profile `economy`)
+| Item | Value |
+|---|---|
+| Status | COMPLETED; 13 agents started/completed, 0 failed; 5 debate messages; 35 ordered events |
+| Latency | 139.2 s |
+| Evidence | 34 snapshots: 19 Yahoo daily bars + 15 OpenDART disclosures |
+| Decision | **SELL** (engine rating *Underweight*), `PROPOSED_ONLY`, flag `ENGINE_DATA_NOT_SNAPSHOTTED` |
+| Tokens | luna in 105,177 (37,116 cached) / out 13,789; sol in 6,383 / out 979 |
+| Cost (computed, same prices as §10) | luna ≈ $0.0141 + sol ≈ $0.0226 = **≈ $0.037** |
+
+This is one model proposal, not a signal or a performance result. Nothing was executed.
+
+An additional real run, `2f44b9a3dfe047f2` (005930), was started from the dev console at 07:26:01Z and completed (cost of the same order). One click was enough to start it; see issue 4.
+
+### Issues found and fixed
+| # | Issue | Fix | Verification |
+|---|---|---|---|
+| 1 | **Secret in logs:** httpx INFO logs every request URL, and OpenDART takes its key as a query parameter, so the worker log contained `crtfc_key=<key>`. Event payloads were already sanitized, but process logs were not. | New `logging_setup.install_log_redaction()` (worker and API): HTTP client loggers set to WARNING, plus a redaction filter on every handler. The affected local log file was deleted; no key in `backend/data`. | `tests/unit/test_log_redaction.py`; live check printed no request URLs |
+| 2 | **No KR company news:** Yahoo has no news for `005930.KS`, so the News Analyst analysed without company news. Upstream only logged a warning. | Runtime-registered upstream vendor `stockoffice_dart`. For KR stocks the news chain is `yfinance,stockoffice_dart`: OpenDART disclosures for the same window, labelled as filings, not press news. Upstream files unchanged; the window is still clamped to the trade date. | contract test (routing via upstream `route_to_vendor`); live, no LLM: 3 disclosures returned for 2026-10-09..16 |
+| 3 | **Engine-internal data failures invisible** (Polymarket HTTP 451, Yahoo "no news") | `collect_upstream_data_gaps()` records upstream WARNING logs during a run (redacted, deduplicated, ≤10) into `run.coverage_gaps` → `COVERAGE_GAP` flag | unit + e2e tests |
+| 4 | One click in the dev console started a paid run | Confirmation dialog with a cost note for `engine=tradingagents` | frontend typecheck/build |
+
+**Action recommended:** the OpenDART key appeared in a local log and in the development session transcript. Re-issue it at opendart.fss.or.kr (free) and update `backend/.env`.
+
+Tests: backend **85 passed**, 5 deselected (live); ruff and mypy strict clean; frontend 3 passed and builds. The KR news fix is not yet exercised in a full LLM run.

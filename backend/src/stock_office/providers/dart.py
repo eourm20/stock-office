@@ -6,7 +6,7 @@ endpoint has NOT been verified in Sprint 0 (no key available). See docs/sprint-0
 
 from __future__ import annotations
 
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -35,14 +35,18 @@ class DartDisclosureProvider:
         return instrument.market is Market.KR and "dart_corp_code" in instrument.provider_symbols
 
     def fetch(self, instrument: Instrument, as_of: datetime) -> ProviderResult:
+        local = as_of.astimezone(_KST).date()
+        return self.fetch_range(instrument, local - timedelta(days=self.lookback_days), local)
+
+    def fetch_range(self, instrument: Instrument, start: date, end: date) -> ProviderResult:
+        """Disclosures filed between `start` and `end` (KST dates, inclusive)."""
         if not self._api_key:
             return ProviderResult(coverage_gaps=[f"{self.name}: DART_API_KEY not configured"])
-        local = as_of.astimezone(_KST)
         params = {
             "crtfc_key": self._api_key,
             "corp_code": instrument.provider_symbols["dart_corp_code"],
-            "bgn_de": (local - timedelta(days=self.lookback_days)).strftime("%Y%m%d"),
-            "end_de": local.strftime("%Y%m%d"),
+            "bgn_de": start.strftime("%Y%m%d"),
+            "end_de": end.strftime("%Y%m%d"),
             "page_count": "100",
         }
         client = self._client or httpx.Client(timeout=15)

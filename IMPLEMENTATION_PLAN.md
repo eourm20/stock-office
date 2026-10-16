@@ -122,7 +122,7 @@ React Flow 에이전트 노드·Activity Feed, 토론·보고서, 리플레이, 
 - [x] 2. TradingAgents v0.6.0 @ `1394a3f`(Apache-2.0) 검증·고정, 노드명/등급 계약 테스트
 - [x] 3. NVDA 실제 분석 — 2026-10-16 run `641430f80ae149b9` COMPLETED (economy 프로필, 163초, 약 $0.04). 상세: sprint-0-report §10
 - [x] 4. `TradingAgentsAdapter` 이벤트 정규화 → JSONL 저장, SSE 재생/재접속(Last-Event-ID) 테스트
-- [~] 5. 005930 매핑 + Yahoo 시세 + **OpenDART live 검증 완료**(공시 15건). 005930 실제 LLM 분석은 미실행. KIS/키움 read-only 미구현
+- [x] 5. 005930 매핑 + Yahoo 시세 + OpenDART live 검증 완료. 실제 분석 run `0950497c54eb44b7` COMPLETED(139초, 약 $0.037). KR 뉴스는 DART 공시로 보강. KIS/키움 read-only는 미구현(후속)
 - [~] 6. 결측·실패·출처·시점 보고 구현. 비용/실분석 지연시간 **미측정**
 - 계획 대비 편차: Sprint 0 저장소는 PostgreSQL 대신 파일(JSON/JSONL) — Sprint 1에서 이관. TradingAgents 메모리 로그/리플렉션은 run별 격리로 비활성화.
 ### 2026-10-16 — 비용 프로필 / 유료 테스트 가드

@@ -16,6 +16,16 @@ export function App() {
 
   async function start() {
     setError(null);
+    // Real engine runs call the LLM API and cost money; never start one on a single click.
+    if (
+      engine === "tradingagents" &&
+      !window.confirm(
+        `${instrument}: 실제 TradingAgents 분석은 OpenAI API 비용이 발생합니다 ` +
+          "(economy 기준 실측 약 $0.04/회, 2~3분). 실행할까요?",
+      )
+    ) {
+      return;
+    }
     const resp = await fetch("/api/v1/analysis-runs", {
       method: "POST",
       headers: { "content-type": "application/json" },

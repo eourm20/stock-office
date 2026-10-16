@@ -16,6 +16,8 @@ from pathlib import Path
 from typing import Any
 
 from stock_office.config import TRADINGAGENTS_COMMIT, TRADINGAGENTS_VERSION, Settings
+from stock_office.domain.models import Instrument, Market
+from stock_office.providers.dart import DartDisclosureProvider
 
 from .adapter import (
     EngineContext,
@@ -24,6 +26,7 @@ from .adapter import (
     TradingAgentsProjection,
     outcome_from_state,
 )
+from .ta_extensions import KR_NEWS_VENDOR, collect_upstream_data_gaps, register_kr_news_vendor
 
 _PROVIDER_KEY_ENV = {
     "openai": "OPENAI_API_KEY",
@@ -82,6 +85,7 @@ class TradingAgentsEngine:
         blob = json.dumps({"analysts": self.analysts, **self._overrides(),
                            "cost_profile": self.settings.ta_cost_profile,
                            "upstream_env": _upstream_env_overrides(),
+                           "kr_news_vendor": KR_NEWS_VENDOR if self.kr_news_enabled else None,
                            "engine": self.version()}, sort_keys=True)
         return hashlib.sha256(blob.encode()).hexdigest()[:16]
 
@@ -106,11 +110,24 @@ class TradingAgentsEngine:
             raise EngineNotConfiguredError(f"{key_env} is not set for provider "
                                            f"{self.settings.ta_llm_provider!r}")
 
-    def build_config(self, work_dir: Path) -> dict[str, Any]:
+    @property
+    def kr_news_enabled(self) -> bool:
+        key = self.settings.dart_api_key
+        return bool(key and key.get_secret_value().strip())
+
+    def _dart_provider(self) -> DartDisclosureProvider:
+        key = self.settings.dart_api_key
+        return DartDisclosureProvider(api_key=key.get_secret_value() if key else None)
+
+    def build_config(self, work_dir: Path, instrument: Instrument | None = None) -> dict[str, Any]:
         from tradingagents.default_config import build_default_config
 
         config: dict[str, Any] = build_default_config()
         config.update(self._overrides())
+        if instrument is not None and instrument.market is Market.KR and self.kr_news_enabled:
+            # Yahoo first; OpenDART disclosures when Yahoo has no company news for a KRX stock.
+            config["tool_vendors"] = {**config.get("tool_vendors", {}),
+                                      "get_news": f"yfinance,{KR_NEWS_VENDOR}"}
         config["results_dir"] = str(work_dir / "ta_results")
         config["data_cache_dir"] = str(work_dir.parent.parent / "ta_cache")
         # Fresh, empty memory log per run: no reflection from earlier decisions leaks in.
@@ -124,10 +141,12 @@ class TradingAgentsEngine:
         from tradingagents.dataflows.config import run_config_context
         from tradingagents.graph.trading_graph import TradingAgentsGraph
 
+        if self.kr_news_enabled:
+            register_kr_news_vendor(self._dart_provider)
         usage = UsageMetadataCallbackHandler()
         graph = TradingAgentsGraph(
             selected_analysts=self.analysts,
-            config=self.build_config(Path(ctx.work_dir)),
+            config=self.build_config(Path(ctx.work_dir), ctx.instrument),
             callbacks=[usage],
         )
         ticker = ctx.instrument.provider_symbols["yahoo"]
@@ -137,16 +156,17 @@ class TradingAgentsEngine:
 
         projection = TradingAgentsProjection(run_id=ctx.run_id, sink=ctx.sink)
         context = run_config_context(graph.config)
-        stream = context.run(graph.graph.stream, init_state, **args)
-        try:
-            while (step := context.run(next, stream, None)) is not None:
-                mode, chunk = step
-                projection.consume(mode, chunk)
-        except BaseException as exc:
-            projection.abort_open_tasks(f"run aborted: {type(exc).__name__}")
-            raise
-        finally:
-            context.run(stream.close)
+        with collect_upstream_data_gaps() as gaps:
+            stream = context.run(graph.graph.stream, init_state, **args)
+            try:
+                while (step := context.run(next, stream, None)) is not None:
+                    mode, chunk = step
+                    projection.consume(mode, chunk)
+            except BaseException as exc:
+                projection.abort_open_tasks(f"run aborted: {type(exc).__name__}")
+                raise
+            finally:
+                context.run(stream.close)
 
         outcome = outcome_from_state(
             projection,
@@ -155,4 +175,5 @@ class TradingAgentsEngine:
                       "only Stock Office provider snapshots are cited as evidence"],
         )
         outcome.token_usage = {k: dict(v) for k, v in usage.usage_metadata.items()}
+        outcome.coverage_gaps = list(gaps.gaps)
         return outcome

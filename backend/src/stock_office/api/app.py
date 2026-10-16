@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Annotated, Protocol
@@ -28,6 +29,7 @@ from stock_office.domain.models import (
     Market,
 )
 from stock_office.events.sse import format_sse, resume_after
+from stock_office.logging_setup import install_log_redaction
 from stock_office.runs.service import FutureAsOfError, RunService
 from stock_office.wiring import build_service
 from stock_office.worker import ThreadDispatcher
@@ -50,6 +52,8 @@ def create_app(
     dispatcher: Dispatcher | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
+    # Thread-mode runs call providers inside the API process, so its logs need the same hygiene.
+    install_log_redaction(*(logging.getLogger(n) for n in ("uvicorn", "uvicorn.error")))
     service = service or build_service(settings)
     thread_dispatcher: ThreadDispatcher | None = None
     if dispatcher is None:
