@@ -29,4 +29,5 @@ def build_service(settings: Settings) -> RunService:
         key = settings.dart_api_key.get_secret_value() if settings.dart_api_key else None
         return [YahooPriceProvider(), DartDisclosureProvider(api_key=key)]
 
-    return RunService(RunRepository(settings.data_dir), engines, providers)
+    return RunService(RunRepository(settings.data_dir), engines, providers,
+                      max_paid_runs_per_day=settings.max_paid_runs_per_day)

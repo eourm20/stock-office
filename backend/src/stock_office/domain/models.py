@@ -185,6 +185,8 @@ class AnalysisRun(BaseModel):
     snapshot_ids: list[str] = Field(default_factory=list)
     coverage_gaps: list[str] = Field(default_factory=list)
     token_usage: dict[str, Any] | None = None
+    trigger: Literal["manual", "schedule"] = "manual"
+    schedule_slot: str | None = None  # "<instrument_id>@<session date>" for scheduled runs
 
 
 class CreateRunRequest(BaseModel):

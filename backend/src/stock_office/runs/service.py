@@ -7,7 +7,7 @@ import uuid
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime, timedelta
 from functools import partial
-from typing import Any
+from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
 from stock_office.domain.instruments import get_instrument
@@ -47,6 +47,10 @@ class FutureAsOfError(ValueError):
     pass
 
 
+class BudgetExceededError(RuntimeError):
+    """Too many paid (real-engine) runs in the last 24 hours."""
+
+
 def _excerpts(text: str, limit: int = 400) -> list[str]:
     return [redact_text(text, limit=limit)] if text.strip() else []
 
@@ -58,14 +62,22 @@ class RunService:
         engines: EngineFactory,
         providers: ProviderFactory,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        max_paid_runs_per_day: int | None = None,
     ) -> None:
         self.repo = repo
         self.engines = engines
         self.providers = providers
         self.clock = clock
+        self.max_paid_runs_per_day = max_paid_runs_per_day
 
     # ---------------------------------------------------------------- API side
-    def create_run(self, request: CreateRunRequest) -> AnalysisRun:
+    def paid_runs_last_24h(self) -> int:
+        since = self.clock() - timedelta(hours=24)
+        return sum(1 for r in self.repo.list_runs() if not r.demo and r.requested_at >= since)
+
+    def create_run(self, request: CreateRunRequest, *,
+                   trigger: Literal["manual", "schedule"] = "manual",
+                   schedule_slot: str | None = None) -> AnalysisRun:
         instrument = get_instrument(request.instrument_id)
         now = self.clock()
         as_of = request.as_of or now
@@ -74,6 +86,11 @@ class RunService:
         if as_of > now + _CLOCK_SKEW:
             raise FutureAsOfError("as_of cannot be in the future (look-ahead is not allowed)")
         engine = self.engines(request.engine)
+        limit = self.max_paid_runs_per_day
+        if not engine.demo and limit is not None and self.paid_runs_last_24h() >= limit:
+            raise BudgetExceededError(
+                f"paid run limit reached ({self.max_paid_runs_per_day} per 24 h); "
+                "raise STOCK_OFFICE_MAX_PAID_RUNS_PER_DAY to allow more")
         run = AnalysisRun(
             id=uuid.uuid4().hex[:16],
             instrument_id=instrument.id,
@@ -84,11 +101,13 @@ class RunService:
             engine_version=engine.version(),
             config_hash=engine.config_hash(),
             demo=engine.demo,
+            trigger=trigger,
+            schedule_slot=schedule_slot,
         )
         self.repo.save_run(run)
         self._emit(run, EventType.RUN_CREATED, payload={
             "instrument_id": run.instrument_id, "as_of": run.as_of.isoformat(),
-            "engine": run.engine, "engine_version": run.engine_version,
+            "engine": run.engine, "engine_version": run.engine_version, "trigger": trigger,
         }, dedupe_key="run.created")
         return run
 

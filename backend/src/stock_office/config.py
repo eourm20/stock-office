@@ -43,6 +43,11 @@ class Settings(BaseSettings):
     # instead of making blocked requests.
     ta_prediction_markets: bool = False
 
+    # Daily automatic analysis (worker --schedule). Off unless explicitly enabled: it costs money.
+    schedule_enabled: bool = False
+    # Hard cap on real-engine runs (manual + scheduled) in any rolling 24 h.
+    max_paid_runs_per_day: int = 8
+
     dart_api_key: SecretStr | None = None
 
     @field_validator("paper_only")
