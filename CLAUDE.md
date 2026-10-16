@@ -1,7 +1,7 @@
 # CLAUDE.md — Stock Office Project Operating Guide
 
 ## Mission
-Build **Stock Office**, a personal AI investment-office simulator that analyzes US+KR equities using TradingAgents, displays the **real** multi-agent activity as animated workflows, and evaluates risk-gated **paper trading** performance. Do not claim investment alpha without matched, cost-adjusted evidence.
+Build **Stock Office**, a personal AI investment-office simulator that analyzes US+KR equities using TradingAgents, shows the **real** multi-agent activity as a game-like **2.5D isometric pixel-art office** where AI employees act out the stored run events, and evaluates risk-gated **paper trading** performance. Do not claim investment alpha without matched, cost-adjusted evidence.
 
 ## Mandatory reading order
 1. This `CLAUDE.md` (project-wide operating rules).
@@ -23,7 +23,10 @@ Build **Stock Office**, a personal AI investment-office simulator that analyzes 
 - Do not connect LLM-generated text directly to an order endpoint. Deterministic risk/policy layer is mandatory even for paper orders.
 
 ## Implementation architecture
-- React + TypeScript + React Flow + Motion + ECharts front end.
+- Front end: Next.js + React + TypeScript, Tailwind CSS + shadcn/ui. **Office Mode** is a Phaser 3 scene with Tiled maps (client-only, no SSR). **Analysis Mode** uses React Flow. ECharts is used for financial charts.
+- Office pipeline: SSE/replay events → **Event Adapter** → **Character State Machine** → Phaser Scene. Phaser scenes never call the API and never make or alter investment decisions. Character state is a pure function of the ordered event log (same seq → same state), so replay is deterministic. Animation never delays or throttles the backend; when the UI falls behind, it catches up by skipping cosmetic motion, never by dropping events.
+- Agent role and appearance are separate: `agent_id` → `character_id` → `asset_id`, managed by a **Character Registry** (file-based in the repo during Sprints 2A–2B, server-persisted from Sprint 2C on). Changing or uploading character art must never affect TradingAgents analysis, events or decisions.
+- Until the user supplies their own sprite sheets, characters are **placeholders** from licensed (CC0 or compatible) game assets, listed with source and license in the registry. Do not rush a character editor or upload UI; it is Sprint 2C.
 - FastAPI + isolated background worker + PostgreSQL backend; SSE with replayable ordered events.
 - TradingAgents orchestrator behind `TradingAgentsAdapter`, with pinned version and normalized output contract.
 - US/KR `MarketDataProvider` with standardized symbol, timezone, currency and provider-specific data freshness. Distinguish `observed_at`, `available_at`, `ingested_at`.
@@ -36,19 +39,20 @@ Build **Stock Office**, a personal AI investment-office simulator that analyzes 
 - Separate unit, adapter integration, contract, and end-to-end tests. No network dependency in deterministic tests; mark live tests separately.
 - API callbacks must be idempotent. `agent_events` uses monotonic per-run seq. Long runs must be processed in worker, not blocking HTTP.
 - Add failures as explicit `FAILED/REVIEW/INSUFFICIENT_DATA`, never fake completion or silent optimistic defaults.
-- Agent visualization must be driven by genuine stored events, not simulated real-looking status. Mock/demo data must always be labeled DEMO.
+- Agent visualization must be driven by genuine stored events, not simulated real-looking status. In the game office, *what* a character is doing (working, talking, reporting, done, failed) and every decision shown come only from stored events. *How* it moves (walk paths, idle loops, ambient office life) is presentation and must never imply AI progress that did not happen. Mock/demo event playback must always be labeled DEMO.
+- User-uploaded character assets are untrusted input: accept only PNG sprite sheets and JSON animation metadata (no SVG/HTML), enforce size/frame limits, validate metadata, and never execute or serve them as active content. Bundled art must have a recorded license (own work or CC0/compatible).
 - Logs should redact secrets, account data, raw prompts and sensitive traces.
 
 ## User experience principles
-- A professional financial operations room, not cartoon gimmicks; meaningful restrained animation for active agents, debate cards and decision timeline.
-- Desktop-first with responsive fallbacks, accessible keyboard interactions and `prefers-reduced-motion` support.
+- Game-like pixel-art office for *observing* the AI company: characters and animation are encouraged (moving between desks and meeting rooms, sitting at computers, debating with speech bubbles, delivering reports). Financial data, reports, sources and performance are shown in readable, professional UI panels, not inside the game art.
+- Desktop-first with responsive fallbacks, accessible keyboard interactions and `prefers-reduced-motion` support (reduced motion: characters switch places instead of walking, no ambient motion). The canvas always has a text equivalent (Activity Feed and agent panels) for screen readers.
 - Show who decided what, sourced market facts, model/version/config, potential risks, and whether a trade was *proposed* vs *paper-executed*.
 
 ## Delivery / change protocol
 1. Review task, relevant files and plan. Briefly state scope and dependencies.
 2. Implement minimum coherent vertical slice; don't invent external API contracts.
 3. Add tests and run them. Report exact commands/results and blockers.
-4. Update `IMPLEMENTATION_PLAN.md` progress/checklist and changelog-style notes; when requirements change, update this document and prompt if relevant.
+4. Update `IMPLEMENTATION_PLAN.md` progress/checklist and changelog-style notes; when requirements change, update this document too.
 5. Maintain `docs/portfolio-evidence.md`: truthful implemented features, code links, reproducible screenshots, test reports, measured latency/cost, known limitations. This is for later Notion 경험창고/portfolio use.
 6. Never describe planned work as complete; clearly label actual vs simulated, past experiment vs current performance.
 
