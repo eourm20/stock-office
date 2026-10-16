@@ -1,0 +1,17 @@
+{
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  },
+  "permissions": {
+    "deny": [
+      "Read(**/.env)",
+      "Edit(**/.env)",
+      "Bash(cat *.env*)",
+      "Bash(type *.env*)",
+      "Bash(Get-Content *.env*)",
+      "PowerShell(Get-Content *.env*)",
+      "PowerShell(cat *.env*)"
+    ]
+  }
+}
