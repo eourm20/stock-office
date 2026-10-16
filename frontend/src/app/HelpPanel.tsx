@@ -27,16 +27,21 @@ export default function HelpPanel({ onClose }: { onClose: () => void }) {
 
         <h3 className="mt-4 font-semibold text-[var(--mint)]">위쪽 버튼</h3>
         <dl className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-2">
-          <dt className="font-semibold">실행 목록</dt>
-          <dd>지금까지 한 회의(분석) 기록입니다. 각 줄은 <i>종목 · 엔진 · 상태 · 시각(UTC)</i>입니다.
-            <b> TradingAgents</b>는 실제 AI가 분석한 기록이고, <b>DEMO</b>는 화면 시험용 가짜 데이터입니다. 하나를 고르면 그 회의를 다시 봅니다.</dd>
+          <dt className="font-semibold">자동 모드</dt>
+          <dd>처음 들어오면 켜져 있습니다. 진행 중인 회의가 있으면 <b>실시간</b>으로 보여 주고, 없으면 <b>가장 최근 회의 결과</b>를 바로 보여 줍니다.
+            15초마다 확인해서 새 회의가 시작되면 알아서 그 회의로 넘어갑니다.</dd>
+          <dt className="font-semibold">종목 카드</dt>
+          <dd>사무실 위의 카드는 종목별 <b>가장 최근 실제 분석 의견</b>과 언제 나왔는지입니다(DEMO는 제외). 누르면 그 회의를 봅니다.
+            ‘● 회의 중’이면 지금 분석이 진행 중이라는 뜻입니다. 카드를 누르면 자동 모드가 꺼지고, ‘자동 모드로’를 누르면 다시 켜집니다.</dd>
+          <dt className="font-semibold">기록 보기</dt>
+          <dd>지금까지 연 모든 회의 목록입니다. <b>실제 분석</b>은 TradingAgents가 실제 데이터로 분석한 기록이고, <b>DEMO</b>는 화면 시험용 가짜 데이터입니다.</dd>
           <dt className="font-semibold">1× / 4× / 즉시</dt>
           <dd>다시보기 속도입니다. 실제 회의는 2~3분 걸리는데 1×는 그 시간을 줄여서, 4×는 더 빠르게 보여 줍니다. ‘즉시’는 결과만 바로 보여 줍니다.
             발언이 나오면 읽을 시간만큼 잠시 멈춥니다.</dd>
           <dt className="font-semibold">일시정지 / 재생</dt>
           <dd>다시보기를 멈추거나 이어서 봅니다.</dd>
-          <dt className="font-semibold">처음부터</dt>
-          <dd>고른 회의를 처음부터 다시 봅니다.</dd>
+          <dt className="font-semibold">회의 다시보기</dt>
+          <dd>보고 있는 회의를 처음부터 다시 재생합니다. 자동 모드는 결과를 바로 보여 주므로, 과정을 보고 싶으면 이 버튼을 누르세요.</dd>
           <dt className="font-semibold">종목 · 엔진</dt>
           <dd>새 회의를 열 종목과 방식입니다. <b>DEMO(무료)</b>는 가짜 데이터로 화면만 시험합니다.
             <b> TradingAgents(유료)</b>는 실제 AI가 분석하며 1회 약 $0.04(약 50~60원), 2~3분이 걸립니다. 시작 전에 한 번 더 확인합니다.</dd>
@@ -45,7 +50,7 @@ export default function HelpPanel({ onClose }: { onClose: () => void }) {
         </dl>
 
         <h3 className="mt-4 font-semibold text-[var(--mint)]">실시간으로도 볼 수 있나요?</h3>
-        <p>네. ‘새 분석 시작’으로 시작한 회의나 아직 진행 중인 회의를 고르면 왼쪽 위에 <b>● 실시간</b>이 표시되고,
+        <p>네. 자동 모드에서는 진행 중인 회의를 알아서 보여 주고, ‘새 분석 시작’으로 시작하거나 ‘● 회의 중’ 카드를 눌러도 왼쪽 위에 <b>● 실시간</b>이 표시되고,
           AI가 한 단계를 끝낼 때마다 캐릭터가 바로 움직입니다. AI 한 단계가 수십 초씩 걸리기 때문에 중간에 조용한 시간이 있을 수 있습니다.
           끝난 회의를 고르면 <b>▶ 다시보기</b>로 재생됩니다.</p>
 

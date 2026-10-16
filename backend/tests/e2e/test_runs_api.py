@@ -266,3 +266,4 @@ def test_cors_allows_only_the_configured_ui_origin(client: TestClient) -> None:
 def test_unknown_run_404(client: TestClient) -> None:
     for suffix in ("", "/events", "/decision", "/outputs"):
         assert client.get(f"/api/v1/analysis-runs/nope{suffix}").status_code == 404
+

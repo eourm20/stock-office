@@ -1,3 +1,4 @@
+import type { InstrumentSummary } from "../office/auto";
 import type { RunEvent } from "../types";
 
 /** The browser talks to FastAPI directly (CORS) so SSE is never buffered by a proxy. */
@@ -23,6 +24,12 @@ export async function getRun(runId: string): Promise<RunSummary> {
   const resp = await fetch(`${API_BASE}/api/v1/analysis-runs/${runId}`);
   if (!resp.ok) throw new Error(`run ${runId}: HTTP ${resp.status}`);
   return (await resp.json()) as RunSummary;
+}
+
+export async function getSummary(): Promise<InstrumentSummary[]> {
+  const resp = await fetch(`${API_BASE}/api/v1/office/summary`);
+  if (!resp.ok) throw new Error(`summary: HTTP ${resp.status}`);
+  return ((await resp.json()) as { instruments: InstrumentSummary[] }).instruments;
 }
 
 /** Parse an SSE body into events (the stream of a finished run ends by itself). */

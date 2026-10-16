@@ -32,6 +32,7 @@ from stock_office.domain.models import (
 from stock_office.events.sse import format_sse, resume_after
 from stock_office.logging_setup import install_log_redaction
 from stock_office.runs.service import FutureAsOfError, RunService
+from stock_office.runs.summary import OfficeSummary, build_summary
 from stock_office.wiring import build_service
 from stock_office.worker import ThreadDispatcher
 
@@ -110,6 +111,10 @@ def create_app(
             raise HTTPException(422, str(exc)) from None
         active.submit(run.id)
         return CreateRunResponse(run_id=run.id, status=run.status)
+
+    @app.get("/api/v1/office/summary")
+    def office_summary() -> OfficeSummary:
+        return build_summary(service.repo)
 
     @app.get("/api/v1/analysis-runs")
     def list_runs() -> list[AnalysisRun]:

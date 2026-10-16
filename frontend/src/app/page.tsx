@@ -2,7 +2,9 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import { fetchRunEvents, getRun, listRuns, startRun, API_BASE, type RunSummary } from "../lib/api";
+import Link from "next/link";
+import { fetchRunEvents, getRun, getSummary, startRun, API_BASE, type RunSummary } from "../lib/api";
+import { chooseAutoRun, INSTRUMENT_KO, timeAgo, type InstrumentSummary } from "../office/auto";
 import { ReplayPlayer, type Speed } from "../office/replay";
 import { ROSTER_2A } from "../office/roster";
 import { initialOfficeState, reduceEvent, type OfficeState } from "../office/stateMachine";
@@ -26,8 +28,12 @@ const ACTION_COLOR: Record<string, string> = {
 };
 
 export default function OfficePage() {
-  const [runs, setRuns] = useState<RunSummary[]>([]);
+  const [summary, setSummary] = useState<InstrumentSummary[]>([]);
+  const [current, setCurrent] = useState<RunSummary | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
+  /** Auto mode: follow a meeting in progress, otherwise show the newest decision. */
+  const [auto, setAuto] = useState(true);
+  const [now, setNow] = useState(() => Date.now());
   const [speed, setSpeed] = useState<Speed>(1);
   const [playing, setPlaying] = useState(false);
   const [mode, setMode] = useState<"replay" | "live" | null>(null);
@@ -43,20 +49,51 @@ export default function OfficePage() {
   const player = useRef<ReplayPlayer | null>(null);
   const source = useRef<EventSource | null>(null);
   const loadToken = useRef(0);
+  /** Speed for the next load (e.g. "instant" to show a past result at once). */
+  const pendingSpeed = useRef<Speed | null>(null);
+  const runIdRef = useRef<string | null>(null);
+  runIdRef.current = runId;
+  const autoRef = useRef(auto);
+  autoRef.current = auto;
 
-  const refreshRuns = useCallback(() => {
-    listRuns().then(setRuns).catch((e: Error) => setError(`API에 연결할 수 없습니다 (${API_BASE}): ${e.message}`));
+  const show = useCallback((id: string, sp: Speed) => {
+    pendingSpeed.current = sp;
+    setRunId(id);
   }, []);
 
+  /** Refresh the per-instrument summary; in auto mode, jump to a meeting that just started. */
+  const refreshRuns = useCallback(async (initial = false) => {
+    try {
+      const items = await getSummary();
+      setSummary(items);
+      setNow(Date.now());
+      if (!autoRef.current) return;
+      const choice = chooseAutoRun(items);
+      if (!choice) return;
+      if (choice.live && choice.runId !== runIdRef.current) show(choice.runId, 1);
+      else if (initial && !runIdRef.current) show(choice.runId, "instant");
+    } catch (e) {
+      setError(`API에 연결할 수 없습니다 (${API_BASE}): ${(e as Error).message}`);
+    }
+  }, [show]);
+
   useEffect(() => {
-    refreshRuns();
     const fromUrl = new URLSearchParams(window.location.search).get("run");
-    if (fromUrl) setRunId(fromUrl);
+    if (fromUrl) {
+      setAuto(false);
+      autoRef.current = false;
+      setRunId(fromUrl);
+    }
+    void refreshRuns(true);
+    const timer = setInterval(() => void refreshRuns(), 15_000);
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
     setReducedMotion(mq.matches);
     const onChange = () => setReducedMotion(mq.matches);
     mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
+    return () => {
+      clearInterval(timer);
+      mq.removeEventListener("change", onChange);
+    };
   }, [refreshRuns]);
 
   const stop = useCallback(() => {
@@ -74,6 +111,9 @@ export default function OfficePage() {
     setSelected(null);
     setError(null);
     const token = ++loadToken.current;
+    const sp = pendingSpeed.current ?? speed;
+    pendingSpeed.current = null;
+    if (sp !== speed) setSpeed(sp);
     // Ask the server for the run's current status: a cached list can be stale, and a running
     // run must be followed live (a replay request would wait until the run finishes).
     let run: RunSummary;
@@ -84,6 +124,7 @@ export default function OfficePage() {
       return;
     }
     if (token !== loadToken.current) return;           // a newer selection won the race
+    setCurrent(run);
     const apply = (ev: RunEvent, animate: boolean) => {
       setAnimateLast(animate);
       dispatch({ kind: "event", ev });
@@ -103,7 +144,7 @@ export default function OfficePage() {
         if (ev.type === "run.completed" || ev.type === "run.failed") {
           es.close();
           p.close();
-          refreshRuns();
+          void refreshRuns();
         }
       };
       for (const t of EVENT_TYPES) es.addEventListener(t, onEvent as EventListener);
@@ -113,7 +154,7 @@ export default function OfficePage() {
     try {
       const events = await fetchRunEvents(id);
       if (token !== loadToken.current) return;
-      const p = new ReplayPlayer(events, apply, speed, () => setPlaying(false));
+      const p = new ReplayPlayer(events, apply, sp, () => setPlaying(false));
       player.current = p;
       setPlaying(true);
       p.play();
@@ -149,10 +190,8 @@ export default function OfficePage() {
     }
     try {
       const id = await startRun(instrument, engine);
-      const list = await listRuns();
-      setRuns(list);
-      setRunId(id);
-      void load(id);
+      show(id, 1);
+      void refreshRuns();
     } catch (e) {
       setError((e as Error).message);
     }
@@ -161,25 +200,19 @@ export default function OfficePage() {
   const animate = animateLast && speed !== "instant";
   const sel = selected ? state.characters[selected] : undefined;
   const offstage = useMemo(() => Object.entries(state.offstage), [state.offstage]);
-  const current = runs.find((r) => r.id === runId);
 
   return (
     <main className="flex h-screen flex-col">
       <header className="flex flex-wrap items-center gap-3 border-b border-[var(--line)] bg-[#0b1020]/90 px-4 py-2 text-sm">
         <h1 className="pixel text-[13px] text-[var(--mint)]">STOCK OFFICE</h1>
         <span className="rounded-full border border-[var(--line)] px-2 py-0.5 text-xs text-[var(--muted)]">PAPER ONLY · 결정은 제안이며 주문 없음</span>
-        <label className="flex items-center gap-1">
-          <span className="text-[var(--muted)]">실행</span>
-          <select className="max-w-[340px] rounded bg-[var(--panel)] px-2 py-1" value={runId ?? ""}
-                  onChange={(e) => setRunId(e.target.value || null)}>
-            <option value="">— 저장된 실행 선택 —</option>
-            {runs.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.instrument_id} · {r.engine === "demo" ? "DEMO" : "TradingAgents"} · {PHASE_KO[r.status] ?? r.status} · {r.requested_at.slice(5, 16).replace("T", " ")}
-              </option>
-            ))}
-          </select>
-        </label>
+        <Link href="/history" className="rounded border border-[var(--line)] px-2 py-1">기록 보기</Link>
+        {auto ? (
+          <span className="rounded bg-[#1e3a2f] px-2 py-1 text-xs text-[var(--mint)]" title="진행 중인 회의를 자동으로 따라가고, 없으면 최신 결정을 보여 줍니다">자동 모드</span>
+        ) : (
+          <button onClick={() => { setAuto(true); autoRef.current = true; setRunId(null); void refreshRuns(true); }}
+                  className="rounded border border-[var(--mint)] px-2 py-1 text-xs text-[var(--mint)]">자동 모드로</button>
+        )}
         <div className="flex items-center gap-1" role="group" aria-label="재생 속도">
           {([1, 4, "instant"] as Speed[]).map((s) => (
             <button key={String(s)} onClick={() => changeSpeed(s)}
@@ -191,8 +224,9 @@ export default function OfficePage() {
                   className="rounded bg-[var(--panel)] px-2 py-1 disabled:opacity-40">
             {playing ? "일시정지" : "재생"}
           </button>
-          <button onClick={() => runId && void load(runId)} disabled={!runId}
-                  className="rounded bg-[var(--panel)] px-2 py-1 disabled:opacity-40">처음부터</button>
+          <button onClick={() => { if (runId) { pendingSpeed.current = speed === "instant" ? 1 : speed; void load(runId); } }}
+                  disabled={!runId || mode === "live"}
+                  className="rounded bg-[var(--panel)] px-2 py-1 disabled:opacity-40">▶ 회의 다시보기</button>
         </div>
         <div className="ml-auto flex items-center gap-1">
           <select className="rounded bg-[var(--panel)] px-2 py-1" value={instrument}
@@ -209,6 +243,31 @@ export default function OfficePage() {
           <button onClick={() => setHelp(true)} className="rounded border border-[var(--line)] px-3 py-1">보는 법</button>
         </div>
       </header>
+
+      <nav aria-label="종목별 최신 결정" className="flex flex-wrap gap-2 border-b border-[var(--line)] bg-[#0d1426] px-4 py-2">
+        {summary.map((s) => {
+          const active = Boolean(s.active_run_id);
+          const target = s.active_run_id ?? s.latest?.run_id ?? null;
+          const isCurrent = target !== null && target === runId;
+          const a = s.latest ? ACTION_KO[s.latest.action] : undefined;
+          return (
+            <button key={s.instrument_id} disabled={!target}
+                    onClick={() => { if (!target) return; setAuto(false); autoRef.current = false; show(target, active ? 1 : "instant"); }}
+                    className={`min-w-[220px] rounded-lg border px-3 py-2 text-left text-sm disabled:opacity-50 ${isCurrent ? "border-[#ffd98a]" : "border-[var(--line)]"} bg-[var(--panel)]`}>
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold">{INSTRUMENT_KO[s.instrument_id] ?? s.name}</span>
+                {active && <span className="animate-pulse text-xs text-[var(--mint)]">● 회의 중</span>}
+              </div>
+              {s.latest ? (
+                <div className="mt-0.5">
+                  <span className={`text-lg font-bold ${ACTION_COLOR[s.latest.action] ?? ""}`}>{a?.label ?? s.latest.action}</span>
+                  <span className="ml-2 text-xs text-[var(--muted)]">{timeAgo(s.latest.decided_at, now)} · 제안만</span>
+                </div>
+              ) : <div className="mt-0.5 text-xs text-[var(--muted)]">아직 실제 분석 결과 없음</div>}
+            </button>
+          );
+        })}
+      </nav>
 
       <div className="flex min-h-0 flex-1">
         <section className="relative min-w-0 flex-1" aria-label="사무실">

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { EventType, RunEvent } from "../types";
+import { chooseAutoRun, timeAgo, type InstrumentSummary } from "./auto";
 import { adaptEvent } from "./eventAdapter";
 import { decisionLines, narrate, shortSpeech } from "./explain";
 import { humanizeTickers } from "./names";
@@ -148,6 +149,31 @@ describe("character state machine", () => {
   it("marks DEMO runs", () => {
     const events = realisticRun().map((e) => ({ ...e, payload: { ...e.payload, demo: true } }));
     expect(foldEvents(initialOfficeState(ROSTER), events).demo).toBe(true);
+  });
+});
+
+describe("auto mode", () => {
+  const item = (id: string, latestAt: string | null, active: string | null): InstrumentSummary => ({
+    instrument_id: id, name: id, active_run_id: active, active_status: active ? "RUNNING" : null,
+    latest: latestAt ? { run_id: `run-${id}`, action: "BUY", engine_rating: "Buy",
+                         decided_at: latestAt, risk_flags: [] } : null,
+  });
+
+  it("follows a meeting in progress first, else the newest real decision", () => {
+    expect(chooseAutoRun([item("A", "2026-10-16T07:00:00Z", null),
+                          item("B", "2026-10-16T08:00:00Z", null)]))
+      .toEqual({ runId: "run-B", live: false, instrumentId: "B" });
+    expect(chooseAutoRun([item("A", "2026-10-16T09:00:00Z", null), item("B", null, "live-1")]))
+      .toEqual({ runId: "live-1", live: true, instrumentId: "B" });
+    expect(chooseAutoRun([item("A", null, null)])).toBeNull();
+  });
+
+  it("formats how long ago a decision was made", () => {
+    const now = Date.parse("2026-10-16T12:00:00Z");
+    expect(timeAgo("2026-10-16T11:59:30Z", now)).toBe("방금");
+    expect(timeAgo("2026-10-16T11:40:00Z", now)).toBe("20분 전");
+    expect(timeAgo("2026-10-16T09:00:00Z", now)).toBe("3시간 전");
+    expect(timeAgo("2026-10-15T10:00:00Z", now)).toBe("어제");
   });
 });
 
