@@ -6,6 +6,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
+from dotenv import find_dotenv, load_dotenv
 from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -32,6 +33,9 @@ class Settings(BaseSettings):
     ta_quick_think_llm: str | None = None
     ta_analysts: str = "market,news,fundamentals"
     ta_output_language: str = "English"
+    # economy: dev/test default, trims low-risk levers only. standard: upstream defaults,
+    # for acceptance and evaluation runs. Recorded in config_hash and model_version.
+    ta_cost_profile: Literal["economy", "standard"] = "economy"
 
     dart_api_key: SecretStr | None = None
 
@@ -45,4 +49,7 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
+    # Export .env to os.environ (as upstream TradingAgents does on import) so provider keys and
+    # TRADINGAGENTS_* overrides are visible before the engine is imported, e.g. for config_hash.
+    load_dotenv(find_dotenv(usecwd=True), override=False)
     return Settings()

@@ -45,16 +45,28 @@ def test_dart_disclosures() -> None:
     assert result.snapshots or result.coverage_gaps
 
 
-@pytest.mark.parametrize("instrument_id", ["US:NASDAQ:NVDA", "KR:KRX:005930"])
+# Real LLM runs cost money: they need the key AND an explicit opt-in, so `-m live` alone
+# (free provider checks) never spends tokens. Choose instruments/profile per invocation:
+#   STOCK_OFFICE_ALLOW_PAID_TESTS=1 STOCK_OFFICE_PAID_TEST_INSTRUMENTS=US:NASDAQ:NVDA \
+#   STOCK_OFFICE_TA_COST_PROFILE=economy uv run pytest -m live -s -k real_tradingagents
+_PAID = os.environ.get("STOCK_OFFICE_ALLOW_PAID_TESTS") == "1"
+_PAID_INSTRUMENTS = os.environ.get(
+    "STOCK_OFFICE_PAID_TEST_INSTRUMENTS", "US:NASDAQ:NVDA,KR:KRX:005930").split(",")
+
+
+@pytest.mark.parametrize("instrument_id", [i.strip() for i in _PAID_INSTRUMENTS if i.strip()])
+@pytest.mark.skipif(not _PAID, reason="paid LLM run: set STOCK_OFFICE_ALLOW_PAID_TESTS=1")
 @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="no LLM key: real run blocked")
 def test_real_tradingagents_run(instrument_id: str, tmp_path: Path) -> None:
     from stock_office.config import Settings
     from stock_office.domain.models import CreateRunRequest, RunStatus
     from stock_office.wiring import build_service
 
-    service = build_service(Settings(data_dir=tmp_path, _env_file=None))  # type: ignore[call-arg]
+    # Reads STOCK_OFFICE_TA_* (incl. cost profile) from the environment / .env.
+    service = build_service(Settings(data_dir=tmp_path))
     run = service.create_run(CreateRunRequest(instrument_id=instrument_id, engine="tradingagents"))
     run = service.execute(run.id)
-    print(f"\n{instrument_id}: {run.status} {run.error_code} {run.latency_ms}ms {run.token_usage}")
+    print(f"\n{instrument_id}: {run.status} {run.error_code} {run.latency_ms}ms "
+          f"config={run.config_hash} tokens={run.token_usage}")
     assert run.status is RunStatus.COMPLETED, run.error_message
     assert service.repo.get_decision(run.id) is not None

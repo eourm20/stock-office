@@ -112,3 +112,10 @@ Raw provider responses are kept only in git-ignored `data/`.
 2. Provide `STOCK_OFFICE_DART_API_KEY` → verify OpenDART live.
 3. Capture TradingAgents tool calls as snapshots (wrap the data vendor router) for grounded evidence.
 4. Sprint 1: PostgreSQL schema + migrations, queue, 3 instruments per market.
+
+## 9. Addendum — cost profile & paid-test guard (2026-10-16)
+- `STOCK_OFFICE_TA_COST_PROFILE`: `economy` (default) overrides upstream `max_tool_rounds` 20→6, `news_article_limit` 20→10 and `global_news_article_limit` 10→5. `standard` leaves upstream defaults unchanged. The profile and any `TRADINGAGENTS_*` env overrides feed `config_hash`; `model_version` names the profile and the overridden env keys (values are not published).
+- Not changed in economy, on purpose: the deep model and reasoning effort (only 2 manager calls, and they decide the outcome) and `max_tokens` (a cap can truncate reasoning-model output into `REVIEW`).
+- Real-LLM live tests now need `STOCK_OFFICE_ALLOW_PAID_TESTS=1` in addition to the key.
+- Tests: `uv run pytest -q` → **77 passed**, 5 deselected (live) (+5 unit `test_cost_profile.py`, +2 contract: profile keys exist upstream and the graph builds under both profiles). ruff clean, mypy strict clean. Free live run: 2 passed, 3 skipped.
+- Token savings are **not measured yet** (no LLM key). Plan: one `economy` and one `standard` run of the same instrument and date, recording tokens only.

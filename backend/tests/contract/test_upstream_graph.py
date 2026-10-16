@@ -54,6 +54,28 @@ def test_upstream_node_names_match_catalog(tmp_path: Path, monkeypatch: pytest.M
     assert graph.config["memory_log_path"].startswith(str(work))
 
 
+@pytest.mark.parametrize("profile", ["economy", "standard"])
+def test_cost_profile_keys_exist_upstream_and_graph_builds(
+    profile: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tradingagents.default_config import build_default_config
+    from tradingagents.graph.trading_graph import TradingAgentsGraph
+
+    from stock_office.engine.tradingagents_engine import COST_PROFILES
+
+    upstream = build_default_config()
+    assert set(COST_PROFILES[profile]) <= upstream.keys(), "profile key renamed upstream"
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-not-a-real-key-000000")
+    engine = TradingAgentsEngine(
+        Settings(data_dir=tmp_path, ta_cost_profile=profile, _env_file=None))  # type: ignore[call-arg]
+    work = tmp_path / "runs" / "r1"
+    work.mkdir(parents=True)
+    config = engine.build_config(work)
+    for key, value in COST_PROFILES[profile].items():
+        assert config[key] == value
+    TradingAgentsGraph(selected_analysts=engine.analysts, config=config)  # validates limits
+
+
 def test_upstream_rating_contract() -> None:
     from tradingagents.agents.rating import RATING_REVIEW, RATINGS_5_TIER, run_rating
 

@@ -125,3 +125,7 @@ React Flow 에이전트 노드·Activity Feed, 토론·보고서, 리플레이, 
 - [~] 5. 005930 매핑(KRX/KRW/Asia/Seoul, `.KS`, DART corp code) 및 Yahoo 시세 live 검증 완료. OpenDART는 키 부재로 live 미검증. KIS/키움 read-only 미구현
 - [~] 6. 결측·실패·출처·시점 보고 구현. 비용/실분석 지연시간 **미측정**
 - 계획 대비 편차: Sprint 0 저장소는 PostgreSQL 대신 파일(JSON/JSONL) — Sprint 1에서 이관. TradingAgents 메모리 로그/리플렉션은 run별 격리로 비활성화.
+### 2026-10-16 — 비용 프로필 / 유료 테스트 가드
+- `STOCK_OFFICE_TA_COST_PROFILE=economy|standard` 추가. economy(개발·테스트 기본)는 분석가 도구 반복 상한 20→6, 기사 수 20→10 / 10→5만 축소. deep 모델·추론 강도·max_tokens는 유지. 프로필과 `TRADINGAGENTS_*` 환경변수 오버라이드를 `config_hash`·`model_version`에 기록.
+- 합격 판정·성과 평가 실행은 `standard`로 한다. 1회 비교는 토큰 절감량만 측정하며 품질 동등성 근거가 아님.
+- 실제 LLM live 테스트는 키 + `STOCK_OFFICE_ALLOW_PAID_TESTS=1`일 때만 실행되어 `-m live`만으로는 과금되지 않음.

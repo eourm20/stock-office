@@ -37,7 +37,13 @@ curl localhost:8000/api/v1/analysis-runs/<run_id>/decision
 
 `engine=demo` replays a **synthetic** trace over **synthetic** fixtures: every event and the
 decision carry `demo: true` / `DEMO_NOT_ANALYSIS`. It is never an analysis result.
-`engine=tradingagents` is the real path; without an LLM key the run ends
+`engine=tradingagents` is the real path. Its token budget follows `STOCK_OFFICE_TA_COST_PROFILE`:
+`economy` (default; for dev and test runs) trims the analyst tool-round ceiling 20→6 and the
+news limits 20→10 / 10→5. `standard` uses upstream defaults; use it for acceptance and evaluation
+runs. Both leave the deep model, reasoning effort and max_tokens untouched. The profile and any
+`TRADINGAGENTS_*` overrides are recorded in `config_hash` and `model_version`. Single runs
+measure token savings only; they do not show that quality is equivalent.
+ without an LLM key the run ends
 `FAILED / ENGINE_NOT_CONFIGURED` (by design, not faked).
 
 ## API (Sprint 0)
@@ -57,7 +63,9 @@ Event types: `run.created`, `run.started`, `agent.started|completed|failed`, `de
 ## Tests
 ```bash
 uv run pytest                 # unit + contract + e2e, no network (contract needs --extra engine)
-uv run pytest -m live -s      # network: Yahoo prices; DART / real LLM run if keys are set
+uv run pytest -m live -s      # network, free: Yahoo prices; DART if key is set
+# Paid: real LLM analysis. Needs the key AND an explicit opt-in.
+STOCK_OFFICE_ALLOW_PAID_TESTS=1 STOCK_OFFICE_PAID_TEST_INSTRUMENTS=US:NASDAQ:NVDA   uv run pytest -m live -s -k real_tradingagents
 uv run ruff check src tests && uv run mypy
 ```
 

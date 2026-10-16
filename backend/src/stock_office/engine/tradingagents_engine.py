@@ -31,6 +31,27 @@ _PROVIDER_KEY_ENV = {
     "google": "GOOGLE_API_KEY",
 }
 
+# Upstream config overrides per cost profile. `economy` trims only levers with low expected
+# quality impact on the analyst phase, where most tokens go. It deliberately leaves alone the
+# deep model, reasoning effort (the 2 manager calls decide the outcome) and max_tokens (a cap
+# can truncate a reasoning model's answer into an unparseable REVIEW). Token savings are
+# measurable per run; quality equivalence is NOT established by single runs.
+COST_PROFILES: dict[str, dict[str, Any]] = {
+    "standard": {},
+    "economy": {
+        "max_tool_rounds": 6,             # upstream 20; a ceiling, rarely reached
+        "news_article_limit": 10,         # upstream 20
+        "global_news_article_limit": 5,   # upstream 10
+    },
+}
+
+_UPSTREAM_ENV_PREFIX = "TRADINGAGENTS_"
+
+
+def _upstream_env_overrides() -> dict[str, str]:
+    """TRADINGAGENTS_* variables also change upstream config; they must be part of config_hash."""
+    return {k: v for k, v in os.environ.items() if k.startswith(_UPSTREAM_ENV_PREFIX)}
+
 
 class TradingAgentsEngine:
     name = "tradingagents"
@@ -53,10 +74,14 @@ class TradingAgentsEngine:
             overrides["deep_think_llm"] = self.settings.ta_deep_think_llm
         if self.settings.ta_quick_think_llm:
             overrides["quick_think_llm"] = self.settings.ta_quick_think_llm
+        overrides.update(COST_PROFILES[self.settings.ta_cost_profile])
         return overrides
 
     def config_hash(self) -> str:
+        # Only a hash is stored, so env values (which may include endpoints) are never persisted.
         blob = json.dumps({"analysts": self.analysts, **self._overrides(),
+                           "cost_profile": self.settings.ta_cost_profile,
+                           "upstream_env": _upstream_env_overrides(),
                            "engine": self.version()}, sort_keys=True)
         return hashlib.sha256(blob.encode()).hexdigest()[:16]
 
@@ -64,7 +89,10 @@ class TradingAgentsEngine:
         o = self._overrides()
         deep = o.get("deep_think_llm", "upstream-default")
         quick = o.get("quick_think_llm", "upstream-default")
-        return f"{self.version()}/{o['llm_provider']}:deep={deep},quick={quick}"
+        env = [k.removeprefix(_UPSTREAM_ENV_PREFIX) for k in sorted(_upstream_env_overrides())]
+        env_note = f",env={'+'.join(env)}" if env else ""
+        return (f"{self.version()}/{o['llm_provider']}:deep={deep},quick={quick}"
+                f"/profile={self.settings.ta_cost_profile}{env_note}")
 
     def check_ready(self) -> None:
         try:
