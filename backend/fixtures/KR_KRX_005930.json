@@ -1,0 +1,13 @@
+{
+  "demo": true,
+  "notice": "DEMO: synthetic values for deterministic tests. NOT real market data.",
+  "coverage_gaps": ["demo-fixture: no KR news/sentiment fixture (Sprint 0 coverage gap)"],
+  "snapshots": [
+    {"kind": "price_bar", "currency": "KRW", "observed_at": "2026-10-14T06:30:00Z", "available_at": "2026-10-14T07:00:00Z",
+     "payload": {"date": "2026-10-14", "open": "50000", "high": "51000", "low": "49500", "close": "50500", "volume": 10000000}},
+    {"kind": "disclosure", "observed_at": "2026-10-14T15:00:00Z", "available_at": "2026-10-15T14:59:59Z",
+     "payload": {"rcept_no": "DEMO0000000001", "report_nm": "DEMO synthetic disclosure", "rcept_dt": "20261015"}},
+    {"kind": "price_bar", "currency": "KRW", "observed_at": "2026-10-15T06:30:00Z", "available_at": "2026-10-15T07:00:00Z",
+     "payload": {"date": "2026-10-15", "open": "50500", "high": "51500", "low": "50000", "close": "51000", "volume": 11000000}}
+  ]
+}

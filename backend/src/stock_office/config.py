@@ -1,0 +1,48 @@
+"""Runtime settings. Secrets come from the environment / `.env` only and are never logged."""
+
+from __future__ import annotations
+
+from functools import lru_cache
+from pathlib import Path
+from typing import Literal
+
+from pydantic import SecretStr, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# The pinned upstream engine this adapter was verified against.
+TRADINGAGENTS_VERSION = "0.6.0"
+TRADINGAGENTS_COMMIT = "1394a3f72aa4393e1a98f51b382434c4b4c2d972"
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_prefix="STOCK_OFFICE_", env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
+
+    paper_only: bool = True
+    data_dir: Path = Path("data")
+    # "thread": the API process runs queued jobs on a background thread (dev default).
+    # "external": the API only enqueues; `python -m stock_office.worker` executes.
+    worker_mode: Literal["thread", "external"] = "thread"
+    sse_poll_interval_s: float = 0.25
+
+    # TradingAgents LLM settings (keys themselves are read by upstream from OPENAI_API_KEY etc.)
+    ta_llm_provider: str = "openai"
+    ta_deep_think_llm: str | None = None
+    ta_quick_think_llm: str | None = None
+    ta_analysts: str = "market,news,fundamentals"
+    ta_output_language: str = "English"
+
+    dart_api_key: SecretStr | None = None
+
+    @field_validator("paper_only")
+    @classmethod
+    def _paper_only_is_mandatory(cls, value: bool) -> bool:
+        if not value:
+            raise ValueError("PAPER_ONLY cannot be disabled: Stock Office has no live-trading mode")
+        return value
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()

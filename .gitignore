@@ -1,3 +1,24 @@
+# Secrets / local config
+.env
+.env.*
+!.env.example
+# Runtime data: run logs, snapshots (may contain licensed/scraped raw data), caches
+backend/data/
+data/
+*.sqlite
+*.db
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+# Node
+node_modules/
+frontend/dist/
+
+# ---- GitHub Python template (from initial remote commit) ----
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -218,3 +239,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Re-allow the env template (the Python template ignores .env* variants above)
+!.env.example

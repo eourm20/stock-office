@@ -1,0 +1,14 @@
+{
+  "demo": true,
+  "notice": "DEMO: synthetic values for deterministic tests. NOT real market data.",
+  "snapshots": [
+    {"kind": "price_bar", "currency": "USD", "observed_at": "2026-10-13T20:00:00Z", "available_at": "2026-10-13T20:30:00Z",
+     "payload": {"date": "2026-10-13", "open": "100.0000", "high": "102.0000", "low": "99.0000", "close": "101.0000", "volume": 1000000}},
+    {"kind": "price_bar", "currency": "USD", "observed_at": "2026-10-14T20:00:00Z", "available_at": "2026-10-14T20:30:00Z",
+     "payload": {"date": "2026-10-14", "open": "101.0000", "high": "103.0000", "low": "100.0000", "close": "102.0000", "volume": 1100000}},
+    {"kind": "news", "observed_at": "2026-10-14T13:00:00Z", "available_at": "2026-10-14T13:05:00Z",
+     "payload": {"headline": "DEMO headline: synthetic product announcement", "publisher": "demo"}},
+    {"kind": "price_bar", "currency": "USD", "observed_at": "2026-10-15T20:00:00Z", "available_at": "2026-10-15T20:30:00Z",
+     "payload": {"date": "2026-10-15", "open": "102.0000", "high": "104.0000", "low": "101.0000", "close": "103.0000", "volume": 1200000}}
+  ]
+}
