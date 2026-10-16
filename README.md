@@ -69,6 +69,11 @@ uv run pytest                  # deterministic suite, no network
 uv run pytest -m live -s       # live checks; real analysis runs when keys are set
 ```
 
+## Server
+The office runs on a small private server with a daily schedule (NVDA after the US close, Samsung before the
+KRX open). Nothing is public; open it with `tools\office-tunnel.cmd` → http://localhost:3000. Setup, keys,
+operation and redeploys: [docs/deploy.md](docs/deploy.md).
+
 ## Repository layout
 | Path | Contents |
 |---|---|

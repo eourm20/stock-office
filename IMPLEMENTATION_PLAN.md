@@ -215,3 +215,10 @@ DataProvider/IndicatorProvider 어댑터, KR·US 시점 정합성, 테스트 3�
 - Polymarket 기본 끔(이 네트워크에서 451), quant-worker 서버의 예전 서비스 잠금·nginx 중지(폴더·설정은 보존)
 - 결정: OpenDART 키 재발급 안 함(읽기 전용 키, 위험 수용)
 - 다음: 1순위 = 매일 자동 분석 스케줄러(미국 장 마감 후 17:00 ET, 한국 개장 전 07:30 KST, 거래일만) + 접근 보호 + 서버 이전
+### 2026-10-16 — 1순위 완료: 매일 자동 분석·접근 보호·서버 이전 (상세: `docs/deploy.md`)
+- [x] 스케줄러: `exchange_calendars`(XNYS·XKRX)로 거래일만, 미국 장 마감 후 17:00 ET / 한국 개장 전 07:30 KST, 슬롯당 1회(자동 재시도 없음), 마감 전까지만 보충 실행. 엔진 미준비 시 슬롯을 소모하지 않고 대기. `worker --schedule`, 기본 꺼짐(`STOCK_OFFICE_SCHEDULE_ENABLED`)
+- [x] 비용 보호: 실제 엔진 실행 24시간당 상한(`STOCK_OFFICE_MAX_PAID_RUNS_PER_DAY`, 기본 8) → 초과 시 429
+- [x] 실행 기록에 `trigger`(manual/schedule)·`schedule_slot`
+- [x] 서버 이전: quant-worker에 uv(Python 3.13) 백엔드, Next.js standalone 화면, systemd 3개(api·worker·web, 메모리 상한). 모두 127.0.0.1만 수신, 접속은 SSH 터널(`tools/office-tunnel.cmd`). 재배포 `tools/deploy.sh`
+- [ ] 서버 `.env`의 API 키 입력(사용자) — 입력 전까지 예약 분석은 대기
+- 결정: Docker는 1GB 서버에서 이득이 적어 Sprint 1(PostgreSQL) 또는 ARM 서버 이전 때 도입
