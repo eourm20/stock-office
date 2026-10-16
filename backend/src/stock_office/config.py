@@ -34,7 +34,8 @@ class Settings(BaseSettings):
     ta_deep_think_llm: str | None = None
     ta_quick_think_llm: str | None = None
     ta_analysts: str = "market,news,fundamentals"
-    ta_output_language: str = "English"
+    # Reports and debate text. Upstream keeps the machine-read "**Rating**:" line in English.
+    ta_output_language: str = "Korean"
     # economy: dev/test default, trims low-risk levers only. standard: upstream defaults,
     # for acceptance and evaluation runs. Recorded in config_hash and model_version.
     ta_cost_profile: Literal["economy", "standard"] = "economy"

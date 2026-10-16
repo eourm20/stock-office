@@ -7,6 +7,9 @@ import { ReplayPlayer, type Speed } from "../office/replay";
 import { ROSTER_2A } from "../office/roster";
 import { initialOfficeState, reduceEvent, type OfficeState } from "../office/stateMachine";
 import type { EventType, RunEvent } from "../types";
+import { agentName, PHASE_KO, STATUS_KO } from "../office/names";
+import { ACTION_KO, decisionLines, FLAG_KO, narrate } from "../office/explain";
+import HelpPanel from "./HelpPanel";
 
 const OfficeCanvas = dynamic(() => import("../game/OfficeCanvas"), { ssr: false });
 
@@ -34,6 +37,7 @@ export default function OfficePage() {
   const [animateLast, setAnimateLast] = useState(true);
   const [instrument, setInstrument] = useState("US:NASDAQ:NVDA");
   const [engine, setEngine] = useState<"demo" | "tradingagents">("demo");
+  const [help, setHelp] = useState(false);
   const [state, dispatch] = useReducer(reducer, ROSTER_2A, initialOfficeState);
   const player = useRef<ReplayPlayer | null>(null);
   const source = useRef<EventSource | null>(null);
@@ -157,7 +161,7 @@ export default function OfficePage() {
             <option value="">— 저장된 실행 선택 —</option>
             {runs.map((r) => (
               <option key={r.id} value={r.id}>
-                {r.instrument_id} · {r.engine === "demo" ? "DEMO" : "TradingAgents"} · {r.status} · {r.requested_at.slice(5, 16).replace("T", " ")}
+                {r.instrument_id} · {r.engine === "demo" ? "DEMO" : "TradingAgents"} · {PHASE_KO[r.status] ?? r.status} · {r.requested_at.slice(5, 16).replace("T", " ")}
               </option>
             ))}
           </select>
@@ -186,7 +190,9 @@ export default function OfficePage() {
             <option value="demo">DEMO (무료)</option>
             <option value="tradingagents">TradingAgents (유료)</option>
           </select>
-          <button onClick={() => void start()} className="rounded bg-[var(--mint)] px-3 py-1 font-semibold text-black">위원회 소집</button>
+          <button onClick={() => void start()} className="rounded bg-[var(--mint)] px-3 py-1 font-semibold text-black"
+                  title="고른 종목으로 AI 투자위원회 회의(분석)를 새로 시작합니다">새 분석 시작</button>
+          <button onClick={() => setHelp(true)} className="rounded border border-[var(--line)] px-3 py-1">보는 법</button>
         </div>
       </header>
 
@@ -195,9 +201,13 @@ export default function OfficePage() {
           <OfficeCanvas state={state} animate={animate} speed={speed === "instant" ? 8 : speed}
                         reducedMotion={reducedMotion} selected={selected}
                         onAgentClick={(id) => setSelected(id)} />
-          <div className="pointer-events-none absolute left-3 top-3 flex gap-2 text-xs">
+          <div className="pointer-events-none absolute left-1/2 top-3 w-[min(720px,90%)] -translate-x-1/2 rounded-xl border border-[#ffd98a66] bg-[#0b1020e6] px-4 py-2 text-center text-[15px] text-[#fff3d6] shadow-lg"
+               role="status" aria-live="polite">
+            <span className="mr-2 text-[var(--warn)]">지금</span>{narrate(state)}
+          </div>
+          <div className="pointer-events-none absolute left-3 top-16 flex gap-2 text-xs">
             {state.demo && <span className="rounded bg-amber-400 px-2 py-1 font-bold text-black">DEMO · 합성 데이터, 분석 결과 아님</span>}
-            {mode && <span className="rounded bg-[var(--panel)] px-2 py-1">{mode === "live" ? "● LIVE" : "▶ REPLAY"} · {state.phase}</span>}
+            {mode && <span className="rounded bg-[var(--panel)] px-2 py-1">{mode === "live" ? "● 실시간" : "▶ 다시보기"} · {PHASE_KO[state.phase] ?? state.phase}</span>}
             {current && <span className="rounded bg-[var(--panel)] px-2 py-1">{current.instrument_id}</span>}
           </div>
           <p className="pointer-events-none absolute bottom-3 left-3 text-xs text-[var(--muted)]">드래그로 이동 · 휠/±로 확대 · 방향키 이동 · 직원 클릭 시 상세</p>
@@ -210,11 +220,21 @@ export default function OfficePage() {
             {state.decision ? (
               <div>
                 <p className={`text-2xl font-bold ${ACTION_COLOR[state.decision.action] ?? ""}`}>
-                  {state.decision.action}
-                  <span className="ml-2 text-sm font-normal text-[var(--muted)]">엔진 등급 {state.decision.rating ?? "-"}</span>
+                  {ACTION_KO[state.decision.action]?.label ?? state.decision.action}
+                  <span className="ml-2 text-sm font-normal text-[var(--muted)]">({state.decision.action})</span>
                 </p>
-                <p className="text-xs text-[var(--warn)]">{state.decision.execution === "PROPOSED_ONLY" ? "제안만 · 주문 없음" : state.decision.execution}</p>
-                {state.decision.flags.length > 0 && <p className="mt-1 text-xs text-[var(--muted)]">플래그: {state.decision.flags.join(", ")}</p>}
+                <ul className="mt-1 space-y-0.5 text-[13px] text-[#dce6f7]">
+                  {decisionLines(state.decision).map((l) => <li key={l}>{l}</li>)}
+                </ul>
+                <p className="mt-1 text-xs text-[var(--warn)]">{state.decision.execution === "PROPOSED_ONLY" ? "제안만 했고, 실제 주문은 하지 않았어요." : state.decision.execution}</p>
+                {state.decision.flags.length > 0 && (
+                  <details className="mt-2 text-xs text-[var(--muted)]">
+                    <summary className="cursor-pointer">주의할 점 {state.decision.flags.length}개</summary>
+                    <ul className="mt-1 list-disc pl-4">
+                      {state.decision.flags.map((f) => <li key={f}>{FLAG_KO[f] ?? f}</li>)}
+                    </ul>
+                  </details>
+                )}
               </div>
             ) : <p className="text-[var(--muted)]">아직 결정 없음</p>}
           </div>
@@ -222,12 +242,17 @@ export default function OfficePage() {
           {sel && (
             <div className="rounded-lg border border-[#ffd98a55] bg-[var(--panel)] p-3">
               <div className="flex items-center justify-between">
-                <h2 className="font-semibold">{sel.role}</h2>
+                <h2 className="font-semibold">{agentName(sel.agentId, sel.role)}</h2>
                 <button onClick={() => setSelected(null)} className="text-xs text-[var(--muted)]">닫기</button>
               </div>
-              <p className="text-xs text-[var(--muted)]">상태: {sel.status}{sel.turn > 1 ? ` · ${sel.turn}번째 차례` : ""}</p>
-              {sel.bubble && <p className="mt-2 whitespace-pre-wrap">{sel.bubble.text}</p>}
-              {sel.summary && <p className="mt-2 whitespace-pre-wrap text-xs text-[#c7d7ee]">{sel.summary}</p>}
+              <p className="text-xs text-[var(--muted)]">상태: {STATUS_KO[sel.status]}{sel.turn > 1 ? ` · ${sel.turn}번째 차례` : ""}</p>
+              {sel.bubble && <p className="mt-2 font-semibold">“{sel.bubble.text}”</p>}
+              {sel.summary && (
+                <details className="mt-2 text-xs text-[#c7d7ee]" open={!sel.bubble}>
+                  <summary className="cursor-pointer text-[var(--muted)]">전체 내용 보기</summary>
+                  <p className="mt-1 max-h-64 overflow-y-auto whitespace-pre-wrap">{sel.summary}</p>
+                </details>
+              )}
               {sel.error && <p className="mt-2 text-xs text-rose-300">{sel.error}</p>}
             </div>
           )}
@@ -236,7 +261,7 @@ export default function OfficePage() {
             <div className="rounded-lg border border-[var(--line)] bg-[var(--panel)] p-3">
               <h2 className="mb-1 text-xs uppercase tracking-widest text-[var(--muted)]">사무실 밖 직원 (Sprint 2B에서 입장)</h2>
               <ul className="space-y-0.5 text-xs">
-                {offstage.map(([id, o]) => <li key={id}>{o.role}: {o.status}</li>)}
+                {offstage.map(([id, o]) => <li key={id}>{agentName(id, o.role)}: {STATUS_KO[o.status]}</li>)}
               </ul>
             </div>
           )}
@@ -253,6 +278,7 @@ export default function OfficePage() {
           </div>
         </aside>
       </div>
+      {help && <HelpPanel onClose={() => setHelp(false)} />}
     </main>
   );
 }

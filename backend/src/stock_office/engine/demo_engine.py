@@ -11,7 +11,7 @@ from typing import Any
 
 from .adapter import EngineContext, EngineOutcome, TradingAgentsProjection, outcome_from_state
 
-DEMO_PREFIX = "DEMO (synthetic, not analysis): "
+DEMO_PREFIX = "DEMO (합성 데이터, 실제 분석 아님): "
 
 
 class DemoEngineFailure(RuntimeError):
@@ -51,20 +51,22 @@ class DemoEngine:
                 yield "tasks", {"id": f"a{i}", "name": node, "error": DemoEngineFailure("injected"),
                                 "result": None, "interrupts": []}
                 raise DemoEngineFailure(f"injected failure at {node}")
-            text = f"{DEMO_PREFIX}{node} report for {sym} using {len(ctx.snapshots)} snapshots."
+            text = f"{DEMO_PREFIX}{node} 보고서 — {sym}, 스냅샷 {len(ctx.snapshots)}건 사용."
             state[key] = text
             yield "tasks", {"id": f"a{i}", "name": node, "error": None,
                             "result": {key: text}, "interrupts": []}
         yield "values", dict(state)
 
         sequence = [
-            ("Bull Researcher", "investment", "Bull Analyst: " + DEMO_PREFIX + "upside case."),
-            ("Bear Researcher", "investment", "Bear Analyst: " + DEMO_PREFIX + "downside case."),
-            ("Research Manager", None, DEMO_PREFIX + "investment plan. Rating: Hold"),
-            ("Trader", None, DEMO_PREFIX + "trader proposal."),
-            ("Aggressive Analyst", "aggressive", DEMO_PREFIX + "aggressive view."),
-            ("Conservative Analyst", "conservative", DEMO_PREFIX + "conservative view."),
-            ("Neutral Analyst", "neutral", DEMO_PREFIX + "neutral view."),
+            ("Bull Researcher", "investment",
+             "Bull Analyst: " + DEMO_PREFIX + "상승 근거를 제시합니다."),
+            ("Bear Researcher", "investment",
+             "Bear Analyst: " + DEMO_PREFIX + "하방 위험을 반박합니다."),
+            ("Research Manager", None, DEMO_PREFIX + "투자 계획 정리. Rating: Hold"),
+            ("Trader", None, DEMO_PREFIX + "트레이더 거래 제안."),
+            ("Aggressive Analyst", "aggressive", DEMO_PREFIX + "공격적 관점."),
+            ("Conservative Analyst", "conservative", DEMO_PREFIX + "보수적 관점."),
+            ("Neutral Analyst", "neutral", DEMO_PREFIX + "중립적 관점."),
         ]
         invest: dict[str, str] = {"bull_history": "", "bear_history": "", "current_response": ""}
         risk: dict[str, str] = {"conservative_history": ""}
@@ -92,8 +94,8 @@ class DemoEngine:
             yield "tasks", {"id": f"s{i}", "name": node, "error": None, "result": result,
                             "interrupts": []}
 
-        final = (f"{DEMO_PREFIX}final decision. Rating: {self.rating}" if self.rating
-                 else f"{DEMO_PREFIX}final decision without a rating label.")
+        final = (f"{DEMO_PREFIX}최종 결정. Rating: {self.rating}" if self.rating
+                 else f"{DEMO_PREFIX}등급 표기가 없는 최종 결정.")
         yield "tasks", {"id": "pm", "name": "Portfolio Manager", "input": {}, "triggers": []}
         state["final_trade_decision"] = final
         yield "tasks", {"id": "pm", "name": "Portfolio Manager", "error": None,

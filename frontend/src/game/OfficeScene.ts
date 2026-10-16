@@ -4,6 +4,7 @@ import { facing, isoToWorld, parseTiledMap, planPath, targetSpot, type OfficeLay
 import { characterFor, frameRange, resolveAnimation, type Action, type Direction,
   type Registry, type SpriteMetadata } from "../office/registry";
 import type { CharacterState, OfficeState } from "../office/stateMachine";
+import { agentShortName, ZONE_KO } from "../office/names";
 
 /**
  * Renders office state. It never calls the API or decides anything: every change of what a
@@ -151,14 +152,10 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   private drawZoneLabels(): void {
-    const names: Record<string, string> = {
-      analyst_office: "ANALYST OFFICE", research_room: "RESEARCH ROOM",
-      trading_desk: "TRADING DESK", risk_executive: "RISK & EXECUTIVE",
-    };
     for (const z of this.layout.zones) {
       const p = this.world({ x: z.x0 + 0.2, y: z.y0 + 0.2 });
-      this.add.text(p.x, p.y - 26, names[z.name] ?? z.name, {
-        fontFamily: "monospace", fontSize: "13px", color: "#ffd98a",
+      this.add.text(p.x, p.y - 26, ZONE_KO[z.name] ?? z.name, {
+        fontFamily: "sans-serif", resolution: 2, fontSize: "13px", color: "#ffd98a",
         backgroundColor: "#0b1020cc", padding: { x: 6, y: 3 },
       }).setOrigin(0.5, 1).setDepth(99_000);
     }
@@ -220,8 +217,8 @@ export class OfficeScene extends Phaser.Scene {
     sprite.setInteractive({ useHandCursor: true }).on("pointerdown", () => {
       this.hooks.onAgentClick?.(ch.agentId);
     });
-    const label = this.add.text(p.x, p.y, ch.role.replace(/ (Analyst|Researcher)$/, ""), {
-      fontFamily: "monospace", fontSize: "11px", color: "#e8eefc",
+    const label = this.add.text(p.x, p.y, agentShortName(ch.agentId, ch.role), {
+      fontFamily: "sans-serif", resolution: 2, fontSize: "11px", color: "#e8eefc",
       backgroundColor: "#0b1020aa", padding: { x: 3, y: 1 },
     }).setOrigin(0.5, 0);
     const icon = this.add.text(p.x, p.y, "", {
@@ -319,7 +316,7 @@ export class OfficeScene extends Phaser.Scene {
     if (ch.bubble.seq === view.bubbleSeq) return;
     view.bubble?.destroy();
     const text = this.add.text(0, 0, ch.bubble.text, {
-      fontFamily: "sans-serif", fontSize: "12px", color: "#10131c",
+      fontFamily: "sans-serif", resolution: 2, fontSize: "12px", color: "#10131c",
       wordWrap: { width: 210 }, lineSpacing: 2,
     }).setOrigin(0.5, 1);
     const pad = 8;

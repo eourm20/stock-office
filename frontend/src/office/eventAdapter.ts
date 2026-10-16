@@ -1,4 +1,10 @@
 import type { RunEvent } from "../types";
+import { bubbleText, shortSpeech } from "./explain";
+import { agentName } from "./names";
+
+const ACTION_LABEL_KO: Record<string, string> = {
+  BUY: "매수", SELL: "매도", HOLD: "보유", REVIEW: "판단 보류",
+};
 
 /** What an event means for the office, independent of any rendering. */
 export type OfficeCommand =
@@ -49,16 +55,16 @@ export function adaptEvent(ev: RunEvent): OfficeCommand[] {
 
 /** One line for the Activity Feed (the canvas's text equivalent). */
 export function describeEvent(ev: RunEvent): string {
-  const who = ev.agent_id ? ` ${String(ev.payload.role ?? ev.agent_id)}` : "";
+  const who = ev.agent_id ? ` ${agentName(ev.agent_id, String(ev.payload.role ?? ""))}` : "";
   switch (ev.type) {
     case "agent.started": return `▶${who} 업무 시작`;
     case "agent.completed": return `✓${who} 완료`;
     case "agent.failed": return `✗${who} 실패: ${String(ev.payload.error ?? "")}`;
-    case "debate.message": return `💬${who}: ${String(ev.payload.text ?? "").slice(0, 120)}`;
+    case "debate.message": return `💬${who}: “${shortSpeech(bubbleText(String(ev.payload.text ?? "")), 110)}”`;
     case "decision.created":
-      return `★ 최종 결정 ${String(ev.payload.action)} (${String(ev.payload.engine_rating ?? "-")}) · 제안만, 주문 없음`;
+      return `★ 최종 결정: ${ACTION_LABEL_KO[String(ev.payload.action)] ?? String(ev.payload.action)} · 제안만, 주문 없음`;
     case "run.created": return "실행 등록";
-    case "run.started": return "위원회 소집";
+    case "run.started": return "회의 시작";
     case "run.completed": return `실행 종료 (${String(ev.payload.status ?? "")})`;
     case "run.failed": return `실행 실패 (${String(ev.payload.error_code ?? ev.payload.status ?? "")})`;
     default: return ev.type;

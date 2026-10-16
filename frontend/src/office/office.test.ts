@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { EventType, RunEvent } from "../types";
 import { adaptEvent } from "./eventAdapter";
+import { decisionLines, narrate, shortSpeech } from "./explain";
 import { facing, isoToWorld, parseTiledMap, planPath, targetSpot, zoneOf, type TiledMap }
   from "./layout";
 import { characterFor, frameRange, resolveAnimation, type Registry, type SpriteMetadata }
@@ -114,6 +115,24 @@ describe("character state machine", () => {
   it("strips speaker prefixes and markdown from bubbles only", () => {
     expect(bubbleText("Bear Analyst: ## Bear case on 005930.KS: **stale** evidence"))
       .toBe("Bear case on 005930.KS: stale evidence");
+  });
+
+  it("explains the current stage and the decision in plain Korean", () => {
+    const events = realisticRun();
+    const at = (n: number) => narrate(foldEvents(initialOfficeState(ROSTER), events.slice(0, n)));
+    expect(at(0)).toContain("새 분석 시작");
+    expect(at(6)).toContain("분석가들이");
+    expect(at(12)).toContain("토론");
+    const done = foldEvents(initialOfficeState(ROSTER), events);
+    expect(narrate(done)).toContain("'매수'");
+    expect(narrate(done)).toContain("실제 주문은 하지 않았어요");
+    expect(decisionLines(done.decision!)).toContain("AI 등급: 비중 확대 — 조금 더 사기");
+  });
+
+  it("shortens long speech to its first sentence", () => {
+    expect(shortSpeech("삼성전자는 단기 차트가 약합니다. 하지만 메모리 업황이 좋아집니다.")).toBe("삼성전자는 단기 차트가 약합니다.");
+    expect(shortSpeech("NVDA has pulled back sharply. Rates are high.")).toBe("NVDA has pulled back sharply.");
+    expect(shortSpeech("x".repeat(200)).length).toBe(70);
   });
 
   it("marks DEMO runs", () => {

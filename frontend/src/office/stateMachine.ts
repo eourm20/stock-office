@@ -1,5 +1,8 @@
 import type { RunEvent } from "../types";
 import { adaptEvent, describeEvent, type OfficeCommand } from "./eventAdapter";
+import { bubbleText, shortSpeech } from "./explain";
+
+export { bubbleText };
 
 export type CharacterStatus = "idle" | "working" | "talking" | "done" | "failed";
 export type Activity = "work" | "meet";
@@ -68,7 +71,7 @@ function applyCommand(state: OfficeState, cmd: OfficeCommand, seq: number): Offi
       break;
     case "say":
       next = { ...prev, status: "talking", activity: "meet",
-               bubble: { text: truncate(bubbleText(cmd.text), BUBBLE_MAX), stance: cmd.stance, seq },
+               bubble: { text: truncate(shortSpeech(bubbleText(cmd.text)), BUBBLE_MAX), stance: cmd.stance, seq },
                summary: cmd.text };
       break;
     case "complete":
@@ -88,14 +91,6 @@ function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
-/** Speech-bubble form of a debate line: no speaker prefix or markdown markup. */
-export function bubbleText(text: string): string {
-  return text
-    .replace(/^\s*[A-Za-z ]+(Analyst|Researcher):\s*/, "")
-    .replace(/[#*_`>]+/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 /**
  * Character State Machine. Deterministic: the state depends only on the ordered events, so a
