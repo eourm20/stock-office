@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import { fetchRunEvents, listRuns, startRun, API_BASE, type RunSummary } from "../lib/api";
+import { fetchRunEvents, getRun, listRuns, startRun, API_BASE, type RunSummary } from "../lib/api";
 import { ReplayPlayer, type Speed } from "../office/replay";
 import { ROSTER_2A } from "../office/roster";
 import { initialOfficeState, reduceEvent, type OfficeState } from "../office/stateMachine";
@@ -10,6 +10,7 @@ import type { EventType, RunEvent } from "../types";
 import { agentName, PHASE_KO, STATUS_KO } from "../office/names";
 import { ACTION_KO, decisionLines, FLAG_KO, narrate } from "../office/explain";
 import HelpPanel from "./HelpPanel";
+import Markdown from "./Markdown";
 
 const OfficeCanvas = dynamic(() => import("../game/OfficeCanvas"), { ssr: false });
 
@@ -41,6 +42,7 @@ export default function OfficePage() {
   const [state, dispatch] = useReducer(reducer, ROSTER_2A, initialOfficeState);
   const player = useRef<ReplayPlayer | null>(null);
   const source = useRef<EventSource | null>(null);
+  const loadToken = useRef(0);
 
   const refreshRuns = useCallback(() => {
     listRuns().then(setRuns).catch((e: Error) => setError(`API에 연결할 수 없습니다 (${API_BASE}): ${e.message}`));
@@ -66,16 +68,27 @@ export default function OfficePage() {
   }, []);
 
   /** Load a run: finished runs are replayed with timing; running runs are followed live. */
-  const load = useCallback(async (id: string, run?: RunSummary) => {
+  const load = useCallback(async (id: string) => {
     stop();
     dispatch({ kind: "reset" });
     setSelected(null);
     setError(null);
+    const token = ++loadToken.current;
+    // Ask the server for the run's current status: a cached list can be stale, and a running
+    // run must be followed live (a replay request would wait until the run finishes).
+    let run: RunSummary;
+    try {
+      run = await getRun(id);
+    } catch (e) {
+      setError((e as Error).message);
+      return;
+    }
+    if (token !== loadToken.current) return;           // a newer selection won the race
     const apply = (ev: RunEvent, animate: boolean) => {
       setAnimateLast(animate);
       dispatch({ kind: "event", ev });
     };
-    const live = run ? !TERMINAL.has(run.status) : false;
+    const live = !TERMINAL.has(run.status);
     if (live) {
       // Live events go through the same paced queue; a backlog is applied at once.
       setMode("live");
@@ -99,6 +112,7 @@ export default function OfficePage() {
     setMode("replay");
     try {
       const events = await fetchRunEvents(id);
+      if (token !== loadToken.current) return;
       const p = new ReplayPlayer(events, apply, speed, () => setPlaying(false));
       player.current = p;
       setPlaying(true);
@@ -110,7 +124,7 @@ export default function OfficePage() {
 
   useEffect(() => {
     if (!runId) return;
-    void load(runId, runs.find((r) => r.id === runId));
+    void load(runId);
     // Only reload when the selected run changes, not when the list refreshes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runId]);
@@ -138,7 +152,7 @@ export default function OfficePage() {
       const list = await listRuns();
       setRuns(list);
       setRunId(id);
-      void load(id, list.find((r) => r.id === id));
+      void load(id);
     } catch (e) {
       setError((e as Error).message);
     }
@@ -177,7 +191,7 @@ export default function OfficePage() {
                   className="rounded bg-[var(--panel)] px-2 py-1 disabled:opacity-40">
             {playing ? "일시정지" : "재생"}
           </button>
-          <button onClick={() => runId && void load(runId, current)} disabled={!runId}
+          <button onClick={() => runId && void load(runId)} disabled={!runId}
                   className="rounded bg-[var(--panel)] px-2 py-1 disabled:opacity-40">처음부터</button>
         </div>
         <div className="ml-auto flex items-center gap-1">
@@ -250,7 +264,7 @@ export default function OfficePage() {
               {sel.summary && (
                 <details className="mt-2 text-xs text-[#c7d7ee]" open={!sel.bubble}>
                   <summary className="cursor-pointer text-[var(--muted)]">전체 내용 보기</summary>
-                  <p className="mt-1 max-h-64 overflow-y-auto whitespace-pre-wrap">{sel.summary}</p>
+                  <div className="mt-1 max-h-80 overflow-y-auto pr-1"><Markdown text={sel.summary.replace(/^\s*[A-Za-z ]+(Analyst|Researcher):\s*/, "")} /></div>
                 </details>
               )}
               {sel.error && <p className="mt-2 text-xs text-rose-300">{sel.error}</p>}

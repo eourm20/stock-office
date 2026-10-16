@@ -19,6 +19,12 @@ export async function listRuns(): Promise<RunSummary[]> {
   return (await resp.json()) as RunSummary[];
 }
 
+export async function getRun(runId: string): Promise<RunSummary> {
+  const resp = await fetch(`${API_BASE}/api/v1/analysis-runs/${runId}`);
+  if (!resp.ok) throw new Error(`run ${runId}: HTTP ${resp.status}`);
+  return (await resp.json()) as RunSummary;
+}
+
 /** Parse an SSE body into events (the stream of a finished run ends by itself). */
 export function parseSse(body: string): RunEvent[] {
   const events: RunEvent[] = [];
