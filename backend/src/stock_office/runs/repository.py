@@ -102,5 +102,12 @@ class RunRepository:
             for p in sorted(folder.glob("*.json"))
         ]
 
+    def get_reports(self, run_id: str) -> dict[str, str] | None:
+        path = self._dir(run_id) / "reports.json"
+        if not path.exists():
+            return None
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return {str(k): str(v) for k, v in data.items()} if isinstance(data, dict) else None
+
     def write_json(self, run_id: str, name: str, data: object) -> None:
         _atomic_write(self._dir(run_id) / name, json.dumps(data, indent=2, ensure_ascii=False))

@@ -8,7 +8,7 @@ reconnect catch-up, agent detail panel, Activity Feed, speech bubbles, decision 
 |---|---|
 | 1. Whole committee in the office (12 characters + 2 equipment stations, 4 rooms) | **done** (2026-10-19) |
 | 2. `tool.called` events (sanitized) + "looking up data" animation | **done** (2026-10-19) |
-| 3. Analysis Mode `/analysis/[runId]` (React Flow graph, reports) | planned |
+| 3. Analysis Mode as the **main screen** `/` and `/analysis/[runId]` (React Flow graph, reports, debate, evidence, run facts) | **done** (2026-10-19) |
 | 4. shadcn/ui for panels | planned |
 
 ## Step 1 — whole committee in the office (2026-10-19)
@@ -87,3 +87,27 @@ replace the final state); decision BUY / Overweight with the usual `COVERAGE_GAP
 **Deployed** `054c4cd` to `quant-worker` with `tools/deploy.sh` at 10:37 KST: services active, health OK,
 web HTTP 200, engine readiness check on the server passes through `get_settings()` (no model called),
 next slots NVDA 2026-10-19 17:00 ET and 005930 2026-10-20 07:30 KST.
+
+## Step 3 — Analysis screen becomes the main screen (2026-10-19)
+User decision during this step: the analysis screen is the main screen (`/`); the office moves to
+`/office` as the replay/live view. CLAUDE.md and IMPLEMENTATION_PLAN §2–3 updated.
+
+| Change | Code |
+|---|---|
+| `/` follows the newest decision (or the meeting in progress); `/analysis/[runId]` opens one run; cards per instrument | [AnalysisView.tsx](../frontend/src/analysis/AnalysisView.tsx), [app/page.tsx](../frontend/src/app/page.tsx), [app/analysis/[runId]/page.tsx](../frontend/src/app/analysis/%5BrunId%5D/page.tsx) |
+| Decision card: action, rating in plain Korean, flags explained, PROPOSED_ONLY, DEMO, REVIEW notice, "not a verified signal" | `DecisionCard` |
+| Committee graph (React Flow `@xyflow/react` 12.12.0, pinned): fixed stage layout, status/turns/duration/lookup counts from events only; agents that never started in a finished run are shown as "참여 안 함"; click a node to open its report | [FlowGraph.tsx](../frontend/src/analysis/FlowGraph.tsx), [model.ts](../frontend/src/analysis/model.ts) |
+| Tabs: reports (per agent), debate (investment / risk, with the uncut transcript when stored), evidence (snapshots with observed/available time, source link, coverage gaps), run facts (engine, model, config hash, tokens, trigger) | `AnalysisView.tsx` |
+| Backend: `GET /api/v1/analysis-runs/{id}/snapshots`, `GET .../reports`; each run now stores the full redacted reports and both debate transcripts in `reports.json` (≤ 30,000 chars each). Runs from before show the 600-char event summary with a note | [app.py](../backend/src/stock_office/api/app.py), [adapter.py](../backend/src/stock_office/engine/adapter.py) `reports_from_state`, [service.py](../backend/src/stock_office/runs/service.py) |
+| Shared navigation (분석 · 사무실 · 기록); history rows open the analysis screen | [NavBar.tsx](../frontend/src/app/NavBar.tsx), [history/page.tsx](../frontend/src/app/history/page.tsx) |
+| Fix: single `~` in reports ("50~75%") was rendered as strikethrough (GFM); now off for the office panel too | [Markdown.tsx](../frontend/src/app/Markdown.tsx) |
+
+**Tests.** Backend **102 passed** (+1 unit: reports are full, redacted, skip internals; e2e: snapshots and
+reports endpoints, 404 for unknown run). Frontend **34 passed** (+7 `model.test.ts`: status from the log,
+pending vs skipped, a run that ended never shows an agent running, order independence, debate transcript,
+graph consistency, formatting). `tsc` clean, `next build` OK (`/analysis/[runId]` dynamic).
+
+**Browser check** (Edge, dev build): `/` showed the 005930 SELL decision with graph, report panel and tabs;
+debate and evidence tabs on `a1e851f3…` (15 OpenDART disclosures, 19 Yahoo bars, coverage gaps listed);
+a new DEMO run shows full reports. 0 console errors. First pass found the strikethrough bug and English
+company names on the cards (now Korean); fixed and re-checked.

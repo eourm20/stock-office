@@ -60,3 +60,66 @@ export async function startRun(instrumentId: string, engine: "demo" | "tradingag
   if (!resp.ok) throw new Error(`${resp.status}: ${await resp.text()}`);
   return ((await resp.json()) as { run_id: string }).run_id;
 }
+
+// ---------------------------------------------------------------- analysis screen
+
+export interface RunDetail extends RunSummary {
+  as_of: string;
+  engine_version: string | null;
+  config_hash: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  error_code: string | null;
+  error_message: string | null;
+  snapshot_ids: string[];
+  coverage_gaps: string[];
+  token_usage: Record<string, { input_tokens?: number; output_tokens?: number; total_tokens?: number }> | null;
+  trigger?: string | null;
+  schedule_slot?: string | null;
+}
+
+export interface Decision {
+  action: "BUY" | "SELL" | "HOLD" | "REVIEW";
+  engine_rating: string | null;
+  confidence: string | number | null;   // Decimal; model self-assessment, not a probability
+  rationale: string;
+  counterarguments: string[];
+  risk_flags: string[];
+  evidence_snapshot_ids: string[];
+  model_version: string;
+  created_at: string;
+  demo: boolean;
+  execution: string;
+}
+
+export interface Snapshot {
+  id: string;
+  source: string;
+  kind: string;
+  observed_at: string;
+  available_at: string;
+  ingested_at: string;
+  currency: string | null;
+  payload: Record<string, unknown>;
+  source_url: string | null;
+  demo: boolean;
+}
+
+async function getJson<T>(path: string): Promise<T> {
+  const resp = await fetch(`${API_BASE}${path}`);
+  if (!resp.ok) throw new Error(`${path}: HTTP ${resp.status}`);
+  return (await resp.json()) as T;
+}
+
+export const getRunDetail = (id: string) => getJson<RunDetail>(`/api/v1/analysis-runs/${id}`);
+export const getSnapshots = (id: string) => getJson<Snapshot[]>(`/api/v1/analysis-runs/${id}/snapshots`);
+export const getReports = (id: string) =>
+  getJson<{ available: boolean; reports: Record<string, string> }>(`/api/v1/analysis-runs/${id}/reports`);
+
+/** The decision, or null while it does not exist (running, failed or blocked runs). */
+export async function getDecision(id: string): Promise<Decision | null> {
+  const resp = await fetch(`${API_BASE}/api/v1/analysis-runs/${id}/decision`);
+  if (resp.status === 404) return null;
+  if (!resp.ok) throw new Error(`decision: HTTP ${resp.status}`);
+  return (await resp.json()) as Decision;
+}

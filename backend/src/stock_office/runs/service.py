@@ -163,6 +163,8 @@ class RunService:
             run.token_usage = outcome.token_usage
             run.coverage_gaps = [*run.coverage_gaps, *outcome.coverage_gaps]
             self.repo.save_outputs(run.id, outcome.results)
+            if outcome.reports:
+                self.repo.write_json(run.id, "reports.json", outcome.reports)
             self._decide(run, engine, outcome, snapshots)
             finish(RunStatus.COMPLETED)
         except EngineNotConfiguredError as exc:

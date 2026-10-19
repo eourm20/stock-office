@@ -28,6 +28,7 @@ from stock_office.domain.models import (
     Instrument,
     InvestmentDecision,
     Market,
+    MarketSnapshot,
 )
 from stock_office.events.sse import format_sse, resume_after
 from stock_office.logging_setup import install_log_redaction
@@ -130,6 +131,20 @@ def create_app(
     def get_outputs(run_id: str) -> list[AgentResult]:
         _run_or_404(run_id)
         return service.repo.get_outputs(run_id)
+
+    @app.get("/api/v1/analysis-runs/{run_id}/snapshots")
+    def get_snapshots(run_id: str) -> list[MarketSnapshot]:
+        """Source data the run was given, with observed/available/ingested times (evidence)."""
+        _run_or_404(run_id)
+        return sorted(service.repo.get_snapshots(run_id),
+                      key=lambda s: (s.kind, s.observed_at, s.id))
+
+    @app.get("/api/v1/analysis-runs/{run_id}/reports")
+    def get_reports(run_id: str) -> dict[str, object]:
+        """Full sanitized reports. Runs stored before this existed have only event summaries."""
+        _run_or_404(run_id)
+        reports = service.repo.get_reports(run_id)
+        return {"available": reports is not None, "reports": reports or {}}
 
     @app.get("/api/v1/analysis-runs/{run_id}/decision")
     def get_decision(run_id: str) -> InvestmentDecision:

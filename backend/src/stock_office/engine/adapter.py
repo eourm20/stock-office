@@ -312,6 +312,8 @@ class EngineOutcome:
     warnings: list[str] = field(default_factory=list)
     token_usage: dict[str, Any] | None = None
     coverage_gaps: list[str] = field(default_factory=list)  # data the engine could not get
+    # Full sanitized report per agent (and both debate transcripts), for the analysis screen.
+    reports: dict[str, str] = field(default_factory=dict)
 
 
 class EngineNotConfiguredError(RuntimeError):
@@ -335,6 +337,25 @@ class AnalysisEngine(Protocol):
     def run(self, ctx: EngineContext) -> EngineOutcome: ...
 
 
+REPORT_MAX_CHARS = 30_000
+
+
+def reports_from_state(state: dict[str, Any]) -> dict[str, str]:
+    """Each agent's full report and the debate transcripts, redacted. Never messages/tool data."""
+    reports: dict[str, str] = {}
+    for spec in AGENT_CATALOG.values():
+        if spec.report_key and spec.agent_id != "memory_log":
+            text = str(state.get(spec.report_key, "") or "")
+            if text.strip():
+                reports[spec.agent_id] = redact_text(text, limit=REPORT_MAX_CHARS)
+    for key, debate_key in (("investment_debate", "investment_debate_state"),
+                            ("risk_debate", "risk_debate_state")):
+        history = str((state.get(debate_key) or {}).get("history", "") or "")
+        if history.strip():
+            reports[key] = redact_text(history, limit=REPORT_MAX_CHARS)
+    return reports
+
+
 def outcome_from_state(
     projection: TradingAgentsProjection, rating: str | None, warnings: list[str] | None = None
 ) -> EngineOutcome:
@@ -348,4 +369,5 @@ def outcome_from_state(
         risk_case=str(risk.get("conservative_history", "") or ""),
         results=projection.results,
         warnings=warnings or [],
+        reports=reports_from_state(state),
     )

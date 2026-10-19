@@ -11,7 +11,8 @@ export default function Markdown({ text }: { text: string }) {
   return (
     <div className="space-y-2 text-[13px] leading-relaxed text-[#dce6f7]">
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        // Single "~" is not strikethrough: reports write ranges like "50~75%".
+        remarkPlugins={[[remarkGfm, { singleTilde: false }]]}
         components={{
           h1: ({ children }) => <h3 className="mt-2 text-[15px] font-bold text-white">{children}</h3>,
           h2: ({ children }) => <h3 className="mt-2 text-[15px] font-bold text-white">{children}</h3>,

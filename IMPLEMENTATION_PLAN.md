@@ -11,6 +11,7 @@
 - TradingAgents를 핵심 Agent 프레임워크로 사용. **구현 시작 시 릴리스/커밋 고정**. 코어 수정 최소화하고 어댑터에서 확장.
 - 프론트엔드 Next.js, React, TypeScript, Phaser 3(Office Mode), Tiled Map Editor(맵), Tailwind CSS + shadcn/ui(UI 패널), React Flow(@xyflow/react, Analysis Mode), ECharts(금융 차트). 백엔드 Python FastAPI, 별도 Worker, PostgreSQL, SSE. Multi-Agent는 TradingAgents(LangGraph).
   - 2026-10-16 변경: 기존 Vite + React Flow 중심 화면 → 게임형 오피스가 메인. Sprint 0의 Vite 개발 콘솔은 Sprint 2A에서 Next.js로 이관한다.
+  - 2026-10-19 변경(사용자 결정): **분석 화면이 메인(`/`)**, 사무실 애니메이션은 `/office`의 회의 다시보기·실시간 보기로 유지(추가 투자 최소화). 매일 결과 확인에는 결정·근거를 바로 읽는 화면이 실용적이라는 판단.
 - 개인 운영용 데스크톱 웹. 초기에는 사용자/권한, 공개 SaaS, 결제, 실거래 제외.
 - 분석 결과는 매수·매도·보유/판단 보류의 제안이며, 모의주문은 결정론적 Risk Policy를 통과해야 한다.
 - 실계좌·증권사 주문 키 사용 금지. 기존 코드의 자동주문 경로는 **추출하지 않는다**.
@@ -18,8 +19,8 @@
 ## 3. 화면 명세
 | 경로 | 주요 기능 | 완료 조건 |
 |---|---|---|
-| `/` **Office Mode (메인)** | 픽셀아트 사무실, AI 직원 실시간 행동, Agent 클릭 시 상세 패널, Activity Feed, Bull/Bear 말풍선, 최종 투자 결정, 종목 선택·분석 시작, 상단 HUD(가상 자산·진행중 분석) | 캐릭터 상태가 실제 이벤트에서만 바뀌고, 같은 이벤트 로그는 같은 상태로 재생됨. DEMO 재생은 DEMO 표시 |
-| `/analysis/:runId` **Analysis Mode** | React Flow Agent 실행 그래프, Agent별 보고서, 인용 근거·데이터 공개 시각, 토론 기록, 최종 판단·위험 검토 | 근거 부족 시 `REVIEW`로 표시 |
+| `/office` **Office Mode** (2026-10-19부터 보조 화면) | 픽셀아트 사무실, AI 직원 실시간 행동, Agent 클릭 시 상세 패널, Activity Feed, Bull/Bear 말풍선, 최종 투자 결정, 종목 선택·분석 시작, 상단 HUD(가상 자산·진행중 분석) | 캐릭터 상태가 실제 이벤트에서만 바뀌고, 같은 이벤트 로그는 같은 상태로 재생됨. DEMO 재생은 DEMO 표시 |
+| `/` · `/analysis/:runId` **Analysis Mode (메인)** | 종목별 최신 결정 카드, 최종 결정·위험 플래그, React Flow Agent 실행 그래프, Agent별 보고서, 인용 근거·데이터 공개 시각, 토론 기록, 최종 판단·위험 검토 | 근거 부족 시 `REVIEW`로 표시 |
 | `/characters` | 캐릭터 업로드, 미리보기, Agent 할당, 기본/사용자 캐릭터 전환 | 할당 변경이 분석·이벤트에 영향 없음, 매핑 영속 저장 |
 | `/portfolio` **Portfolio Mode** | KRW/USD 현금, 보유·미체결, 주문·체결 기록, P&L, 벤치마크 비교 | 중복 체결 0, 통화별 정합성, 현금+주식 평가금 합계 일치 |
 | `/history` | 실행 검색, 애니메이션 리플레이, 전략별 비교 A/B/C/D | 동일 조건의 실험만 나란히 비교 |
@@ -276,3 +277,4 @@ DataProvider/IndicatorProvider 어댑터, KR·US 시점 정합성, 테스트 3�
 - [ ] 3단계: Analysis Mode(`/analysis/[runId]`, React Flow 그래프·보고서)
 - [ ] 4단계: shadcn/ui 도입
 - [x] 2단계 실제 엔진 검증(사용자 승인 유료 1회, 약 $0.051): NVDA run `797d8777…` 완료, `tool.called` 4건 정상, 보고서·결정 정상 → 서버 배포(`054c4cd`, 10:37 KST), 준비 상태 점검 통과
+- [x] 3단계: 분석 화면을 메인(`/`)으로. 결정 카드·위원회 흐름 그래프(React Flow 12.12.0)·직원별 전체 보고서·토론(투자/리스크)·근거 데이터(발생/공개 시각, 원문 링크, 결측 목록)·실행 정보(엔진·모델·설정 해시·토큰). 사무실은 `/office`. 백엔드: `GET .../snapshots`, `GET .../reports`, 실행마다 정제한 전체 보고서 `reports.json` 저장(이전 실행은 600자 요약만)

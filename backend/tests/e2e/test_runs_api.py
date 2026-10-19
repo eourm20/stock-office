@@ -65,6 +65,19 @@ def test_nvda_demo_run_full_lifecycle(client: TestClient) -> None:
 
     decision = client.get(f"/api/v1/analysis-runs/{run_id}/decision").json()
     assert decision["action"] == "HOLD" and decision["engine_rating"] == "Hold"
+
+    snapshots = client.get(f"/api/v1/analysis-runs/{run_id}/snapshots").json()
+    assert sorted(s["id"] for s in snapshots) == sorted(run["snapshot_ids"])
+    for snap in snapshots:
+        observed = datetime.fromisoformat(snap["observed_at"])
+        assert observed <= datetime.fromisoformat(snap["available_at"]) and snap["demo"] is True
+    assert client.get("/api/v1/analysis-runs/nope/snapshots").status_code == 404
+
+    reports = client.get(f"/api/v1/analysis-runs/{run_id}/reports").json()
+    assert reports["available"] is True
+    assert {"market_analyst", "news_analyst", "fundamentals_analyst", "research_manager",
+            "trader", "portfolio_manager"} <= set(reports["reports"])
+    assert reports["reports"]["portfolio_manager"].endswith("Rating: Hold")
     assert decision["execution"] == "PROPOSED_ONLY" and decision["demo"] is True
     assert "DEMO_NOT_ANALYSIS" in decision["risk_flags"]
     assert set(decision["evidence_snapshot_ids"]) == set(run["snapshot_ids"])

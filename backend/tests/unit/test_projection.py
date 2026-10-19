@@ -164,3 +164,20 @@ def test_tool_calls_inside_analyst_graph_publish_names_only() -> None:
     assert p.final_state == {}
     assert [t.value for t, _, _ in rec.events] == [
         "agent.started", "tool.called", "tool.called", "agent.completed"]
+
+
+def test_reports_from_state_are_full_redacted_and_skip_internals() -> None:
+    from stock_office.engine.adapter import REPORT_MAX_CHARS, reports_from_state
+
+    long = "x" * 5000
+    state = {"market_report": long, "news_report": "  ", "memory_note": "past",
+             "final_trade_decision": "Rating: Buy api_key=sk-abcdefghijklmnop0000",
+             "messages": ["internal"],
+             "investment_debate_state": {"history": "Bull: a\nBear: b", "current_response": "b"},
+             "risk_debate_state": {"history": ""}}
+    reports = reports_from_state(state)
+    assert set(reports) == {"market_analyst", "portfolio_manager", "investment_debate"}
+    assert reports["market_analyst"] == long                      # not cut to the 600-char summary
+    assert "sk-abcdefghijklmnop" not in reports["portfolio_manager"]
+    assert len(reports_from_state({"market_report": "y" * (REPORT_MAX_CHARS + 50)})
+               ["market_analyst"]) < REPORT_MAX_CHARS + 20

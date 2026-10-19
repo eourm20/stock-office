@@ -1,7 +1,7 @@
 # CLAUDE.md — Stock Office Project Operating Guide
 
 ## Mission
-Build **Stock Office**, a personal AI investment-office simulator that analyzes US+KR equities using TradingAgents, shows the **real** multi-agent activity as a game-like **2.5D isometric pixel-art office** where AI employees act out the stored run events, and evaluates risk-gated **paper trading** performance. Do not claim investment alpha without matched, cost-adjusted evidence.
+Build **Stock Office**, a personal AI investment-office simulator that analyzes US+KR equities using TradingAgents, shows each run's decision, committee flow, reports, debate and evidence on a readable **Analysis screen (main, `/`)**, offers a game-like **2.5D isometric pixel-art office** (`/office`) where AI employees act out the stored run events as a replay/live view, and evaluates risk-gated **paper trading** performance. Do not claim investment alpha without matched, cost-adjusted evidence.
 
 ## Mandatory reading order
 1. This `CLAUDE.md` (project-wide operating rules).
@@ -44,6 +44,7 @@ Build **Stock Office**, a personal AI investment-office simulator that analyzes 
 - Logs should redact secrets, account data, raw prompts and sensitive traces.
 
 ## User experience principles
+- The Analysis screen is the main screen (user decision 2026-10-19): decision, committee graph, full reports, debate, evidence with timestamps and run facts. The office is a secondary replay/live view; keep investing in it modest.
 - Game-like pixel-art office for *observing* the AI company: characters and animation are encouraged (moving between desks and meeting rooms, sitting at computers, debating with speech bubbles, delivering reports). Financial data, reports, sources and performance are shown in readable, professional UI panels, not inside the game art.
 - Desktop-first with responsive fallbacks, accessible keyboard interactions and `prefers-reduced-motion` support (reduced motion: characters switch places instead of walking, no ambient motion). The canvas always has a text equivalent (Activity Feed and agent panels) for screen readers.
 - Show who decided what, sourced market facts, model/version/config, potential risks, and whether a trade was *proposed* vs *paper-executed*.
