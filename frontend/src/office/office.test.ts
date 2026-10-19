@@ -10,6 +10,7 @@ import { facing, isoToWorld, parseTiledMap, planPath, targetSpot, zoneOf, type T
   from "./layout";
 import { characterFor, frameRange, resolveAnimation, type Registry, type SpriteMetadata }
   from "./registry";
+import { ROSTER as OFFICE_ROSTER, STATION_AGENTS } from "./roster";
 import { DEBATE_DWELL_MS, LIVE_CATCH_UP_BACKLOG, playbackDelayMs, ReplayPlayer } from "./replay";
 import { bubbleText, foldEvents, initialOfficeState, reduceEvent } from "./stateMachine";
 
@@ -195,6 +196,33 @@ describe("office layout (Tiled map)", () => {
       .toBe("desk:market_analyst");
   });
 
+  it("seats the whole 2B roster with its own character and spots inside its rooms", () => {
+    expect(OFFICE_ROSTER).toHaveLength(12);
+    for (const { agentId } of OFFICE_ROSTER) {
+      expect(registry.assignments[agentId], agentId).toBeDefined();
+      expect(characterFor(registry, agentId).id).not.toBe(registry.default_character);
+      const idle = targetSpot(layout, agentId, "idle", null, null);
+      expect(idle.startsWith("home:") || idle.startsWith("desk:"), `${agentId} → ${idle}`).toBe(true);
+      expect(zoneOf(layout, layout.spots[idle]!), `${agentId} home in a room`).not.toBeNull();
+    }
+    // The risk debate happens at the risk & executive table, away from the analysts' seats.
+    for (const id of ["risk_aggressive", "risk_conservative", "risk_neutral"]) {
+      const meet = targetSpot(layout, id, "talking", "meet", null);
+      expect(meet).toBe(`meet:${id}`);
+      expect(zoneOf(layout, layout.spots[meet]!)?.name).toBe("risk_executive");
+      expect(zoneOf(layout, layout.spots[`home:${id}`]!)?.name).toBe("trading_desk");
+    }
+    expect(planPath(layout, "home:risk_neutral", "meet:risk_neutral")).toEqual([
+      layout.spots["door:trading_desk"], layout.spots["corridor:center"],
+      layout.spots["door:risk_executive"], layout.spots["meet:risk_neutral"]]);
+    // Equipment that stands in for agents without a character.
+    for (const id of STATION_AGENTS) expect(layout.spots[`station:${id}`], id).toBeDefined();
+    // No two people share a seat.
+    const seats = OFFICE_ROSTER.flatMap(({ agentId }) => ["home", "desk", "meet"]
+      .map((k) => layout.spots[`${k}:${agentId}`]).filter(Boolean).map((p) => `${p!.x},${p!.y}`));
+    expect(new Set(seats).size).toBe(seats.length);
+  });
+
   it("routes between rooms through doors and the corridor", () => {
     expect(zoneOf(layout, layout.spots["desk:market_analyst"]!)?.name).toBe("analyst_office");
     const path = planPath(layout, "desk:market_analyst", "inbox:research_room");
@@ -215,7 +243,7 @@ describe("office layout (Tiled map)", () => {
 describe("character registry", () => {
   it("separates appearance from agents and falls back to the default character", () => {
     expect(characterFor(registry, "market_analyst").id).toBe("ph-market");
-    expect(characterFor(registry, "trader").id).toBe(registry.default_character);
+    expect(characterFor(registry, "data_collector").id).toBe(registry.default_character);
     for (const c of registry.characters) {
       expect(c.license.license).toBe("CC0-1.0");
       expect(c.license.placeholder).toBe(true);

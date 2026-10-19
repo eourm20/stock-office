@@ -44,7 +44,31 @@ CHARACTERS = {
     "ph-news": ("Nico (News)", (232, 132, 72), (24, 24, 30), (255, 245, 220)),
     "ph-bull": ("Bruno (Bull)", (72, 168, 92), (140, 82, 40), (250, 230, 120)),
     "ph-bear": ("Bea (Bear)", (196, 76, 84), (40, 34, 60), (240, 200, 210)),
+    "ph-fundamentals": ("Fran (Fundamentals)", (70, 110, 190), (90, 60, 40), (220, 230, 255)),
+    "ph-sentiment": ("Sunny (Sentiment)", (220, 110, 170), (200, 150, 60), (255, 230, 245)),
+    "ph-research-mgr": ("Remy (Research Mgr)", (120, 84, 170), (50, 40, 40), (250, 220, 120)),
+    "ph-trader": ("Tess (Trader)", (40, 140, 160), (30, 30, 36), (255, 255, 255)),
+    "ph-risk-agg": ("Axel (Aggressive)", (226, 130, 44), (110, 50, 30), (255, 240, 200)),
+    "ph-risk-con": ("Cora (Conservative)", (60, 110, 200), (60, 50, 44), (230, 236, 250)),
+    "ph-risk-neu": ("Noel (Neutral)", (138, 143, 163), (40, 40, 48), (240, 240, 245)),
+    "ph-pm": ("Pia (Portfolio Mgr)", (40, 44, 60), (120, 120, 130), (220, 180, 80)),
     "ph-generic": ("Office staff", (110, 124, 160), (70, 60, 50), (230, 230, 240)),
+}
+
+# agent_id -> character id. Appearance only; agents and events never depend on it.
+ASSIGNMENTS = {
+    "market_analyst": "ph-market",
+    "news_analyst": "ph-news",
+    "fundamentals_analyst": "ph-fundamentals",
+    "sentiment_analyst": "ph-sentiment",
+    "bull_researcher": "ph-bull",
+    "bear_researcher": "ph-bear",
+    "research_manager": "ph-research-mgr",
+    "trader": "ph-trader",
+    "risk_aggressive": "ph-risk-agg",
+    "risk_conservative": "ph-risk-con",
+    "risk_neutral": "ph-risk-neu",
+    "portfolio_manager": "ph-pm",
 }
 
 
@@ -224,6 +248,14 @@ def furniture() -> dict[str, Image.Image]:
     d.line([(10, 14), (24, 20), (32, 16), (46, 26)], fill=(220, 80, 80), width=2)
     d.line([(26, 34), (26, 50)], fill=(80, 90, 110), width=2)
     items["whiteboard"] = w
+    # archive cabinet (memory log)
+    img, d, _ = iso_box(1, 1, 40, (150, 130, 100))
+    d = ImageDraw.Draw(img)
+    for i in range(3):
+        y = 30 + i * 12
+        d.line([(8, y + 4), (30, y + 15)], fill=(90, 74, 56), width=2)
+        d.rectangle([17, y + 8, 21, y + 10], fill=(230, 210, 150))
+    items["archive"] = img
     return items
 
 
@@ -253,7 +285,8 @@ def build_office() -> None:
         # analyst office
         "desk:market_analyst": (3, 2), "home:market_analyst": (4, 3),
         "desk:news_analyst": (6, 2), "home:news_analyst": (7, 3),
-        "desk:fundamentals_analyst": (3, 5), "desk:sentiment_analyst": (6, 5),
+        "desk:fundamentals_analyst": (3, 5), "home:fundamentals_analyst": (4, 6),
+        "desk:sentiment_analyst": (6, 5), "home:sentiment_analyst": (7, 6),
         "door:analyst_office": (9, 4),
         # research room
         "desk:bull_researcher": (14, 2), "home:bull_researcher": (13, 3),
@@ -262,9 +295,17 @@ def build_office() -> None:
         "desk:research_manager": (16, 2),
         "inbox:research_room": (13, 5),
         "door:research_room": (12, 4),
-        # trading desk / risk & executive (Sprint 2B)
-        "desk:trader": (4, 11), "door:trading_desk": (9, 11),
-        "desk:portfolio_manager": (17, 10), "door:risk_executive": (12, 11),
+        # trading desk: the trader and the three risk analysts' seats
+        "desk:trader": (4, 11), "home:trader": (5, 11), "door:trading_desk": (9, 11),
+        "home:risk_aggressive": (7, 11), "home:risk_conservative": (2, 14),
+        "home:risk_neutral": (6, 14),
+        # risk & executive: risk debate table, portfolio manager
+        "meet:risk_aggressive": (13, 12), "meet:risk_conservative": (16, 13),
+        "meet:risk_neutral": (15, 14),
+        "desk:portfolio_manager": (17, 10), "home:portfolio_manager": (18, 11),
+        "door:risk_executive": (12, 11),
+        # office equipment that shows the status of agents without a character
+        "station:data_collector": (1, 1), "station:memory_log": (20, 2),
         "corridor:center": (10, 8),
     }
     objects = []
@@ -279,6 +320,8 @@ def build_office() -> None:
         ("desk", 14, 1), ("desk", 18, 1), ("desk", 16, 1), ("meeting_table", 16, 4),
         ("whiteboard", 20, 5), ("server_rack", 1, 1), ("plant", 9, 1), ("plant", 12, 6),
         ("desk", 4, 10), ("desk", 17, 9), ("plant", 1, 14), ("plant", 20, 14),
+        ("archive", 20, 2), ("desk", 7, 10), ("desk", 2, 13), ("desk", 6, 13),
+        ("meeting_table", 14, 12),
     ]
     furniture_objs = []
     for kind, tx, ty in props:
@@ -335,12 +378,7 @@ def build_characters() -> None:
         "version": 1,
         "default_character": "ph-generic",
         "characters": entries,
-        "assignments": {
-            "market_analyst": "ph-market",
-            "news_analyst": "ph-news",
-            "bull_researcher": "ph-bull",
-            "bear_researcher": "ph-bear",
-        },
+        "assignments": ASSIGNMENTS,
     }
     (CHAR_DIR / "registry.json").write_text(json.dumps(registry, indent=2), encoding="utf-8")
 

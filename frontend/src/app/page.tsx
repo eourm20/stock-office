@@ -6,7 +6,7 @@ import Link from "next/link";
 import { fetchRunEvents, getRun, getSummary, startRun, API_BASE, type RunSummary } from "../lib/api";
 import { chooseAutoRun, INSTRUMENT_KO, timeAgo, type InstrumentSummary } from "../office/auto";
 import { ReplayPlayer, type Speed } from "../office/replay";
-import { ROSTER_2A } from "../office/roster";
+import { ROSTER } from "../office/roster";
 import { initialOfficeState, reduceEvent, type OfficeState } from "../office/stateMachine";
 import type { EventType, RunEvent } from "../types";
 import { agentName, humanizeTickers, PHASE_KO, STATUS_KO } from "../office/names";
@@ -18,7 +18,7 @@ const OfficeCanvas = dynamic(() => import("../game/OfficeCanvas"), { ssr: false 
 
 type Action = { kind: "reset" } | { kind: "event"; ev: RunEvent };
 const reducer = (s: OfficeState, a: Action): OfficeState =>
-  a.kind === "reset" ? initialOfficeState(ROSTER_2A) : reduceEvent(s, a.ev);
+  a.kind === "reset" ? initialOfficeState(ROSTER) : reduceEvent(s, a.ev);
 
 const TERMINAL = new Set(["COMPLETED", "FAILED", "INSUFFICIENT_DATA"]);
 const EVENT_TYPES: EventType[] = ["run.created", "run.started", "agent.started", "agent.completed",
@@ -45,7 +45,7 @@ export default function OfficePage() {
   const [instrument, setInstrument] = useState("US:NASDAQ:NVDA");
   const [engine, setEngine] = useState<"demo" | "tradingagents">("demo");
   const [help, setHelp] = useState(false);
-  const [state, dispatch] = useReducer(reducer, ROSTER_2A, initialOfficeState);
+  const [state, dispatch] = useReducer(reducer, ROSTER, initialOfficeState);
   const player = useRef<ReplayPlayer | null>(null);
   const source = useRef<EventSource | null>(null);
   const loadToken = useRef(0);
@@ -332,7 +332,7 @@ export default function OfficePage() {
 
           {offstage.length > 0 && (
             <div className="rounded-lg border border-[var(--line)] bg-[var(--panel)] p-3">
-              <h2 className="mb-1 text-xs uppercase tracking-widest text-[var(--muted)]">사무실 밖 직원 (Sprint 2B에서 입장)</h2>
+              <h2 className="mb-1 text-xs uppercase tracking-widest text-[var(--muted)]">사무실 설비 (데이터 수집·기록 보관)</h2>
               <ul className="space-y-0.5 text-xs">
                 {offstage.map(([id, o]) => <li key={id}>{agentName(id, o.role)}: {STATUS_KO[o.status]}</li>)}
               </ul>

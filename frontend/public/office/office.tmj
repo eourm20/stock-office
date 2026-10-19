@@ -10,7 +10,7 @@
  "tileheight": 32,
  "infinite": false,
  "nextlayerid": 5,
- "nextobjectid": 42,
+ "nextobjectid": 59,
  "layers": [
   {
    "id": 1,
@@ -383,7 +383,7 @@
    "type": "objectgroup",
    "objects": [
     {
-     "id": 38,
+     "id": 55,
      "name": "analyst_office",
      "type": "zone",
      "x": 32,
@@ -394,7 +394,7 @@
      "visible": true
     },
     {
-     "id": 39,
+     "id": 56,
      "name": "research_room",
      "type": "zone",
      "x": 384,
@@ -405,7 +405,7 @@
      "visible": true
     },
     {
-     "id": 40,
+     "id": 57,
      "name": "trading_desk",
      "type": "zone",
      "x": 32,
@@ -416,7 +416,7 @@
      "visible": true
     },
     {
-     "id": 41,
+     "id": 58,
      "name": "risk_executive",
      "type": "zone",
      "x": 384,
@@ -438,7 +438,7 @@
    "type": "objectgroup",
    "objects": [
     {
-     "id": 22,
+     "id": 34,
      "name": "desk",
      "type": "furniture",
      "point": true,
@@ -457,7 +457,7 @@
      ]
     },
     {
-     "id": 23,
+     "id": 35,
      "name": "desk",
      "type": "furniture",
      "point": true,
@@ -476,7 +476,7 @@
      ]
     },
     {
-     "id": 24,
+     "id": 36,
      "name": "desk",
      "type": "furniture",
      "point": true,
@@ -495,7 +495,7 @@
      ]
     },
     {
-     "id": 25,
+     "id": 37,
      "name": "desk",
      "type": "furniture",
      "point": true,
@@ -514,7 +514,7 @@
      ]
     },
     {
-     "id": 26,
+     "id": 38,
      "name": "desk",
      "type": "furniture",
      "point": true,
@@ -533,7 +533,7 @@
      ]
     },
     {
-     "id": 27,
+     "id": 39,
      "name": "desk",
      "type": "furniture",
      "point": true,
@@ -552,7 +552,7 @@
      ]
     },
     {
-     "id": 28,
+     "id": 40,
      "name": "desk",
      "type": "furniture",
      "point": true,
@@ -571,7 +571,7 @@
      ]
     },
     {
-     "id": 29,
+     "id": 41,
      "name": "meeting_table",
      "type": "furniture",
      "point": true,
@@ -590,7 +590,7 @@
      ]
     },
     {
-     "id": 30,
+     "id": 42,
      "name": "whiteboard",
      "type": "furniture",
      "point": true,
@@ -609,7 +609,7 @@
      ]
     },
     {
-     "id": 31,
+     "id": 43,
      "name": "server_rack",
      "type": "furniture",
      "point": true,
@@ -628,7 +628,7 @@
      ]
     },
     {
-     "id": 32,
+     "id": 44,
      "name": "plant",
      "type": "furniture",
      "point": true,
@@ -647,7 +647,7 @@
      ]
     },
     {
-     "id": 33,
+     "id": 45,
      "name": "plant",
      "type": "furniture",
      "point": true,
@@ -666,7 +666,7 @@
      ]
     },
     {
-     "id": 34,
+     "id": 46,
      "name": "desk",
      "type": "furniture",
      "point": true,
@@ -685,7 +685,7 @@
      ]
     },
     {
-     "id": 35,
+     "id": 47,
      "name": "desk",
      "type": "furniture",
      "point": true,
@@ -704,7 +704,7 @@
      ]
     },
     {
-     "id": 36,
+     "id": 48,
      "name": "plant",
      "type": "furniture",
      "point": true,
@@ -723,7 +723,7 @@
      ]
     },
     {
-     "id": 37,
+     "id": 49,
      "name": "plant",
      "type": "furniture",
      "point": true,
@@ -738,6 +738,101 @@
        "name": "sprite",
        "type": "string",
        "value": "plant"
+      }
+     ]
+    },
+    {
+     "id": 50,
+     "name": "archive",
+     "type": "furniture",
+     "point": true,
+     "x": 640,
+     "y": 64,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "properties": [
+      {
+       "name": "sprite",
+       "type": "string",
+       "value": "archive"
+      }
+     ]
+    },
+    {
+     "id": 51,
+     "name": "desk",
+     "type": "furniture",
+     "point": true,
+     "x": 224,
+     "y": 320,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "properties": [
+      {
+       "name": "sprite",
+       "type": "string",
+       "value": "desk"
+      }
+     ]
+    },
+    {
+     "id": 52,
+     "name": "desk",
+     "type": "furniture",
+     "point": true,
+     "x": 64,
+     "y": 416,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "properties": [
+      {
+       "name": "sprite",
+       "type": "string",
+       "value": "desk"
+      }
+     ]
+    },
+    {
+     "id": 53,
+     "name": "desk",
+     "type": "furniture",
+     "point": true,
+     "x": 192,
+     "y": 416,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "properties": [
+      {
+       "name": "sprite",
+       "type": "string",
+       "value": "desk"
+      }
+     ]
+    },
+    {
+     "id": 54,
+     "name": "meeting_table",
+     "type": "furniture",
+     "point": true,
+     "x": 448,
+     "y": 384,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "properties": [
+      {
+       "name": "sprite",
+       "type": "string",
+       "value": "meeting_table"
       }
      ]
     }
@@ -814,6 +909,18 @@
     },
     {
      "id": 6,
+     "name": "home:fundamentals_analyst",
+     "type": "spot",
+     "point": true,
+     "x": 128,
+     "y": 192,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true
+    },
+    {
+     "id": 7,
      "name": "desk:sentiment_analyst",
      "type": "spot",
      "point": true,
@@ -825,7 +932,19 @@
      "visible": true
     },
     {
-     "id": 7,
+     "id": 8,
+     "name": "home:sentiment_analyst",
+     "type": "spot",
+     "point": true,
+     "x": 224,
+     "y": 192,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true
+    },
+    {
+     "id": 9,
      "name": "door:analyst_office",
      "type": "spot",
      "point": true,
@@ -837,7 +956,7 @@
      "visible": true
     },
     {
-     "id": 8,
+     "id": 10,
      "name": "desk:bull_researcher",
      "type": "spot",
      "point": true,
@@ -849,7 +968,7 @@
      "visible": true
     },
     {
-     "id": 9,
+     "id": 11,
      "name": "home:bull_researcher",
      "type": "spot",
      "point": true,
@@ -861,7 +980,7 @@
      "visible": true
     },
     {
-     "id": 10,
+     "id": 12,
      "name": "desk:bear_researcher",
      "type": "spot",
      "point": true,
@@ -873,7 +992,7 @@
      "visible": true
     },
     {
-     "id": 11,
+     "id": 13,
      "name": "home:bear_researcher",
      "type": "spot",
      "point": true,
@@ -885,7 +1004,7 @@
      "visible": true
     },
     {
-     "id": 12,
+     "id": 14,
      "name": "meet:bull_researcher",
      "type": "spot",
      "point": true,
@@ -897,7 +1016,7 @@
      "visible": true
     },
     {
-     "id": 13,
+     "id": 15,
      "name": "meet:bear_researcher",
      "type": "spot",
      "point": true,
@@ -909,7 +1028,7 @@
      "visible": true
     },
     {
-     "id": 14,
+     "id": 16,
      "name": "desk:research_manager",
      "type": "spot",
      "point": true,
@@ -921,7 +1040,7 @@
      "visible": true
     },
     {
-     "id": 15,
+     "id": 17,
      "name": "inbox:research_room",
      "type": "spot",
      "point": true,
@@ -933,7 +1052,7 @@
      "visible": true
     },
     {
-     "id": 16,
+     "id": 18,
      "name": "door:research_room",
      "type": "spot",
      "point": true,
@@ -945,7 +1064,7 @@
      "visible": true
     },
     {
-     "id": 17,
+     "id": 19,
      "name": "desk:trader",
      "type": "spot",
      "point": true,
@@ -957,7 +1076,19 @@
      "visible": true
     },
     {
-     "id": 18,
+     "id": 20,
+     "name": "home:trader",
+     "type": "spot",
+     "point": true,
+     "x": 160,
+     "y": 352,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true
+    },
+    {
+     "id": 21,
      "name": "door:trading_desk",
      "type": "spot",
      "point": true,
@@ -969,7 +1100,79 @@
      "visible": true
     },
     {
-     "id": 19,
+     "id": 22,
+     "name": "home:risk_aggressive",
+     "type": "spot",
+     "point": true,
+     "x": 224,
+     "y": 352,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true
+    },
+    {
+     "id": 23,
+     "name": "home:risk_conservative",
+     "type": "spot",
+     "point": true,
+     "x": 64,
+     "y": 448,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true
+    },
+    {
+     "id": 24,
+     "name": "home:risk_neutral",
+     "type": "spot",
+     "point": true,
+     "x": 192,
+     "y": 448,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true
+    },
+    {
+     "id": 25,
+     "name": "meet:risk_aggressive",
+     "type": "spot",
+     "point": true,
+     "x": 416,
+     "y": 384,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true
+    },
+    {
+     "id": 26,
+     "name": "meet:risk_conservative",
+     "type": "spot",
+     "point": true,
+     "x": 512,
+     "y": 416,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true
+    },
+    {
+     "id": 27,
+     "name": "meet:risk_neutral",
+     "type": "spot",
+     "point": true,
+     "x": 480,
+     "y": 448,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true
+    },
+    {
+     "id": 28,
      "name": "desk:portfolio_manager",
      "type": "spot",
      "point": true,
@@ -981,7 +1184,19 @@
      "visible": true
     },
     {
-     "id": 20,
+     "id": 29,
+     "name": "home:portfolio_manager",
+     "type": "spot",
+     "point": true,
+     "x": 576,
+     "y": 352,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true
+    },
+    {
+     "id": 30,
      "name": "door:risk_executive",
      "type": "spot",
      "point": true,
@@ -993,7 +1208,31 @@
      "visible": true
     },
     {
-     "id": 21,
+     "id": 31,
+     "name": "station:data_collector",
+     "type": "spot",
+     "point": true,
+     "x": 32,
+     "y": 32,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true
+    },
+    {
+     "id": 32,
+     "name": "station:memory_log",
+     "type": "spot",
+     "point": true,
+     "x": 640,
+     "y": 64,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true
+    },
+    {
+     "id": 33,
      "name": "corridor:center",
      "type": "spot",
      "point": true,

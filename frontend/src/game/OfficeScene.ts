@@ -1,10 +1,11 @@
 import Phaser from "phaser";
-import { facing, isoToWorld, parseTiledMap, planPath, targetSpot, type OfficeLayout,
+import { facing, isoToWorld, parseTiledMap, planPath, targetSpot, zoneOf, type OfficeLayout,
   type Point, type TiledMap } from "../office/layout";
 import { characterFor, frameRange, resolveAnimation, type Action, type Direction,
   type Registry, type SpriteMetadata } from "../office/registry";
-import type { CharacterState, OfficeState } from "../office/stateMachine";
+import type { CharacterState, CharacterStatus, OfficeState } from "../office/stateMachine";
 import { agentShortName, ZONE_KO } from "../office/names";
+import { STATION_AGENTS } from "../office/roster";
 
 /**
  * Renders office state. It never calls the API or decides anything: every change of what a
@@ -12,9 +13,18 @@ import { agentShortName, ZONE_KO } from "../office/names";
  * motion is reduced or playback is instant, so the scene can always catch up.
  */
 
-const FOOTPRINT: Record<string, number> = { desk: 1, server_rack: 1, meeting_table: 2 };
-const MEETING_CENTER: Point = { x: 17, y: 5 };
-const STANCE_COLOR: Record<string, number> = { bull: 0x2f9c5c, bear: 0xb84a52 };
+const FOOTPRINT: Record<string, number> = { desk: 1, server_rack: 1, archive: 1, meeting_table: 2 };
+/** Centre of each room's meeting table (tile coordinates), so speakers face each other. */
+const MEETING_CENTER: Record<string, Point> = {
+  research_room: { x: 17, y: 5 }, risk_executive: { x: 15, y: 13 },
+};
+const STANCE_COLOR: Record<string, number> = {
+  bull: 0x2f9c5c, bear: 0xb84a52, aggressive: 0xd9822b, conservative: 0x3b7dd8, neutral: 0x8a8fa3,
+};
+const STATUS_ICON: Record<CharacterStatus, [string, string]> = {
+  working: ["…", "#9fd3ff"], talking: ["", "#ffffff"], done: ["✓", "#5cddb3"],
+  failed: ["!", "#ff6b6b"], idle: ["", "#ffffff"],
+};
 const WALK_PX_PER_SEC = 110;
 
 interface View {
@@ -40,6 +50,7 @@ export class OfficeScene extends Phaser.Scene {
   private characterRegistry!: Registry;
   private origin: Point = { x: 0, y: 0 };
   private views = new Map<string, View>();
+  private stations = new Map<string, Phaser.GameObjects.Text>();
   private pending: { state: OfficeState; animate: boolean } | null = null;
   private ready = false;
   private reducedMotion = false;
@@ -56,7 +67,7 @@ export class OfficeScene extends Phaser.Scene {
     this.load.json("office-map", "/office/office.tmj");
     this.load.json("registry", "/characters/registry.json");
     this.load.spritesheet("floor", "/office/floor_tiles.png", { frameWidth: 64, frameHeight: 32 });
-    for (const name of ["desk", "meeting_table", "plant", "server_rack", "whiteboard"]) {
+    for (const name of ["desk", "meeting_table", "plant", "server_rack", "whiteboard", "archive"]) {
       this.load.image(`furn:${name}`, `/office/${name}.png`);
     }
   }
@@ -68,6 +79,7 @@ export class OfficeScene extends Phaser.Scene {
     this.drawFloor();
     this.drawZoneLabels();
     this.drawFurniture();
+    this.drawStations();
     this.selection = this.add.graphics().setDepth(1);
     this.setupCamera();
 
@@ -134,6 +146,11 @@ export class OfficeScene extends Phaser.Scene {
       this.updateIcon(view, ch);
       this.updateBubble(view, ch);
     }
+    for (const [agentId, text] of this.stations) {
+      const status = state.offstage[agentId]?.status ?? "idle";
+      const [icon, color] = STATUS_ICON[status];
+      text.setText(`${agentShortName(agentId)} ${icon}`.trim()).setColor(status === "idle" ? "#9aa6c4" : color);
+    }
   }
 
   // ------------------------------------------------------------------ drawing
@@ -169,6 +186,20 @@ export class OfficeScene extends Phaser.Scene {
         : this.world({ x: f.tile.x + 0.5, y: f.tile.y + 0.9 });
       const img = this.add.image(anchor.x, anchor.y, `furn:${f.sprite}`).setOrigin(0.5, 1);
       img.setDepth(anchor.y - (size ? (size * this.layout.tileH) / 2 : 0));
+    }
+  }
+
+  /** Equipment standing in for agents without a character: a label with their live status. */
+  private drawStations(): void {
+    for (const agentId of STATION_AGENTS) {
+      const tile = this.layout.spots[`station:${agentId}`];
+      if (!tile) continue;
+      const p = this.world(tile);           // spot = centre of the equipment's tile
+      const text = this.add.text(p.x, p.y - 72, agentShortName(agentId), {
+        fontFamily: "sans-serif", resolution: 2, fontSize: "11px", color: "#9aa6c4",
+        backgroundColor: "#0b1020cc", padding: { x: 4, y: 2 },
+      }).setOrigin(0.5, 1).setDepth(98_000);
+      this.stations.set(agentId, text);
     }
   }
 
@@ -260,9 +291,11 @@ export class OfficeScene extends Phaser.Scene {
 
   private pose(view: View, ch: CharacterState): void {
     const at = this.layout.spots[view.spot];
+    const center = at && MEETING_CENTER[zoneOf(this.layout, at)?.name ?? ""];
     if (ch.status === "working" && ch.activity === "work") this.play(view, "work", "up");
     else if ((ch.status === "talking" || ch.status === "working") && ch.activity === "meet" && at) {
-      this.play(view, ch.status === "talking" ? "talk" : "idle", facing(this.world(at), this.world(MEETING_CENTER)));
+      const dir = center ? facing(this.world(at), this.world(center)) : "down";
+      this.play(view, ch.status === "talking" ? "talk" : "idle", dir);
     } else if (ch.status === "failed") this.play(view, "idle", view.dir);
     else this.play(view, "idle", "down");
   }
@@ -298,11 +331,7 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   private updateIcon(view: View, ch: CharacterState): void {
-    const icons: Record<string, [string, string]> = {
-      working: ["…", "#9fd3ff"], talking: ["", "#ffffff"], done: ["✓", "#5cddb3"],
-      failed: ["!", "#ff6b6b"], idle: ["", "#ffffff"],
-    };
-    const [text, color] = icons[ch.status] ?? ["", "#ffffff"];
+    const [text, color] = STATUS_ICON[ch.status];
     view.icon.setText(text).setColor(color);
   }
 
