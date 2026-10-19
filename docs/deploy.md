@@ -1,9 +1,11 @@
 # Running Stock Office on the server
 
-**Server:** `quant-worker` (SSH alias; Oracle free tier, Ubuntu 22.04, 2 vCPU, 1 GB RAM + 1 GB swap).
+**Server (since 2026-10-19):** `stock-office` (SSH alias; Oracle Ampere A1, ARM64, Ubuntu 24.04, 4 OCPU, 24 GB RAM,
+45 GB disk; Always-Free allowance, account is Pay-As-You-Go with a 0.01 SGD budget alert).
 **Exposure:** none. The UI (3000) and API (8000) listen on `127.0.0.1` only; the only public port is SSH.
-You reach the office through an SSH tunnel.
-
+**Previous server** `quant-worker` (1 GB): Stock Office services stopped and disabled on 2026-10-19, files and data kept
+for rollback (`sudo systemctl enable --now stock-office-api stock-office-worker stock-office-web` there, after stopping
+the new ones, would revert). It left the tailnet; the new server took over the same name.
 ## Open it on your phone or PC (Tailscale, recommended)
 Since 2026-10-19 the server is in the owner's Tailscale network (device `stock-office`). `tailscale serve`
 publishes it **to that tailnet only** over HTTPS; nothing is exposed to the internet:
@@ -34,7 +36,7 @@ ssh -N -L 3000:127.0.0.1:3000 -L 8000:127.0.0.1:8000 quant-worker
 The server has its own `~/stock-office/backend/.env` (mode 600). The key lines are empty until you fill them:
 
 ```
-ssh quant-worker
+ssh stock-office
 nano ~/stock-office/backend/.env      # set OPENAI_API_KEY, STOCK_OFFICE_DART_API_KEY, FRED_API_KEY
 sudo systemctl restart stock-office-api stock-office-worker
 ```
@@ -45,9 +47,9 @@ runs if the key arrives before the slot's deadline (the next market open).
 ## What runs
 | Service | Command | Memory cap |
 |---|---|---|
-| `stock-office-api` | uvicorn on 127.0.0.1:8000, `WORKER_MODE=external` | 350 MB |
-| `stock-office-worker` | `python -m stock_office.worker --schedule` (queue + daily schedule) | 750 MB |
-| `stock-office-web` | Next.js standalone `node server.js` on 127.0.0.1:3000 | 300 MB |
+| `stock-office-api` | uvicorn on 127.0.0.1:8000, `WORKER_MODE=external` | 2 GB |
+| `stock-office-worker` | `python -m stock_office.worker --schedule` (queue + daily schedule) | 6 GB |
+| `stock-office-web` | Next.js standalone `node server.js` on 127.0.0.1:3000 | 2 GB |
 
 Daily schedule (exchange calendars, holidays skipped; `STOCK_OFFICE_SCHEDULE_ENABLED=true` on the server):
 - NVDA: 17:00 New York time after each NYSE session (≈ 06:00–07:00 KST next morning)
@@ -58,8 +60,8 @@ scheduled together; further requests get HTTP 429. Expected spend for 2 instrume
 
 ## Operate
 ```
-ssh quant-worker 'systemctl status stock-office-api stock-office-worker stock-office-web --no-pager'
-ssh quant-worker 'journalctl -u stock-office-worker -n 50 --no-pager'      # schedule and runs
+ssh stock-office 'systemctl status stock-office-api stock-office-worker stock-office-web --no-pager'
+ssh stock-office 'journalctl -u stock-office-worker -n 50 --no-pager'      # schedule and runs
 tools/deploy.sh                                                             # redeploy HEAD (from Git Bash)
 ```
 Data lives in `~/stock-office/backend/data` (JSON/JSONL until PostgreSQL in Sprint 1). Legacy services on this
@@ -69,3 +71,12 @@ server were masked on 2026-10-16 (see IMPLEMENTATION_PLAN §13).
 On 1 GB RAM the Docker daemon and image builds (pandas, langchain) cost more than they give, and the server
 cannot build images itself. Docker Compose is planned with PostgreSQL (Sprint 1) or a move to a larger Oracle
 ARM instance (up to 4 OCPU / 24 GB, free tier).
+
+## Migration log (2026-10-19)
+1. Instance created by the owner (A1.Flex 4/24, Ubuntu 24.04). Claude added the SSH alias, installed uv + Python 3.13,
+   Node 22, Tailscale, created the three systemd units (larger memory caps), copied `backend/data` (11 runs) and deployed.
+2. The owner copied `backend/.env` server-to-server with `scp -3` (Claude never read it); size and mode checked only.
+3. Cut-over away from schedule slots: old services stopped and disabled, old node logged out of Tailscale; new services
+   started (health `worker_mode=external`, engine readiness OK, same next slots); owner removed the old device and renamed
+   the new one to `stock-office` in the Tailscale admin; `tailscale serve` re-created; HTTPS checks 200 for `/`, `/office`,
+   `/api/v1/office/summary`, `/api/v1/budget`, manifest. Budget and run history identical to the old server.
