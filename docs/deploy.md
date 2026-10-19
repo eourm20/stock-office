@@ -4,7 +4,25 @@
 **Exposure:** none. The UI (3000) and API (8000) listen on `127.0.0.1` only; the only public port is SSH.
 You reach the office through an SSH tunnel.
 
-## Open the office
+## Open it on your phone or PC (Tailscale, recommended)
+Since 2026-10-19 the server is in the owner's Tailscale network (device `stock-office`). `tailscale serve`
+publishes it **to that tailnet only** over HTTPS; nothing is exposed to the internet:
+
+```
+https://stock-office.tail4755f0.ts.net        /    -> 127.0.0.1:3000 (UI)
+                                              /api -> 127.0.0.1:8000/api (FastAPI, SSE)
+```
+
+On the iPhone: Tailscale app connected → open the address in Safari → Share → "홈 화면에 추가". The page is an
+installable web app (manifest, icons, full screen). On the HTTPS address the UI calls the API on the same origin;
+on port 3000 (dev, SSH tunnel) it still calls port 8000 directly (`resolveApiBase` in `frontend/src/lib/api.ts`).
+
+Server side (done once): Tailscale from its apt repo, `tailscale up --hostname=stock-office` (owner approved the
+login link), `tailscale serve --bg 3000` and `tailscale serve --bg --set-path /api http://127.0.0.1:8000/api`
+(owner enabled Serve/HTTPS for the tailnet). Check: `sudo tailscale serve status`. Turn off:
+`sudo tailscale serve --https=443 off`.
+
+## Open the office over an SSH tunnel (fallback)
 Double-click `tools\office-tunnel.cmd` (or run the command below), then open http://localhost:3000.
 Closing the window disconnects. Your PC does not need to stay on for the analyses to run.
 
