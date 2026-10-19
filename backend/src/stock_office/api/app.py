@@ -115,6 +115,13 @@ def create_app(
         active.submit(run.id)
         return CreateRunResponse(run_id=run.id, status=run.status)
 
+    @app.get("/api/v1/budget")
+    def get_budget() -> dict[str, object]:
+        """This month's LLM spend, reservations and what is left of the budget."""
+        status = service.budget()
+        return {"configured": status is not None,
+                "budget": status.model_dump(mode="json") if status else None}
+
     @app.get("/api/v1/office/summary")
     def office_summary() -> OfficeSummary:
         return build_summary(service.repo)

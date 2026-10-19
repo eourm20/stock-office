@@ -39,4 +39,5 @@ def build_service(settings: Settings) -> RunService:
         return QuickModelBriefingWriter(engine.build_config(repo.root / run.id))
 
     return RunService(repo, engines, providers,
-                      max_paid_runs_per_day=settings.max_paid_runs_per_day, briefers=briefers)
+                      max_paid_runs_per_day=settings.max_paid_runs_per_day, briefers=briefers,
+                      monthly_budget_usd=settings.monthly_budget_usd)

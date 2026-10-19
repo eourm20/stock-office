@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -47,6 +48,8 @@ class Settings(BaseSettings):
     schedule_enabled: bool = False
     # Hard cap on real-engine runs (manual + scheduled) in any rolling 24 h.
     max_paid_runs_per_day: int = 8
+    # Monthly LLM budget (Korea calendar month), a hard stop for every paid run. ≈ 10,000 KRW.
+    monthly_budget_usd: Decimal = Decimal("7")
 
     dart_api_key: SecretStr | None = None
 

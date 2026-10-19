@@ -6,6 +6,7 @@ import time
 import uuid
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from functools import partial
 from typing import Any, Literal
 from zoneinfo import ZoneInfo
@@ -66,6 +67,7 @@ class RunService:
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
         max_paid_runs_per_day: int | None = None,
         briefers: BriefingFactory | None = None,
+        monthly_budget_usd: Decimal | None = None,
     ) -> None:
         self.repo = repo
         self.engines = engines
@@ -73,6 +75,15 @@ class RunService:
         self.clock = clock
         self.max_paid_runs_per_day = max_paid_runs_per_day
         self.briefers = briefers
+        self.monthly_budget_usd = monthly_budget_usd
+
+    def budget(self) -> Any:
+        """This month's LLM spend against the budget (None when no budget is configured)."""
+        from stock_office.budget import budget_status
+
+        if self.monthly_budget_usd is None:
+            return None
+        return budget_status(self.repo, self.clock(), self.monthly_budget_usd)
 
     def brief(self, run: AnalysisRun) -> Any:
         """Write the run's briefing (AI summary of stored reports). Never raises."""
@@ -102,6 +113,15 @@ class RunService:
             raise BudgetExceededError(
                 f"paid run limit reached ({self.max_paid_runs_per_day} per 24 h); "
                 "raise STOCK_OFFICE_MAX_PAID_RUNS_PER_DAY to allow more")
+        if not engine.demo and self.monthly_budget_usd is not None:
+            from stock_office.budget import can_start_paid_run
+
+            status = self.budget()
+            if not can_start_paid_run(status):
+                raise BudgetExceededError(
+                    f"monthly budget reached ({status.month}: ${status.spent_usd} spent + "
+                    f"${status.reserved_usd} reserved of ${status.budget_usd}); paid runs stop "
+                    "until next month or STOCK_OFFICE_MONTHLY_BUDGET_USD is raised")
         run = AnalysisRun(
             id=uuid.uuid4().hex[:16],
             instrument_id=instrument.id,
