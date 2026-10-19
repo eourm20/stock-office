@@ -4,7 +4,8 @@ import contextlib
 import socket
 import sys
 from collections.abc import Callable, Sequence
-from datetime import datetime
+from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -14,11 +15,13 @@ from fastapi.testclient import TestClient
 from stock_office.api.app import create_app
 from stock_office.briefing import DemoBriefingWriter
 from stock_office.config import Settings
+from stock_office.db import connect
 from stock_office.domain.models import EngineName
 from stock_office.engine.adapter import AnalysisEngine
 from stock_office.engine.demo_engine import DemoEngine
 from stock_office.engine.tradingagents_engine import TradingAgentsEngine
 from stock_office.engine.upstream import import_tradingagents
+from stock_office.inbox import Inbox
 from stock_office.providers.base import MarketDataProvider
 from stock_office.providers.fixture import FixtureProvider
 from stock_office.runs.repository import RunRepository
@@ -78,8 +81,13 @@ def make_service(settings: Settings) -> Callable[..., RunService]:
             return providers if providers is not None else [FixtureProvider()]
 
         # DEMO runs get the model-free DEMO briefing; real-engine runs never reach a model in tests.
-        return RunService(RunRepository(settings.data_dir), engines, provs,
-                          briefers=lambda run: DemoBriefingWriter() if run.demo else None)
+        service = RunService(RunRepository(settings.data_dir), engines, provs,
+                             briefers=lambda run: DemoBriefingWriter() if run.demo else None)
+        # CEO inbox on a temporary database; a fixed USD/KRW rate instead of a network call.
+        service.inbox = Inbox(connect(settings.data_dir), service.repo,
+                              fx=lambda: (Decimal(1400), datetime(2026, 10, 15, tzinfo=UTC)))
+        service.reporter = lambda run: service.inbox.file_run(run, service.clock())
+        return service
 
     return factory
 

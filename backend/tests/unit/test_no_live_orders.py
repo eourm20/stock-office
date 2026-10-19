@@ -40,7 +40,28 @@ def test_api_exposes_no_order_routes(tmp_path: Path) -> None:
     paths = {r.path for r in app.routes if isinstance(r, APIRoute)}
     assert not [p for p in paths if re.search(r"order|account|trade|broker", p)]
     mutating = {r.path for r in app.routes if isinstance(r, APIRoute) and r.methods - {"GET"}}
-    assert mutating == {"/api/v1/analysis-runs"}
+    # Every state-changing route is listed by name. The CEO's inbox decision only records an
+    # approval in the local database; nothing reaches any external service.
+    assert mutating == {
+        "/api/v1/analysis-runs",
+        "/api/v1/inbox/{item_id}/decision",
+        "/api/v1/inbox/{item_id}/read",
+    }
+
+
+NETWORK_IMPORTS = re.compile(
+    r"^\s*(?:import|from)\s+(httpx|requests|urllib|socket|aiohttp|yfinance|websocket\w*)\b",
+    re.MULTILINE)
+
+
+def test_paper_package_has_no_network_access() -> None:
+    """Paper trading decides and simulates locally; it must not be able to talk to anything."""
+    paper = SRC / "paper"
+    assert paper.is_dir()
+    offenders = [f"{path.relative_to(SRC)}: {m.group(1)}"
+                 for path in paper.rglob("*.py")
+                 for m in NETWORK_IMPORTS.finditer(path.read_text(encoding="utf-8"))]
+    assert offenders == []
 
 
 def test_health_declares_paper_only(tmp_path: Path) -> None:

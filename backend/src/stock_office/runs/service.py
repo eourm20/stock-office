@@ -68,6 +68,7 @@ class RunService:
         max_paid_runs_per_day: int | None = None,
         briefers: BriefingFactory | None = None,
         monthly_budget_usd: Decimal | None = None,
+        reporter: Callable[[AnalysisRun], Any] | None = None,
     ) -> None:
         self.repo = repo
         self.engines = engines
@@ -76,6 +77,19 @@ class RunService:
         self.max_paid_runs_per_day = max_paid_runs_per_day
         self.briefers = briefers
         self.monthly_budget_usd = monthly_budget_usd
+        self.reporter = reporter
+        self.inbox: Any = None   # stock_office.inbox.Inbox, set by wiring
+
+    def _file_report(self, run: AnalysisRun) -> None:
+        """File the meeting's document in the CEO inbox. Never fails the run."""
+        if self.reporter is None:
+            return
+        try:
+            self.reporter(run)
+        except Exception:  # the analysis itself succeeded; the inbox can be re-filed later
+            import logging
+
+            logging.getLogger("stock_office.inbox").exception("filing run %s failed", run.id)
 
     def budget(self) -> Any:
         """This month's LLM spend against the budget (None when no budget is configured)."""
@@ -198,6 +212,7 @@ class RunService:
                 self.repo.write_json(run.id, "reports.json", outcome.reports)
             self._decide(run, engine, outcome, snapshots)
             self.brief(run)
+            self._file_report(run)
             finish(RunStatus.COMPLETED)
         except EngineNotConfiguredError as exc:
             finish(RunStatus.FAILED, EngineNotConfiguredError.code, str(exc))

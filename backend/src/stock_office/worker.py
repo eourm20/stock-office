@@ -95,6 +95,8 @@ def main(clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> None:
     last_tick = 0.0
     while True:
         drain(service)
+        if service.inbox is not None:
+            service.inbox.expire_due(clock())
         if scheduling and time.monotonic() - last_tick >= 60:
             last_tick = time.monotonic()
             schedule_tick(service, clock())

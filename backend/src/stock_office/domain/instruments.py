@@ -33,6 +33,16 @@ _NAMES = {
     "KR:KRX:005930": "Samsung Electronics Co., Ltd.",
 }
 
+# Names people use in the office (display only; ids and data stay as they are).
+_DISPLAY_KO = {
+    "US:NASDAQ:NVDA": "엔비디아",
+    "KR:KRX:005930": "삼성전자",
+}
+
+
+def display_name(instrument_id: str) -> str:
+    return _DISPLAY_KO.get(instrument_id) or _NAMES.get(instrument_id) or instrument_id
+
 
 def parse_instrument_id(instrument_id: str) -> Instrument:
     match = _ID_RE.match(instrument_id.strip().upper())

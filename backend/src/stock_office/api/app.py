@@ -11,12 +11,14 @@ from typing import Annotated, Protocol
 from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from stock_office import __version__
 from stock_office.config import TRADINGAGENTS_COMMIT, TRADINGAGENTS_VERSION, Settings, get_settings
 from stock_office.domain.instruments import (
     InvalidInstrumentIdError,
     UnknownInstrumentError,
+    display_name,
     search_instruments,
 )
 from stock_office.domain.models import (
@@ -31,11 +33,21 @@ from stock_office.domain.models import (
     MarketSnapshot,
 )
 from stock_office.events.sse import format_sse, resume_after
+from stock_office.inbox import DecisionError, Inbox, InboxItem
 from stock_office.logging_setup import install_log_redaction
 from stock_office.runs.service import BudgetExceededError, FutureAsOfError, RunService
 from stock_office.runs.summary import OfficeSummary, build_summary
-from stock_office.wiring import build_service
+from stock_office.schedule import next_slots
+from stock_office.wiring import build_inbox, build_service
 from stock_office.worker import ThreadDispatcher
+
+
+class DecisionBody(BaseModel):
+    """CEO decision on an inbox document. `client_request_id` makes repeated taps harmless."""
+
+    action: str
+    comment: str = ""
+    client_request_id: str
 
 
 class Dispatcher(Protocol):
@@ -114,6 +126,76 @@ def create_app(
             raise HTTPException(429, str(exc)) from None
         active.submit(run.id)
         return CreateRunResponse(run_id=run.id, status=run.status)
+
+    inbox: Inbox = service.inbox or build_inbox(settings, service.repo)
+
+    @app.get("/api/v1/inbox")
+    def list_inbox() -> list[InboxItem]:
+        inbox.expire_due(service.clock())
+        return inbox.list()
+
+    @app.get("/api/v1/inbox/{item_id}")
+    def get_inbox_item(item_id: int) -> InboxItem:
+        inbox.expire_due(service.clock())
+        item = inbox.get(item_id)
+        if item is None:
+            raise HTTPException(404, "document not found")
+        return item
+
+    @app.post("/api/v1/inbox/{item_id}/decision")
+    def decide(item_id: int, body: DecisionBody) -> InboxItem:
+        """CEO decision. Records it only; nothing is sent anywhere (paper orders come later)."""
+        try:
+            return inbox.decide(item_id, body.action, body.comment, body.client_request_id,
+                                service.clock())
+        except DecisionError as exc:
+            raise HTTPException(exc.status, str(exc)) from None
+
+    @app.post("/api/v1/inbox/{item_id}/read")
+    def mark_read(item_id: int) -> dict[str, bool]:
+        inbox.mark_read(item_id, service.clock())
+        return {"ok": True}
+
+    @app.get("/api/v1/records")
+    def records() -> list[dict[str, object]]:
+        """Meeting minutes list: every run with its decision, headline and approval outcome."""
+        outcome = inbox.by_run()
+        rows: list[dict[str, object]] = []
+        for run in service.repo.list_runs():
+            decision = service.repo.get_decision(run.id)
+            briefing = service.repo.get_briefing(run.id) or {}
+            rows.append({
+                "run_id": run.id, "instrument_id": run.instrument_id,
+                "name": display_name(run.instrument_id), "status": run.status.value,
+                "demo": run.demo, "trigger": run.trigger, "requested_at": run.requested_at,
+                "action": decision.action.value if decision else None,
+                "rating": decision.engine_rating if decision else None,
+                "headline": briefing.get("headline") if briefing.get("status") == "OK" else None,
+                "approval": outcome.get(run.id),
+            })
+        return rows
+
+    @app.get("/api/v1/office/now")
+    def office_now() -> dict[str, object]:
+        """What the company is doing now and next (CCTV header, inbox summary)."""
+        now = service.clock()
+        runs = service.repo.list_runs()
+        active = next((r for r in runs if r.status.value in ("QUEUED", "RUNNING")), None)
+        slots = sorted(next_slots(now), key=lambda s: s.scheduled_at)
+        upcoming = [{"instrument_id": s.rule.instrument_id,
+                     "name": display_name(s.rule.instrument_id),
+                     "at": s.scheduled_at, "kind": "committee"} for s in slots]
+        status = service.budget()
+        return {
+            "now": now,
+            "active": {"run_id": active.id, "instrument_id": active.instrument_id,
+                       "name": display_name(active.instrument_id), "status": active.status.value,
+                       "demo": active.demo} if active else None,
+            "next": upcoming,
+            "budget": status.model_dump(mode="json") if status else None,
+            "pending_approvals": sum(1 for i in inbox.list()
+                                     if i.status in ("PENDING", "DEFERRED")),
+        }
 
     @app.get("/api/v1/budget")
     def get_budget() -> dict[str, object]:

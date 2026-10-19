@@ -93,3 +93,22 @@ class YahooPriceProvider:
                 )
             )
         return ProviderResult(snapshots=snapshots)
+
+
+def usd_krw_rate() -> tuple[Decimal, datetime] | None:
+    """Latest daily USD/KRW close from Yahoo (`KRW=X`) and its bar time; None when unavailable.
+
+    Used only to size USD plans in KRW. A missing rate blocks the plan (REVIEW), never a default.
+    """
+    try:
+        import yfinance as yf
+
+        frame = yf.Ticker("KRW=X").history(period="7d", interval="1d", auto_adjust=False)
+    except Exception:
+        return None
+    if frame is None or frame.empty:
+        return None
+    idx, row = list(frame.iterrows())[-1]
+    at = idx.to_pydatetime()
+    rate = Decimal(_dec(row["Close"]))
+    return (rate, at) if rate > 0 else None
