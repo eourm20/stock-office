@@ -146,6 +146,7 @@ export interface Briefing {
   risks: string[];
   watch_next: string[];
   agents: Record<string, string>;
+  agent_points?: Record<string, string[]>;
   debate: Record<string, string>;
   model: string;
   generated_at: string | null;

@@ -267,6 +267,7 @@ const stripSpeaker = (text: string) => text.replace(/^\s*[A-Za-z ]+(Analyst|Rese
 function AgentPanel({ data, agentId, summary }: { data: Loaded; agentId: string; summary?: ReturnType<typeof summarizeAgents>[string] }) {
   const full = data.reports.reports[agentId];
   const line = data.briefing?.agents[agentId];
+  const points = data.briefing?.agent_points?.[agentId] ?? [];
   return (
     <aside className="flex min-w-0 flex-col gap-2 rounded-lg border border-[var(--line)] bg-[var(--panel)] p-3 xl:sticky xl:top-2 xl:max-h-[calc(100vh-1rem)] xl:overflow-y-auto">
       <h2 className="text-lg font-semibold">{agentName(agentId)}</h2>
@@ -285,14 +286,22 @@ function AgentPanel({ data, agentId, summary }: { data: Loaded; agentId: string;
           </ol>
         </div>
       )}
-      {line && (
-        <p className="rounded border border-[#ffd98a55] bg-[#17203a] p-2 text-sm">
-          <span className="mr-1 text-[11px] text-[var(--muted)]">AI 요약</span>{humanizeTickers(line)}
-        </p>
+      {line ? (
+        <div className="rounded-lg border border-[#ffd98a55] bg-[#17203a] p-3">
+          <div className="mb-1 text-[11px] text-[var(--muted)]">AI 요약 · 이 직원의 보고서 기준</div>
+          <p className="font-semibold text-[#fff3d6]">{humanizeTickers(line)}</p>
+          {points.length > 0 && (
+            <ul className="mt-2 space-y-1.5 text-sm">
+              {points.map((x) => <li key={x} className="flex gap-1.5"><span aria-hidden="true" className="text-[#ffd98a]">•</span><span>{humanizeTickers(x)}</span></li>)}
+            </ul>
+          )}
+        </div>
+      ) : summary?.status !== "skipped" && (
+        <p className="text-xs text-[var(--muted)]">이 실행에는 아직 요약이 없어 원문을 보여 줍니다.</p>
       )}
       {full || summary?.summary ? (
         <details open={!line} className="text-sm">
-          <summary className="cursor-pointer text-[var(--muted)]">{full ? "보고서 원문" : "보고서 원문 (앞부분 600자)"}</summary>
+          <summary className="cursor-pointer text-[var(--muted)]">{full ? "원문 보기 (긴 보고서)" : "원문 보기 (앞부분 600자만 저장됨)"}</summary>
           <div className="mt-2"><Markdown text={humanizeTickers(stripSpeaker(full || summary!.summary))} /></div>
           {!full && <p className="mt-1 text-xs text-[var(--muted)]">이 실행은 전체 보고서 저장 기능이 생기기 전 기록이라 앞부분만 있습니다.</p>}
         </details>

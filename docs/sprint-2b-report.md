@@ -134,3 +134,9 @@ WinError 10014 (68 of 400 plain calls); asyncio needs it for every event loop, w
 **Tests.** Backend **106 passed** twice in a row (+4 `test_briefing.py`: known agents/messages only,
 clipping, redaction, no decision → no briefing, model failure stored as FAILED; e2e: DEMO briefing covers
 every debate message). Frontend 35 passed, `tsc` clean, `next build` OK.
+
+**Follow-up (same day, user request): summaries everywhere, originals stay on the server.** Each agent
+now gets a one-line conclusion **and up to 3 key points** in the briefing (`agent_points`); the agent panel
+shows only that summary, and the long original is a closed "원문 보기" at the bottom (kept for checking
+sources). Re-generated for `a1e851f3…`: 11 agents with points, figures copied from the reports, ≈ $0.0021.
+Screenshot: `docs/screenshots/sprint-2b-agent-summary.png`.

@@ -86,6 +86,7 @@ def test_nvda_demo_run_full_lifecycle(client: TestClient) -> None:
     debate_seqs = {str(e["seq"]) for e in events if e["type"] == "debate.message"}
     assert set(briefing["debate"]) == debate_seqs
     assert "memory_log" not in briefing["agents"] and "market_analyst" in briefing["agents"]
+    assert briefing["agent_points"]["market_analyst"] == ["DEMO 핵심 1", "DEMO 핵심 2"]
     assert decision["execution"] == "PROPOSED_ONLY" and decision["demo"] is True
     assert "DEMO_NOT_ANALYSIS" in decision["risk_flags"]
     assert set(decision["evidence_snapshot_ids"]) == set(run["snapshot_ids"])

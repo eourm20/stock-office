@@ -33,7 +33,9 @@ AGENT_IDS = {spec.agent_id for spec in AGENT_CATALOG.values()} - {"memory_log"}
 
 class AgentLine(BaseModel):
     agent_id: str = Field(description="agent id exactly as given in the input")
-    line: str = Field(description="한 문장 요약 (60자 이내)")
+    line: str = Field(description="그 직원의 결론 한 문장 (60자 이내)")
+    points: list[str] = Field(default_factory=list,
+                              description="보고서 핵심 최대 3개, 각 한 문장, 숫자는 입력 그대로")
 
 
 class DebateGist(BaseModel):
@@ -60,7 +62,8 @@ class Briefing(BaseModel):
     key_reasons: list[str] = Field(default_factory=list)
     risks: list[str] = Field(default_factory=list)
     watch_next: list[str] = Field(default_factory=list)
-    agents: dict[str, str] = Field(default_factory=dict)
+    agents: dict[str, str] = Field(default_factory=dict)              # agent -> one-line conclusion
+    agent_points: dict[str, list[str]] = Field(default_factory=dict)  # agent -> up to 3 key points
     debate: dict[str, str] = Field(default_factory=dict)   # seq (as text) -> gist
     model: str = ""
     generated_at: datetime | None = None
@@ -112,7 +115,8 @@ PROMPT = """너는 투자위원회 회의 결과를 임원에게 보고하는 �
 - 입력에 없는 숫자·사실·전망을 만들지 마라. 확실하지 않으면 쓰지 마라.
 - 결론(headline)은 최종 결정(decision.action, rating)과 일치해야 한다.
 - 각 항목은 한 문장, 핵심만. 최대 3개.
-- agent_lines: agent_reports의 각 agent_id마다 한 문장.
+- agent_lines: agent_reports의 각 agent_id마다 결론 한 문장(line)과 핵심 내용 최대 3개(points).
+  보고서를 읽지 않은 사람도 그 직원이 무엇을 봤고 왜 그렇게 판단했는지 알 수 있게 써라.
 - debate_gists: debate의 각 seq마다 그 발언의 핵심 주장을 한두 문장으로.
 - 투자 권유나 수익 보장 표현을 쓰지 마라. 외부 도구나 검색을 쓰지 마라.
 
@@ -144,6 +148,8 @@ def finalize(draft: BriefingDraft, payload: dict[str, Any], *, model: str, demo:
         watch_next=[_clip(x, ITEM_CHARS) for x in draft.watch_next if x.strip()][:MAX_ITEMS],
         agents={a.agent_id: _clip(a.line, ITEM_CHARS) for a in draft.agent_lines
                 if a.agent_id in agents_in and a.line.strip()},
+        agent_points={a.agent_id: [_clip(x, ITEM_CHARS) for x in a.points if x.strip()][:MAX_ITEMS]
+                      for a in draft.agent_lines if a.agent_id in agents_in and a.points},
         debate={str(d.seq): _clip(d.gist, ITEM_CHARS) for d in draft.debate_gists
                 if d.seq in seqs_in and d.gist.strip()},
         model=model, generated_at=now, demo=demo, token_usage=usage,
@@ -181,7 +187,8 @@ class DemoBriefingWriter:
             key_reasons=["DEMO: 실제 분석이 아닌 화면 시험용 근거입니다."],
             risks=["DEMO: 실제 위험 평가가 아닙니다."],
             watch_next=["DEMO: 실제 분석을 실행해 보세요."],
-            agent_lines=[AgentLine(agent_id=a, line="DEMO 요약 한 줄")
+            agent_lines=[AgentLine(agent_id=a, line="DEMO 결론 한 줄",
+                                   points=["DEMO 핵심 1", "DEMO 핵심 2"])
                          for a in payload["agent_reports"]],
             debate_gists=[DebateGist(seq=d["seq"], gist="DEMO 발언 요지")
                           for d in payload["debate"]],

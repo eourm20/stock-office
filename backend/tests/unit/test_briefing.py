@@ -34,7 +34,8 @@ def test_finalize_keeps_only_known_agents_and_messages_and_clips() -> None:
         key_reasons=["a", "b", "c", "d", "  "],
         risks=["위험 api_key=sk-abcdefghijklmnop0000"],
         watch_next=[],
-        agent_lines=[AgentLine(agent_id="market_analyst", line="상승 추세"),
+        agent_lines=[AgentLine(agent_id="market_analyst", line="상승 추세",
+                               points=["p1", "p2", "p3", "p4", " "]),
                      AgentLine(agent_id="made_up_agent", line="invented"),
                      AgentLine(agent_id="trader", line="  ")],
         debate_gists=[DebateGist(seq=14, gist="오른다"), DebateGist(seq=999, gist="invented")],
@@ -44,6 +45,7 @@ def test_finalize_keeps_only_known_agents_and_messages_and_clips() -> None:
     assert b.key_reasons == ["a", "b", "c"]
     assert "sk-abcdefghijklmnop" not in b.risks[0]
     assert b.agents == {"market_analyst": "상승 추세"}
+    assert b.agent_points == {"market_analyst": ["p1", "p2", "p3"]}
     assert b.debate == {"14": "오른다"}
     assert all(len(x) <= ITEM_CHARS + 20 for x in b.key_reasons + b.risks)
 
