@@ -44,6 +44,7 @@ Build **Stock Office**, a personal AI investment-office simulator that analyzes 
 - Logs should redact secrets, account data, raw prompts and sensitive traces.
 
 ## User experience principles
+- Company operating model (user decision 2026-10-19, IMPLEMENTATION_PLAN §3c): the user is the approver. Reports arrive in an inbox (daily, ad-hoc, approval requests); an approved BUY/SELL becomes a **paper** order only after the deterministic risk policy. The office shows only work happening now; past runs are records, not replays. Monthly budget 10,000 KRW (≈ $7) with a hard stop.
 - The Analysis screen is the main screen (user decision 2026-10-19): decision, committee graph, full reports, debate, evidence with timestamps and run facts. The office is a secondary replay/live view; keep investing in it modest.
 - Game-like pixel-art office for *observing* the AI company: characters and animation are encouraged (moving between desks and meeting rooms, sitting at computers, debating with speech bubbles, delivering reports). Financial data, reports, sources and performance are shown in readable, professional UI panels, not inside the game art.
 - Desktop-first with responsive fallbacks, accessible keyboard interactions and `prefers-reduced-motion` support (reduced motion: characters switch places instead of walking, no ambient motion). The canvas always has a text equivalent (Activity Feed and agent panels) for screen readers.
