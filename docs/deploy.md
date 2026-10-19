@@ -37,7 +37,8 @@ The server has its own `~/stock-office/backend/.env` (mode 600). The key lines a
 
 ```
 ssh stock-office
-nano ~/stock-office/backend/.env      # set OPENAI_API_KEY, STOCK_OFFICE_DART_API_KEY, FRED_API_KEY
+nano ~/stock-office/backend/.env      # OPENAI_API_KEY, STOCK_OFFICE_DART_API_KEY,
+                                      # STOCK_OFFICE_NAVER_CLIENT_ID / _SECRET, FRED_API_KEY
 sudo systemctl restart stock-office-api stock-office-worker
 ```
 
@@ -80,3 +81,15 @@ ARM instance (up to 4 OCPU / 24 GB, free tier).
    started (health `worker_mode=external`, engine readiness OK, same next slots); owner removed the old device and renamed
    the new one to `stock-office` in the Tailscale admin; `tailscale serve` re-created; HTTPS checks 200 for `/`, `/office`,
    `/api/v1/office/summary`, `/api/v1/budget`, manifest. Budget and run history identical to the old server.
+
+## Data on the server (`~/stock-office/backend/data`)
+| Path | Contents |
+|---|---|
+| `runs/<run_id>/run.json`, `events.jsonl`, `decision.json` | the run, its ordered events and the decision |
+| `runs/<run_id>/reports.json`, `briefing.json` | full redacted reports and debate transcripts; one-page AI summary |
+| `runs/<run_id>/tool_results.json` | what the analysts' tools returned (redacted, ≤ 6,000 chars each; runs from 2026-10-20 on) |
+| `runs/<run_id>/snapshots/` | provider data the run was given (prices, filings, news) with point-in-time stamps |
+| `office.db` | SQLite: inbox documents, approval plans, CEO decisions |
+
+File the inbox for runs that have no document yet (past deadlines arrive as EXPIRED):
+`cd ~/stock-office/backend && .venv/bin/python -m stock_office.inbox`.
