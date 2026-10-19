@@ -78,7 +78,7 @@ def test_cost_profile_keys_exist_upstream_and_graph_builds(
 
 def test_kr_news_vendor_routes_through_upstream(tmp_path: Path,
                                                 monkeypatch: pytest.MonkeyPatch) -> None:
-    """KR stocks: Yahoo first, then OpenDART disclosures; US stocks are unchanged."""
+    """KR stocks: Korean headlines (Naver) + OpenDART disclosures before Yahoo; US unchanged."""
     from datetime import UTC, datetime
 
     from tradingagents.dataflows.config import run_config
@@ -90,6 +90,7 @@ def test_kr_news_vendor_routes_through_upstream(tmp_path: Path,
     from stock_office.engine.ta_extensions import KR_NEWS_VENDOR, register_kr_news_vendor
     from stock_office.providers.base import ProviderResult
     from stock_office.providers.dart import DartDisclosureProvider
+    from stock_office.providers.naver import NaverNewsProvider
 
     seen: list[tuple[str, str]] = []
 
@@ -108,19 +109,27 @@ def test_kr_news_vendor_routes_through_upstream(tmp_path: Path,
     def no_yahoo_news(*_: object) -> str:
         raise VendorUnavailableError("Yahoo Finance has no news articles tagged 005930.KS")
 
+    def naver_api(_url: str, params: dict[str, object], _h: dict[str, str]) -> dict[str, object]:
+        assert params["query"] == "삼성전자"
+        return {"items": [{"title": "삼성전자, <b>HBM</b> 공급 확대", "description": "요약",
+                           "originallink": "https://news.example/1",
+                           "pubDate": "Wed, 14 Oct 2026 09:00:00 +0900"}]}
+
     monkeypatch.setitem(VENDOR_METHODS["get_news"], "yfinance", no_yahoo_news)
-    register_kr_news_vendor(lambda: StubDart(api_key="k"))
+    register_kr_news_vendor(lambda: StubDart(api_key="k"),
+                            lambda: NaverNewsProvider("id", "secret", http_get=naver_api))
     engine = TradingAgentsEngine(Settings(data_dir=tmp_path, dart_api_key="k",  # type: ignore[call-arg]
                                           _env_file=None))
     work = tmp_path / "runs" / "r1"
     work.mkdir(parents=True)
     kr = engine.build_config(work, get_instrument("KR:KRX:005930"))
     us = engine.build_config(work, get_instrument("US:NASDAQ:NVDA"))
-    assert kr["tool_vendors"]["get_news"] == f"yfinance,{KR_NEWS_VENDOR}"
+    assert kr["tool_vendors"]["get_news"] == f"{KR_NEWS_VENDOR},yfinance"
     assert "get_news" not in us.get("tool_vendors", {})
     with run_config(kr):
         text = route_to_vendor("get_news", "005930.KS", "2026-10-09", "2026-10-16")
     assert "OpenDART disclosures" in text and "분기보고서" in text
+    assert "Korean press headlines" in text and "삼성전자, HBM 공급 확대" in text
     assert seen == [("2026-10-09", "2026-10-16")]
 
 

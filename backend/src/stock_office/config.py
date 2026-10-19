@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     monthly_budget_usd: Decimal = Decimal("7")
 
     dart_api_key: SecretStr | None = None
+    # Official Naver Search API (Korean press headlines), read-only.
+    naver_client_id: SecretStr | None = None
+    naver_client_secret: SecretStr | None = None
 
     @field_validator("paper_only")
     @classmethod

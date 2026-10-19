@@ -15,6 +15,7 @@ from stock_office.inbox import Inbox
 from stock_office.providers.base import MarketDataProvider
 from stock_office.providers.dart import DartDisclosureProvider
 from stock_office.providers.fixture import FixtureProvider
+from stock_office.providers.naver import NaverNewsProvider
 from stock_office.providers.yahoo import YahooPriceProvider
 from stock_office.runs.repository import RunRepository
 from stock_office.runs.service import RunService
@@ -30,7 +31,13 @@ def build_service(settings: Settings) -> RunService:
         if name == "demo":
             return [FixtureProvider()]
         key = settings.dart_api_key.get_secret_value() if settings.dart_api_key else None
-        return [YahooPriceProvider(), DartDisclosureProvider(api_key=key)]
+        naver = NaverNewsProvider(
+            settings.naver_client_id.get_secret_value() if settings.naver_client_id else None,
+            settings.naver_client_secret.get_secret_value()
+            if settings.naver_client_secret
+            else None,
+        )
+        return [YahooPriceProvider(), DartDisclosureProvider(api_key=key), naver]
 
     repo = RunRepository(settings.data_dir)
 

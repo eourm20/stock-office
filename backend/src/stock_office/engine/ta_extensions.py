@@ -1,9 +1,10 @@
 """Stock Office extensions to TradingAgents, registered at runtime (no upstream file is edited).
 
-1. `stockoffice_dart` news vendor: for KRX stocks Yahoo often has no company news (observed
-   for 005930.KS on 2026-10-16), so the News Analyst got nothing. This vendor serves official
-   OpenDART disclosures for the same window, clearly labelled as filings, not press news.
-   Upstream `get_news` already clamps the window to the run's trade date (point-in-time).
+1. `stockoffice_kr_news` news vendor: for KRX stocks Yahoo often has no company news (observed
+   for 005930.KS on 2026-10-16). This vendor serves Korean press headlines from the official
+   Naver Search API (title + summary only) and official OpenDART disclosures for the same window,
+   each clearly labelled. It runs before Yahoo for KRX stocks. Upstream `get_news` already
+   clamps the window to the run's trade date (point-in-time).
 2. `UpstreamDataGapCollector`: upstream logs vendor failures (e.g. Polymarket HTTP 451, Yahoo
    "no news") as warnings and carries on. The collector turns them into run coverage gaps.
 
@@ -23,8 +24,9 @@ from stock_office.domain.models import Instrument, Market, MarketSnapshot
 from stock_office.engine.upstream import import_tradingagents
 from stock_office.events.sanitize import redact_text
 from stock_office.providers.dart import DartDisclosureProvider
+from stock_office.providers.naver import NaverNewsProvider
 
-KR_NEWS_VENDOR = "stockoffice_dart"
+KR_NEWS_VENDOR = "stockoffice_kr_news"
 PREDICTION_OFF_VENDOR = "stockoffice_off"
 MAX_GAPS = 10
 
@@ -49,32 +51,61 @@ def format_disclosures(symbol: str, start: str, end: str,
     return "\n".join(lines)
 
 
-def make_kr_news_vendor(provider_factory: Callable[[], DartDisclosureProvider]
-                        ) -> Callable[[str, str, str], str]:
-    def kr_dart_news(ticker: str, start_date: str, end_date: str) -> str:
+def format_news(symbol: str, start: str, end: str, news: list[MarketSnapshot]) -> str:
+    lines = [
+        f"## Korean press headlines for {symbol}, {start} to {end}",
+        "Source: Naver News search (title and the publisher's summary only; full articles were "
+        "not read). Secondary sources: weigh them against filings and prices.",
+        "",
+    ]
+    for snap in sorted(news, key=lambda s: s.observed_at, reverse=True):
+        p = snap.payload
+        when = snap.observed_at.strftime("%Y-%m-%d %H:%M")
+        lines.append(f"- {when} | {p['title']} - {p['description']} | {p['link']}")
+    return "\n".join(lines)
+
+
+def make_kr_news_vendor(
+    dart_factory: Callable[[], DartDisclosureProvider],
+    naver_factory: Callable[[], NaverNewsProvider] | None = None,
+) -> Callable[[str, str, str], str]:
+    def kr_news(ticker: str, start_date: str, end_date: str) -> str:
         import_tradingagents()
         from tradingagents.dataflows.errors import NoMarketDataError
 
         instrument = instrument_for_provider_symbol(ticker)
-        provider = provider_factory()
-        if instrument is None or instrument.market is not Market.KR \
-                or not provider.supports(instrument):
-            raise NoMarketDataError(ticker, detail="OpenDART covers Korean listed companies only")
-        result = provider.fetch_range(instrument, date.fromisoformat(start_date),
-                                      date.fromisoformat(end_date))
-        if not result.snapshots:
-            detail = "; ".join(result.coverage_gaps) or "no disclosures in window"
-            raise NoMarketDataError(ticker, detail=detail)
-        return format_disclosures(ticker, start_date, end_date, result.snapshots)
+        if instrument is None or instrument.market is not Market.KR:
+            raise NoMarketDataError(ticker, detail="Korean news covers KRX-listed companies only")
+        start, end = date.fromisoformat(start_date), date.fromisoformat(end_date)
+        sections: list[str] = []
+        gaps: list[str] = []
+        naver = naver_factory() if naver_factory else None
+        if naver is not None and naver.supports(instrument):
+            got = naver.fetch_range(instrument, start, end)
+            if got.snapshots:
+                sections.append(format_news(ticker, start_date, end_date, got.snapshots))
+            gaps.extend(got.coverage_gaps)
+        dart = dart_factory()
+        if dart.supports(instrument):
+            got = dart.fetch_range(instrument, start, end)
+            if got.snapshots:
+                sections.append(format_disclosures(ticker, start_date, end_date, got.snapshots))
+            gaps.extend(got.coverage_gaps)
+        if not sections:
+            raise NoMarketDataError(ticker, detail="; ".join(gaps) or "no news or disclosures")
+        return "\n\n".join(sections)
 
-    return kr_dart_news
+    return kr_news
 
 
-def register_kr_news_vendor(provider_factory: Callable[[], DartDisclosureProvider]) -> None:
+def register_kr_news_vendor(
+    dart_factory: Callable[[], DartDisclosureProvider],
+    naver_factory: Callable[[], NaverNewsProvider] | None = None,
+) -> None:
     import_tradingagents()
     from tradingagents.dataflows.router import VENDOR_METHODS
 
-    VENDOR_METHODS["get_news"][KR_NEWS_VENDOR] = make_kr_news_vendor(provider_factory)
+    VENDOR_METHODS["get_news"][KR_NEWS_VENDOR] = make_kr_news_vendor(dart_factory, naver_factory)
 
 
 def register_prediction_markets_off() -> None:

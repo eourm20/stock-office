@@ -19,6 +19,7 @@ from stock_office.config import TRADINGAGENTS_COMMIT, TRADINGAGENTS_VERSION, Set
 from stock_office.domain.models import Instrument, Market
 from stock_office.engine.upstream import import_tradingagents
 from stock_office.providers.dart import DartDisclosureProvider
+from stock_office.providers.naver import NaverNewsProvider
 
 from .adapter import (
     EngineContext,
@@ -125,7 +126,14 @@ class TradingAgentsEngine:
     @property
     def kr_news_enabled(self) -> bool:
         key = self.settings.dart_api_key
-        return bool(key and key.get_secret_value().strip())
+        return bool(key and key.get_secret_value().strip()) or self._naver_provider().configured
+
+    def _naver_provider(self) -> NaverNewsProvider:
+        s = self.settings
+        return NaverNewsProvider(
+            s.naver_client_id.get_secret_value() if s.naver_client_id else None,
+            s.naver_client_secret.get_secret_value() if s.naver_client_secret else None,
+        )
 
     def _dart_provider(self) -> DartDisclosureProvider:
         key = self.settings.dart_api_key
@@ -140,7 +148,7 @@ class TradingAgentsEngine:
         if instrument is not None and instrument.market is Market.KR and self.kr_news_enabled:
             # Yahoo first; OpenDART disclosures when Yahoo has no company news for a KRX stock.
             config["tool_vendors"] = {**config.get("tool_vendors", {}),
-                                      "get_news": f"yfinance,{KR_NEWS_VENDOR}"}
+                                      "get_news": f"{KR_NEWS_VENDOR},yfinance"}
         if not self.settings.ta_prediction_markets:
             config["tool_vendors"] = {**config.get("tool_vendors", {}),
                                       "get_prediction_markets": PREDICTION_OFF_VENDOR}
@@ -158,7 +166,7 @@ class TradingAgentsEngine:
         from tradingagents.graph.trading_graph import TradingAgentsGraph
 
         if self.kr_news_enabled:
-            register_kr_news_vendor(self._dart_provider)
+            register_kr_news_vendor(self._dart_provider, self._naver_provider)
         if not self.settings.ta_prediction_markets:
             register_prediction_markets_off()
         usage = UsageMetadataCallbackHandler()
