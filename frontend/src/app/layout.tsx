@@ -22,8 +22,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     // Browser extensions add attributes to <html> before React hydrates; ignore that mismatch.
     <html lang="ko" suppressHydrationWarning>
-      {/* Safe-area padding keeps content clear of the notch / home bar in the installed app. */}
-      <body className="min-h-screen antialiased pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">{children}</body>
+      {/* Safe-area padding keeps content clear of the notch / home bar; phones also reserve room for the bottom tab bar. */}
+      <body className="min-h-screen antialiased pt-[env(safe-area-inset-top)] pb-[calc(4rem+env(safe-area-inset-bottom))] sm:pb-[env(safe-area-inset-bottom)]">{children}</body>
     </html>
   );
 }

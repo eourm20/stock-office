@@ -84,3 +84,14 @@ describe("analysis model", () => {
     expect(tokenTotals(null)).toEqual([]);
   });
 });
+
+describe("plain coverage gaps", () => {
+  it("turns raw engine messages into one Korean line each", async () => {
+    const { plainGap } = await import("./model");
+    expect(plainGap("tradingagents: Vendor 'yfinance' unavailable for get_news: Yahoo Finance has no news articles tagged 005930.KS"))
+      .toContain("뉴스가 없어");
+    expect(plainGap("tradingagents: Polymarket search failed for 'Fed rate cut': 451 Client Error"))
+      .toContain("예측시장");
+    expect(plainGap("something else")).toBe("일부 데이터를 가져오지 못했어요");
+  });
+});

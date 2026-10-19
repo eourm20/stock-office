@@ -140,3 +140,12 @@ export function tokenTotals(usage: Record<string, { total_tokens?: number }> | n
     { model: string; tokens: number }[] {
   return Object.entries(usage ?? {}).map(([model, u]) => ({ model, tokens: u.total_tokens ?? 0 }));
 }
+
+/** A raw provider/engine coverage-gap message → one plain Korean line (details stay available). */
+export function plainGap(raw: string): string {
+  if (/no news articles/i.test(raw)) return "Yahoo에 이 종목 뉴스가 없어 다른 출처로 대신했어요";
+  if (/polymarket|prediction markets/i.test(raw)) return "예측시장(Polymarket) 정보는 이 네트워크에서 차단돼 쓰지 못했어요";
+  if (/opendart|dart/i.test(raw)) return "DART 공시 일부를 가져오지 못했어요";
+  if (/yahoo|yfinance/i.test(raw)) return "Yahoo 시세 일부를 가져오지 못했어요";
+  return "일부 데이터를 가져오지 못했어요";
+}

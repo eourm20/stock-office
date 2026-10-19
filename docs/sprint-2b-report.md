@@ -140,3 +140,21 @@ now gets a one-line conclusion **and up to 3 key points** in the briefing (`agen
 shows only that summary, and the long original is a closed "원문 보기" at the bottom (kept for checking
 sources). Re-generated for `a1e851f3…`: 11 agents with points, figures copied from the reports, ≈ $0.0021.
 Screenshot: `docs/screenshots/sprint-2b-agent-summary.png`.
+
+## Mobile UX review and redesign (2026-10-19, user request)
+Review on iPhone 13 emulation with the real 005930 run found: a 153 px header, the conclusion repeated
+three times (decision card, briefing headline, PM panel), a 611 px briefing card, an empty graph section on
+phones, a report list whose panel sat at the bottom of the page, a 6-column evidence table wrapping letter
+by letter and raw English error strings with URLs. Changes (desktop layout kept):
+
+| Before | After |
+|---|---|
+| Header with nav, badge and start form | Compact header; **bottom tab bar** (분석 · 사무실 · 기록) on phones; "＋ 새 분석" button opens the form |
+| Decision card + separate briefing card | **One card**: action, rating, one-line conclusion, then [이유 · 위험 · 확인할 것] segments on phones (3 columns on wide screens); data-quality flags collapsed as "⚠ 데이터 주의 n개" |
+| Graph section showing only a note on phones | Hidden on phones; office replay link at the end |
+| 12 agent buttons + panel at the bottom | **Grouped by team** in working order, one-line conclusion each; tap expands key points in place (desktop keeps the side panel); agents that did not take part listed in one muted line |
+| Evidence table + raw gap messages | Plain-Korean gap lines (raw text collapsed), sources grouped by kind with counts, one row per item with date and link |
+| Tabs could scroll away | Sticky tab bar; labels "팀별 의견 · 토론 · 출처 · 실행 정보" (renamed so "근거" no longer appears twice) |
+
+Page height on the phone: 2,681 px → 2,115 px with more information above the fold. Screenshot:
+`docs/screenshots/sprint-2b-mobile-redesign.png`. Frontend 36 tests (+1 `plainGap`), `tsc` and `next build` OK.
