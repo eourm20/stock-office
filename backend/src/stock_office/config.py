@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     # Polymarket answers HTTP 451 from Korea; when off, the tool reports "unavailable" at once
     # instead of making blocked requests.
     ta_prediction_markets: bool = False
+    # Rounds of the bull/bear and the risk debates (upstream default 1; owner chose 2).
+    ta_debate_rounds: int = 2
 
     # Daily automatic analysis (worker --schedule). Off unless explicitly enabled: it costs money.
     schedule_enabled: bool = False

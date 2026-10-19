@@ -13,6 +13,7 @@ Guarded by tests/contract/test_upstream_graph.py against the pinned upstream ver
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import date
@@ -93,6 +94,10 @@ def register_prediction_markets_off() -> None:
     VENDOR_METHODS["get_prediction_markets"][PREDICTION_OFF_VENDOR] = off
 
 
+NOT_USED = re.compile(r"prediction markets disabled in Stock Office|polymarket|"
+                      r"get_prediction_markets", re.IGNORECASE)
+
+
 class UpstreamDataGapCollector(logging.Handler):
     """Collects upstream data warnings (deduplicated, redacted, capped) during one run."""
 
@@ -101,7 +106,12 @@ class UpstreamDataGapCollector(logging.Handler):
         self.gaps: list[str] = []
 
     def emit(self, record: logging.LogRecord) -> None:
-        text = redact_text(f"tradingagents: {record.getMessage()}", limit=240)
+        message = record.getMessage()
+        # Prediction markets are switched off on purpose (blocked from this network): a tool
+        # we do not use is not missing data.
+        if NOT_USED.search(message):
+            return
+        text = redact_text(f"tradingagents: {message}", limit=240)
         if text not in self.gaps and len(self.gaps) < MAX_GAPS:
             self.gaps.append(text)
 

@@ -79,6 +79,10 @@ class TradingAgentsEngine:
             "llm_provider": self.settings.ta_llm_provider,
             "output_language": self.settings.ta_output_language,
             "checkpoint_enabled": False,
+            # Owner decision 2026-10-19: real back-and-forth (claim, rebuttal, counter-rebuttal)
+            # in both debates instead of one statement each (upstream default 1).
+            "max_debate_rounds": self.settings.ta_debate_rounds,
+            "max_risk_discuss_rounds": self.settings.ta_debate_rounds,
         }
         if self.settings.ta_deep_think_llm:
             overrides["deep_think_llm"] = self.settings.ta_deep_think_llm

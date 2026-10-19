@@ -206,7 +206,8 @@ def test_prediction_markets_off_answers_unavailable_without_network(
     with collect_upstream_data_gaps() as gaps, run_config(config):
         text = route_to_vendor("get_prediction_markets", "Fed rate cut", 6, None)
     assert "unavailable" in text.lower() or "DATA_UNAVAILABLE" in text
-    assert any("451" in g for g in gaps.gaps)
+    # Switched off on purpose: the model is told "unavailable", and it is not a data gap.
+    assert not any("451" in g or "prediction" in g.lower() for g in gaps.gaps)
 
     on = TradingAgentsEngine(Settings(data_dir=tmp_path, ta_prediction_markets=True,  # type: ignore[call-arg]
                                       _env_file=None))
