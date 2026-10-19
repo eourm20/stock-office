@@ -146,6 +146,13 @@ def create_app(
         reports = service.repo.get_reports(run_id)
         return {"available": reports is not None, "reports": reports or {}}
 
+    @app.get("/api/v1/analysis-runs/{run_id}/briefing")
+    def get_briefing(run_id: str) -> dict[str, object]:
+        """One-page AI summary of the stored reports, when it exists."""
+        _run_or_404(run_id)
+        briefing = service.repo.get_briefing(run_id)
+        return {"available": briefing is not None, "briefing": briefing}
+
     @app.get("/api/v1/analysis-runs/{run_id}/decision")
     def get_decision(run_id: str) -> InvestmentDecision:
         run = _run_or_404(run_id)

@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from stock_office.briefing import BriefingWriter, DemoBriefingWriter, QuickModelBriefingWriter
 from stock_office.config import Settings
-from stock_office.domain.models import EngineName
+from stock_office.domain.models import AnalysisRun, EngineName
 from stock_office.engine.adapter import AnalysisEngine
 from stock_office.engine.demo_engine import DemoEngine
 from stock_office.engine.tradingagents_engine import TradingAgentsEngine
@@ -29,5 +30,13 @@ def build_service(settings: Settings) -> RunService:
         key = settings.dart_api_key.get_secret_value() if settings.dart_api_key else None
         return [YahooPriceProvider(), DartDisclosureProvider(api_key=key)]
 
-    return RunService(RunRepository(settings.data_dir), engines, providers,
-                      max_paid_runs_per_day=settings.max_paid_runs_per_day)
+    repo = RunRepository(settings.data_dir)
+
+    def briefers(run: AnalysisRun) -> BriefingWriter:
+        if run.demo:
+            return DemoBriefingWriter()
+        engine = TradingAgentsEngine(settings)
+        return QuickModelBriefingWriter(engine.build_config(repo.root / run.id))
+
+    return RunService(repo, engines, providers,
+                      max_paid_runs_per_day=settings.max_paid_runs_per_day, briefers=briefers)

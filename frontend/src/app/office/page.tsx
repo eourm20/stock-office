@@ -203,7 +203,7 @@ export default function OfficePage() {
   const offstage = useMemo(() => Object.entries(state.offstage), [state.offstage]);
 
   return (
-    <main className="flex h-screen flex-col">
+    <main className="flex min-h-screen flex-col md:h-screen">
       <NavBar>
         {auto ? (
           <span className="rounded bg-[#1e3a2f] px-2 py-1 text-xs text-[var(--mint)]" title="진행 중인 회의를 자동으로 따라가고, 없으면 최신 결정을 보여 줍니다">자동 모드</span>
@@ -226,19 +226,19 @@ export default function OfficePage() {
                   disabled={!runId || mode === "live"}
                   className="rounded bg-[var(--panel)] px-2 py-1 disabled:opacity-40">▶ 회의 다시보기</button>
         </div>
-        <div className="ml-auto flex items-center gap-1">
-          <select className="rounded bg-[var(--panel)] px-2 py-1" value={instrument}
+        <div className="flex w-full flex-wrap items-center gap-1 sm:ml-auto sm:w-auto">
+          <select className="min-w-0 flex-1 rounded bg-[var(--panel)] px-2 py-1 sm:flex-none" value={instrument}
                   onChange={(e) => setInstrument(e.target.value)} aria-label="종목">
-            <option>US:NASDAQ:NVDA</option><option>KR:KRX:005930</option>
+            {Object.entries(INSTRUMENT_KO).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
           </select>
-          <select className="rounded bg-[var(--panel)] px-2 py-1" value={engine} aria-label="엔진"
+          <select className="min-w-0 flex-1 rounded bg-[var(--panel)] px-2 py-1 sm:flex-none" value={engine} aria-label="엔진"
                   onChange={(e) => setEngine(e.target.value as "demo" | "tradingagents")}>
             <option value="demo">DEMO (무료)</option>
             <option value="tradingagents">TradingAgents (유료)</option>
           </select>
-          <button onClick={() => void start()} className="rounded bg-[var(--mint)] px-3 py-1 font-semibold text-black"
+          <button onClick={() => void start()} className="shrink-0 whitespace-nowrap rounded bg-[var(--mint)] px-3 py-1 font-semibold text-black"
                   title="고른 종목으로 AI 투자위원회 회의(분석)를 새로 시작합니다">새 분석 시작</button>
-          <button onClick={() => setHelp(true)} className="rounded border border-[var(--line)] px-3 py-1">보는 법</button>
+          <button onClick={() => setHelp(true)} className="shrink-0 whitespace-nowrap rounded border border-[var(--line)] px-3 py-1">보는 법</button>
         </div>
       </NavBar>
 
@@ -267,8 +267,8 @@ export default function OfficePage() {
         })}
       </nav>
 
-      <div className="flex min-h-0 flex-1">
-        <section className="relative min-w-0 flex-1" aria-label="사무실">
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+        <section className="relative h-[58vh] min-w-0 md:h-auto md:flex-1" aria-label="사무실">
           <OfficeCanvas state={state} animate={animate} speed={speed === "instant" ? 8 : speed}
                         reducedMotion={reducedMotion} selected={selected}
                         onAgentClick={(id) => setSelected(id)} />
@@ -285,7 +285,7 @@ export default function OfficePage() {
           {error && <p role="alert" className="absolute bottom-10 left-3 rounded bg-rose-900/80 px-3 py-2 text-sm">{error}</p>}
         </section>
 
-        <aside className="flex w-[360px] shrink-0 flex-col gap-3 overflow-y-auto border-l border-[var(--line)] bg-[#0d1426] p-3 text-sm">
+        <aside className="flex w-full shrink-0 flex-col gap-3 border-t border-[var(--line)] bg-[#0d1426] p-3 text-sm md:w-[360px] md:overflow-y-auto md:border-l md:border-t-0">
           <div className="rounded-lg border border-[var(--line)] bg-[var(--panel)] p-3">
             <h2 className="mb-1 text-xs uppercase tracking-widest text-[var(--muted)]">최종 결정</h2>
             {state.decision ? (

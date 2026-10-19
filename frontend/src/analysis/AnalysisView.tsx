@@ -6,25 +6,19 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Markdown from "../app/Markdown";
 import NavBar from "../app/NavBar";
-import { fetchRunEvents, getDecision, getReports, getRunDetail, getSnapshots, getSummary, startRun,
-  type Decision, type RunDetail, type Snapshot } from "../lib/api";
+import { fetchRunEvents, getBriefing, getDecision, getReports, getRunDetail, getSnapshots, getSummary,
+  startRun, type Briefing, type Decision, type RunDetail, type Snapshot } from "../lib/api";
 import { chooseAutoRun, INSTRUMENT_KO, timeAgo, type InstrumentSummary } from "../office/auto";
 import { ACTION_KO, FLAG_KO, RATING_KO } from "../office/explain";
 import { agentName, humanizeTickers, PHASE_KO, toolNames } from "../office/names";
 import type { RunEvent } from "../types";
+import DebateChat from "./DebateChat";
 import { debateTranscript, FLOW_NODES, formatDuration, summarizeAgents, tokenTotals } from "./model";
 
 const FlowGraph = dynamic(() => import("./FlowGraph"), { ssr: false });
 
 const ACTION_COLOR: Record<string, string> = {
   BUY: "text-emerald-300", SELL: "text-rose-300", HOLD: "text-sky-200", REVIEW: "text-amber-300",
-};
-const STANCE_KO: Record<string, string> = {
-  bull: "강세", bear: "약세", aggressive: "공격형", conservative: "보수형", neutral: "중립형",
-};
-const STANCE_COLOR: Record<string, string> = {
-  bull: "border-emerald-500", bear: "border-rose-500", aggressive: "border-orange-400",
-  conservative: "border-blue-400", neutral: "border-slate-400",
 };
 const FINISHED = new Set(["COMPLETED", "FAILED", "INSUFFICIENT_DATA"]);
 const REPORT_AGENTS = FLOW_NODES.map((n) => n.id)
@@ -40,6 +34,7 @@ interface Loaded {
   decision: Decision | null;
   snapshots: Snapshot[];
   reports: { available: boolean; reports: Record<string, string> };
+  briefing: Briefing | null;
 }
 
 type Tab = "reports" | "debate" | "evidence" | "facts";
@@ -68,12 +63,14 @@ export default function AnalysisView({ runId }: { runId: string | null }) {
     const run = await getRunDetail(id);
     if (!FINISHED.has(run.status)) {
       // The event stream of a running run stays open; show its state and refresh until it ends.
-      setData({ run, events: [], decision: null, snapshots: [], reports: { available: false, reports: {} } });
+      setData({ run, events: [], decision: null, snapshots: [], reports: { available: false, reports: {} },
+                briefing: null });
       return false;
     }
-    const [events, decision, snapshots, reports] = await Promise.all([
-      fetchRunEvents(id), getDecision(id), getSnapshots(id), getReports(id)]);
-    setData({ run, events, decision, snapshots, reports });
+    const [events, decision, snapshots, reports, brief] = await Promise.all([
+      fetchRunEvents(id), getDecision(id), getSnapshots(id), getReports(id), getBriefing(id)]);
+    const briefing = brief.briefing?.status === "OK" ? brief.briefing : null;
+    setData({ run, events, decision, snapshots, reports, briefing });
     return true;
   }, []);
 
@@ -141,6 +138,7 @@ export default function AnalysisView({ runId }: { runId: string | null }) {
         <div className="grid flex-1 gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_380px]">
           <div className="flex min-w-0 flex-col gap-4">
             <DecisionCard run={data.run} decision={data.decision} />
+            {data.briefing && <BriefingCard briefing={data.briefing} />}
             <section className="rounded-lg border border-[var(--line)] bg-[var(--panel)] p-3">
               <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
                 <h2 className="font-semibold">위원회 흐름</h2>
@@ -164,7 +162,8 @@ export default function AnalysisView({ runId }: { runId: string | null }) {
               </div>
               <div className="p-3">
                 {tab === "reports" && <ReportsTab data={data} agents={agents} selected={selected} onSelect={selectAndShow} />}
-                {tab === "debate" && <DebateTab lines={debate} reports={data.reports.reports} />}
+                {tab === "debate" && <DebateChat lines={debate} gists={data.briefing?.debate ?? {}}
+                                                 fullTranscripts={data.reports.reports} />}
                 {tab === "evidence" && <EvidenceTab run={data.run} snapshots={data.snapshots} />}
                 {tab === "facts" && <FactsTab run={data.run} decision={data.decision} />}
               </div>
@@ -237,11 +236,37 @@ function DecisionCard({ run, decision }: { run: RunDetail; decision: Decision | 
   );
 }
 
+/** The one-page briefing: an AI summary of this run's stored reports, read first. */
+function BriefingCard({ briefing }: { briefing: Briefing }) {
+  const block = (title: string, items: string[], tone: string) => items.length > 0 && (
+    <div>
+      <h3 className={`mb-1 text-xs font-semibold ${tone}`}>{title}</h3>
+      <ul className="space-y-1 text-sm">{items.map((x) => <li key={x} className="flex gap-1.5"><span aria-hidden="true">·</span><span>{humanizeTickers(x)}</span></li>)}</ul>
+    </div>
+  );
+  return (
+    <section className="rounded-lg border border-[#ffd98a55] bg-[#17203a] p-4" aria-label="한눈에 보기">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <h2 className="font-semibold">한눈에 보기</h2>
+        <span className="rounded border border-[var(--line)] px-1.5 text-[11px] text-[var(--muted)]"
+              title={`모델: ${briefing.model}`}>AI 요약 · 이번 회의 보고서만 사용</span>
+      </div>
+      <p className="mb-3 text-[15px] font-semibold text-[#fff3d6]">{humanizeTickers(briefing.headline)}</p>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {block("핵심 근거", briefing.key_reasons, "text-emerald-300")}
+        {block("주요 위험", briefing.risks, "text-rose-300")}
+        {block("다음에 확인할 것", briefing.watch_next, "text-sky-300")}
+      </div>
+    </section>
+  );
+}
+
 /** Reports and debate lines start with an English speaker tag ("Bull Analyst: "); drop it. */
 const stripSpeaker = (text: string) => text.replace(/^\s*[A-Za-z ]+(Analyst|Researcher):\s*/, "");
 
 function AgentPanel({ data, agentId, summary }: { data: Loaded; agentId: string; summary?: ReturnType<typeof summarizeAgents>[string] }) {
   const full = data.reports.reports[agentId];
+  const line = data.briefing?.agents[agentId];
   return (
     <aside className="flex min-w-0 flex-col gap-2 rounded-lg border border-[var(--line)] bg-[var(--panel)] p-3 xl:sticky xl:top-2 xl:max-h-[calc(100vh-1rem)] xl:overflow-y-auto">
       <h2 className="text-lg font-semibold">{agentName(agentId)}</h2>
@@ -260,13 +285,18 @@ function AgentPanel({ data, agentId, summary }: { data: Loaded; agentId: string;
           </ol>
         </div>
       )}
-      {full ? <Markdown text={humanizeTickers(stripSpeaker(full))} />
-        : summary?.summary ? (
-          <>
-            <Markdown text={humanizeTickers(stripSpeaker(summary.summary))} />
-            <p className="text-xs text-[var(--muted)]">이 실행은 전체 보고서 저장 기능이 생기기 전 기록이라 앞부분 요약(600자)만 있습니다.</p>
-          </>
-        ) : <p className="text-sm text-[var(--muted)]">보고서가 없습니다.</p>}
+      {line && (
+        <p className="rounded border border-[#ffd98a55] bg-[#17203a] p-2 text-sm">
+          <span className="mr-1 text-[11px] text-[var(--muted)]">AI 요약</span>{humanizeTickers(line)}
+        </p>
+      )}
+      {full || summary?.summary ? (
+        <details open={!line} className="text-sm">
+          <summary className="cursor-pointer text-[var(--muted)]">{full ? "보고서 원문" : "보고서 원문 (앞부분 600자)"}</summary>
+          <div className="mt-2"><Markdown text={humanizeTickers(stripSpeaker(full || summary!.summary))} /></div>
+          {!full && <p className="mt-1 text-xs text-[var(--muted)]">이 실행은 전체 보고서 저장 기능이 생기기 전 기록이라 앞부분만 있습니다.</p>}
+        </details>
+      ) : <p className="text-sm text-[var(--muted)]">보고서가 없습니다.</p>}
     </aside>
   );
 }
@@ -283,43 +313,12 @@ function ReportsTab({ data, agents, selected, onSelect }: { data: Loaded; agents
                     className={`w-full rounded border px-3 py-2 text-left text-sm disabled:opacity-40 ${selected === id ? "border-[#ffd98a] bg-[#1d2944]" : "border-[var(--line)] hover:bg-[#1d2944]"}`}>
               <span className="font-semibold">{agentName(id)}</span>
               <span className="ml-2 text-xs text-[var(--muted)]">{s?.status === "skipped" ? "참여 안 함" : has ? "보고서 보기 →" : "없음"}</span>
+              {data.briefing?.agents[id] && <span className="mt-0.5 block text-xs text-[#c7d7ee]">{humanizeTickers(data.briefing.agents[id]!)}</span>}
             </button>
           </li>
         );
       })}
     </ul>
-  );
-}
-
-function DebateTab({ lines, reports }: { lines: ReturnType<typeof debateTranscript>; reports: Record<string, string> }) {
-  const groups: [string, string][] = [["investment", "투자 토론 (강세 vs 약세)"], ["risk", "리스크 토론 (공격형·보수형·중립형)"]];
-  return (
-    <div className="space-y-4">
-      {groups.map(([key, title]) => {
-        const items = lines.filter((l) => l.debate === key || (key === "risk" && l.debate !== "investment"));
-        const full = reports[`${key}_debate`];
-        return (
-          <div key={key}>
-            <h3 className="mb-2 font-semibold">{title}</h3>
-            {items.length === 0 && <p className="text-sm text-[var(--muted)]">발언 없음</p>}
-            <ol className="space-y-2">
-              {items.map((l) => (
-                <li key={l.seq} className={`border-l-4 pl-3 ${STANCE_COLOR[l.stance] ?? "border-[var(--line)]"}`}>
-                  <div className="text-xs text-[var(--muted)]">{STANCE_KO[l.stance] ?? l.stance} · {agentName(l.agentId)}{l.turn > 1 ? ` · ${l.turn}번째` : ""}</div>
-                  <Markdown text={humanizeTickers(stripSpeaker(l.text))} />
-                </li>
-              ))}
-            </ol>
-            {full && (
-              <details className="mt-2 text-sm">
-                <summary className="cursor-pointer text-[var(--muted)]">잘리지 않은 전체 토론 기록</summary>
-                <div className="mt-2"><Markdown text={humanizeTickers(full)} /></div>
-              </details>
-            )}
-          </div>
-        );
-      })}
-    </div>
   );
 }
 

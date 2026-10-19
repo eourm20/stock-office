@@ -137,3 +137,21 @@ export async function getDecision(id: string): Promise<Decision | null> {
   if (!resp.ok) throw new Error(`decision: HTTP ${resp.status}`);
   return (await resp.json()) as Decision;
 }
+
+/** One-page AI summary of the stored reports (null when not generated). */
+export interface Briefing {
+  status: "OK" | "FAILED";
+  headline: string;
+  key_reasons: string[];
+  risks: string[];
+  watch_next: string[];
+  agents: Record<string, string>;
+  debate: Record<string, string>;
+  model: string;
+  generated_at: string | null;
+  demo: boolean;
+  error: string | null;
+}
+
+export const getBriefing = (id: string) =>
+  getJson<{ available: boolean; briefing: Briefing | null }>(`/api/v1/analysis-runs/${id}/briefing`);

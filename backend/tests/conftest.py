@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 import contextlib
+import socket
+import sys
 from collections.abc import Callable, Sequence
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
 from stock_office.api.app import create_app
+from stock_office.briefing import DemoBriefingWriter
 from stock_office.config import Settings
 from stock_office.domain.models import EngineName
 from stock_office.engine.adapter import AnalysisEngine
@@ -21,6 +25,23 @@ from stock_office.runs.repository import RunRepository
 from stock_office.runs.service import RunService
 
 AS_OF = "2026-10-16T00:00:00Z"
+
+if sys.platform == "win32":
+    # On the development PC, socket.socketpair() fails at random with WinError 10014 (~17% in a
+    # 400-try check on 2026-10-19; an environment issue, not Stock Office code). asyncio needs a
+    # socket pair for every event loop the test client creates, so retry that one error.
+    _socketpair = socket.socketpair
+
+    def _socketpair_retrying(*args: Any, **kwargs: Any) -> tuple[socket.socket, socket.socket]:
+        for _ in range(20):
+            try:
+                return _socketpair(*args, **kwargs)
+            except OSError as exc:
+                if getattr(exc, "winerror", None) != 10014:
+                    raise
+        return _socketpair(*args, **kwargs)
+
+    socket.socketpair = _socketpair_retrying
 
 # Import the engine package before any test module does, without upstream's import-time
 # `.env` loading: otherwise backend/.env keys leak into os.environ for the whole session and a
@@ -56,7 +77,9 @@ def make_service(settings: Settings) -> Callable[..., RunService]:
         def provs(name: EngineName) -> Sequence[MarketDataProvider]:
             return providers if providers is not None else [FixtureProvider()]
 
-        return RunService(RunRepository(settings.data_dir), engines, provs)
+        # DEMO runs get the model-free DEMO briefing; real-engine runs never reach a model in tests.
+        return RunService(RunRepository(settings.data_dir), engines, provs,
+                          briefers=lambda run: DemoBriefingWriter() if run.demo else None)
 
     return factory
 

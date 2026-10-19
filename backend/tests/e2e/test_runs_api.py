@@ -78,6 +78,14 @@ def test_nvda_demo_run_full_lifecycle(client: TestClient) -> None:
     assert {"market_analyst", "news_analyst", "fundamentals_analyst", "research_manager",
             "trader", "portfolio_manager"} <= set(reports["reports"])
     assert reports["reports"]["portfolio_manager"].endswith("Rating: Hold")
+
+    body = client.get(f"/api/v1/analysis-runs/{run_id}/briefing").json()
+    briefing = body["briefing"]
+    assert body["available"] is True and briefing["status"] == "OK" and briefing["demo"] is True
+    assert briefing["headline"].startswith("DEMO") and len(briefing["key_reasons"]) <= 3
+    debate_seqs = {str(e["seq"]) for e in events if e["type"] == "debate.message"}
+    assert set(briefing["debate"]) == debate_seqs
+    assert "memory_log" not in briefing["agents"] and "market_analyst" in briefing["agents"]
     assert decision["execution"] == "PROPOSED_ONLY" and decision["demo"] is True
     assert "DEMO_NOT_ANALYSIS" in decision["risk_flags"]
     assert set(decision["evidence_snapshot_ids"]) == set(run["snapshot_ids"])

@@ -111,3 +111,26 @@ graph consistency, formatting). `tsc` clean, `next build` OK (`/analysis/[runId]
 debate and evidence tabs on `a1e851f3…` (15 OpenDART disclosures, 19 Yahoo bars, coverage gaps listed);
 a new DEMO run shows full reports. 0 console errors. First pass found the strikethrough bug and English
 company names on the cards (now Korean); fixed and re-checked.
+
+## Step 3b — compact briefing, chat-style debate, phone fixes (2026-10-19)
+User decisions: reports should read like a compact company briefing (option A: keep the agents' full
+analysis, add a one-page AI summary), and the debate should look like a messenger chat.
+
+| Change | Code |
+|---|---|
+| Briefing after each real run: the engine's quick model (structured output) summarizes **only the stored, redacted** reports, debate lines and decision into headline, 3 reasons, 3 risks, 3 things to watch, one line per agent and the gist of each debate message. Output clipped, redacted, unknown agents/messages dropped; failure is stored as `FAILED` and never fails the run. DEMO runs get a fixed DEMO briefing without a model call. Backfill: `uv run python -m stock_office.briefing <run_id>` | [briefing.py](../backend/src/stock_office/briefing.py), [service.py](../backend/src/stock_office/runs/service.py) `brief`, [wiring.py](../backend/src/stock_office/wiring.py), `GET .../briefing` |
+| "한눈에 보기" card under the decision (labelled "AI 요약 · 이번 회의 보고서만 사용"); agent panel shows the one-liner first and the original report collapsed | [AnalysisView.tsx](../frontend/src/analysis/AnalysisView.tsx) |
+| Debate as two chat rooms (investment: bull left / bear right; risk: group chat), character faces from the registry, round dividers, KST times; bubble = briefing gist or first sentence, tap for the full speech | [DebateChat.tsx](../frontend/src/analysis/DebateChat.tsx) |
+| Office page on phones: canvas was squeezed to 30 px wide by the fixed side panel; now stacked (canvas 58vh, panel below). Start controls no longer wrap letter by letter | [office/page.tsx](../frontend/src/app/office/page.tsx) |
+
+**Real briefing check** (stored 005930 run `a1e851f3…`, local, user-approved option A): status OK,
+model `gpt-6-luna`, 8,751 input / 1,111 output tokens, **≈ $0.0014**; headline matches SELL/Underweight,
+11 agent lines, 5 debate gists, figures taken from the reports.
+
+**Test environment note.** On the development PC `socket.socketpair()` fails at random with
+WinError 10014 (68 of 400 plain calls); asyncio needs it for every event loop, which made e2e tests flaky.
+`tests/conftest.py` retries that single error on Windows. Not a product issue (the server is Linux).
+
+**Tests.** Backend **106 passed** twice in a row (+4 `test_briefing.py`: known agents/messages only,
+clipping, redaction, no decision → no briefing, model failure stored as FAILED; e2e: DEMO briefing covers
+every debate message). Frontend 35 passed, `tsc` clean, `next build` OK.

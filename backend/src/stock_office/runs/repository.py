@@ -102,6 +102,13 @@ class RunRepository:
             for p in sorted(folder.glob("*.json"))
         ]
 
+    def get_briefing(self, run_id: str) -> dict[str, object] | None:
+        path = self._dir(run_id) / "briefing.json"
+        if not path.exists():
+            return None
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else None
+
     def get_reports(self, run_id: str) -> dict[str, str] | None:
         path = self._dir(run_id) / "reports.json"
         if not path.exists():

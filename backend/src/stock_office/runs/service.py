@@ -38,6 +38,8 @@ from stock_office.providers.base import (
 from .repository import RunRepository
 
 EngineFactory = Callable[[EngineName], AnalysisEngine]
+# Returns the writer for a run's one-page briefing (stock_office.briefing), or None for no briefing.
+BriefingFactory = Callable[[AnalysisRun], Any]
 ProviderFactory = Callable[[EngineName], Sequence[MarketDataProvider]]
 
 _CLOCK_SKEW = timedelta(minutes=1)
@@ -63,12 +65,21 @@ class RunService:
         providers: ProviderFactory,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
         max_paid_runs_per_day: int | None = None,
+        briefers: BriefingFactory | None = None,
     ) -> None:
         self.repo = repo
         self.engines = engines
         self.providers = providers
         self.clock = clock
         self.max_paid_runs_per_day = max_paid_runs_per_day
+        self.briefers = briefers
+
+    def brief(self, run: AnalysisRun) -> Any:
+        """Write the run's briefing (AI summary of stored reports). Never raises."""
+        from stock_office.briefing import write_briefing
+
+        writer = self.briefers(run) if self.briefers else None
+        return write_briefing(self.repo, run, writer, self.clock) if writer else None
 
     # ---------------------------------------------------------------- API side
     def paid_runs_last_24h(self) -> int:
@@ -166,6 +177,7 @@ class RunService:
             if outcome.reports:
                 self.repo.write_json(run.id, "reports.json", outcome.reports)
             self._decide(run, engine, outcome, snapshots)
+            self.brief(run)
             finish(RunStatus.COMPLETED)
         except EngineNotConfiguredError as exc:
             finish(RunStatus.FAILED, EngineNotConfiguredError.code, str(exc))
