@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import NavBar from "../app/NavBar";
 import { fetchRunEvents, getBriefing, getDecision, getInbox, getReports, getRunDetail, getSnapshots,
-  type InboxItem } from "../lib/api";
+  getToolResults, type InboxItem, type ToolResult } from "../lib/api";
 import { STATUS_KO, STATUS_TONE } from "../inbox/model";
 import { INSTRUMENT_KO } from "../office/auto";
 import { ACTION_KO } from "../office/explain";
@@ -30,6 +30,7 @@ const SECTIONS = [["reports", "부서별 보고"], ["debate", "토론"], ["decis
 export default function MinutesView({ runId }: { runId: string }) {
   const [data, setData] = useState<Loaded | null>(null);
   const [doc, setDoc] = useState<InboxItem | null>(null);
+  const [toolResults, setToolResults] = useState<ToolResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -39,9 +40,10 @@ export default function MinutesView({ runId }: { runId: string }) {
         setData({ run, events: [], decision: null, snapshots: [], reports: { available: false, reports: {} }, briefing: null });
         return;
       }
-      const [events, decision, snapshots, reports, brief, inbox] = await Promise.all([
+      const [events, decision, snapshots, reports, brief, inbox, tools] = await Promise.all([
         fetchRunEvents(runId), getDecision(runId), getSnapshots(runId), getReports(runId), getBriefing(runId),
-        getInbox().catch(() => [] as InboxItem[])]);
+        getInbox().catch(() => [] as InboxItem[]), getToolResults(runId).catch(() => null)]);
+      setToolResults(tools?.available ? tools.results : null);
       setData({ run, events, decision, snapshots, reports, briefing: brief.briefing?.status === "OK" ? brief.briefing : null });
       setDoc(inbox.find((i) => i.run_id === runId) ?? null);
     })().catch((e: Error) => setError(e.message));
@@ -120,7 +122,9 @@ export default function MinutesView({ runId }: { runId: string }) {
             </Section>
             <Section id="attach" n={4} title="첨부">
               <div className="space-y-2">
-                <Attachment title={`출처 데이터 (${data.snapshots.length}건)`}><EvidenceTab run={data.run} snapshots={data.snapshots} /></Attachment>
+                <Attachment title={`출처 데이터 (${data.snapshots.length + (toolResults?.length ?? 0)}건)`}>
+                  <EvidenceTab run={data.run} snapshots={data.snapshots} toolResults={toolResults} />
+                </Attachment>
                 <Attachment title="실행 정보"><FactsTab run={data.run} decision={data.decision} /></Attachment>
                 <div className="hidden md:block">
                   <Attachment title="위원회 흐름 (그래프)">

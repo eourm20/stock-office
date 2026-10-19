@@ -181,3 +181,28 @@ def test_reports_from_state_are_full_redacted_and_skip_internals() -> None:
     assert "sk-abcdefghijklmnop" not in reports["portfolio_manager"]
     assert len(reports_from_state({"market_report": "y" * (REPORT_MAX_CHARS + 50)})
                ["market_analyst"]) < REPORT_MAX_CHARS + 20
+
+
+def test_tool_results_are_captured_redacted_and_capped() -> None:
+    from types import SimpleNamespace
+
+    from stock_office.engine.adapter import TOOL_RESULT_MAX_CHARS
+
+    rec = Recorder()
+    p = TradingAgentsProjection("r", rec)
+    p.consume("tasks", start("A", "Market Analyst"))
+    ns = ("Market Analyst:A",)
+    p.consume("tasks", {"id": "t1", "name": "tools", "triggers": [],
+                        "input": {"messages": [_Msg([{"name": "get_stock_data"}])]}}, ns)
+    secret = "close 101 api_key=sk-abcdefghijklmnop0000 " + "x" * 9000
+    done_chunk = {"id": "t1", "name": "tools", "error": None, "interrupts": [], "result": {
+        "messages": [SimpleNamespace(name="get_stock_data", content=secret)]}}
+    p.consume("tasks", done_chunk, ns)
+    p.consume("tasks", done_chunk, ns)                     # re-sent: stored once
+    assert len(p.tool_results) == 1
+    r = p.tool_results[0]
+    assert (r["agent_id"], r["tool"], r["round"]) == ("market_analyst", "get_stock_data", 1)
+    assert "sk-abcdefghijklmnop" not in r["content"]
+    assert len(r["content"]) < TOOL_RESULT_MAX_CHARS + 30
+    # results are evidence for the run, never events
+    assert all(t.value != "tool.result" for t, _, _ in rec.events)

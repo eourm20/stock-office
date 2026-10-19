@@ -62,6 +62,10 @@ def test_nvda_demo_run_full_lifecycle(client: TestClient) -> None:
         ("fundamentals_analyst", 1), ("fundamentals_analyst", 2)]
     assert set(tools[0]["payload"]) == {"role", "turn", "round", "tools", "demo"}
     assert tools[0]["payload"]["tools"] == ["get_stock_data", "get_indicators"]
+    results = client.get(f"/api/v1/analysis-runs/{run_id}/tool-results").json()
+    assert results["available"] is True and len(results["results"]) == 8   # 3 + 2 + 3 tools
+    assert results["results"][0]["tool"] == "get_stock_data"
+    assert results["results"][0]["content"].startswith("DEMO")
 
     decision = client.get(f"/api/v1/analysis-runs/{run_id}/decision").json()
     assert decision["action"] == "HOLD" and decision["engine_rating"] == "Hold"

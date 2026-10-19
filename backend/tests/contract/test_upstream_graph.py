@@ -265,6 +265,9 @@ def test_subgraph_tool_stream_shape_feeds_tool_called() -> None:
     assert events[1][2] == {"role": "Market Analyst", "turn": 1, "round": 1,
                             "tools": ["get_stock_data"]}
     assert projection.final_state["market_report"] == "ok"
+    # The ToolNode's result messages are captured as evidence, with the tool's name.
+    captured = [(r["tool"], r["content"]) for r in projection.tool_results]
+    assert captured == [("get_stock_data", "rows")]
 
 
 def test_upstream_analysts_run_tools_in_their_own_graph(tmp_path: Path,

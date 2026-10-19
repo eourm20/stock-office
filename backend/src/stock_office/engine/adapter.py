@@ -62,11 +62,17 @@ AGENT_CATALOG: dict[str, AgentSpec] = {
     ),
     "Trader": AgentSpec("trader", "Trader", "trading", "trader_investment_plan"),
     "Aggressive Analyst": AgentSpec(
-        "risk_aggressive", "Aggressive Risk Analyst", "risk_debate", debate="risk",
+        "risk_aggressive",
+        "Aggressive Risk Analyst",
+        "risk_debate",
+        debate="risk",
         stance="aggressive",
     ),
     "Conservative Analyst": AgentSpec(
-        "risk_conservative", "Conservative Risk Analyst", "risk_debate", debate="risk",
+        "risk_conservative",
+        "Conservative Risk Analyst",
+        "risk_debate",
+        debate="risk",
         stance="conservative",
     ),
     "Neutral Analyst": AgentSpec(
@@ -86,6 +92,7 @@ _RISK_RESPONSE_KEY = {
 
 _TOOL_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
 _MAX_TOOLS_PER_EVENT = 8
+TOOL_RESULT_MAX_CHARS = 6_000
 
 
 def _tool_names(task_input: Any) -> list[str]:
@@ -152,6 +159,10 @@ class TradingAgentsProjection:
     _turns: dict[str, int] = field(default_factory=dict)
     _tool_rounds: dict[str, int] = field(default_factory=dict)
     _tool_tasks: set[str] = field(default_factory=set)
+    _result_tasks: set[str] = field(default_factory=set)
+    # What the analysts' tools returned (redacted, capped). Stored with the run as evidence the
+    # committee saw; never published as events.
+    tool_results: list[dict[str, Any]] = field(default_factory=list)
 
     def consume(self, mode: str, chunk: Any, namespace: tuple[str, ...] = ()) -> None:
         if namespace:
@@ -185,7 +196,10 @@ class TradingAgentsProjection:
         )
 
     def _on_nested_task(self, namespace: tuple[str, ...], chunk: dict[str, Any]) -> None:
-        if chunk.get("name") != "tools" or "input" not in chunk or "result" in chunk:
+        if chunk.get("name") == "tools" and "result" in chunk:
+            self._on_tool_results(namespace, chunk)
+            return
+        if chunk.get("name") != "tools" or "input" not in chunk:
             return
         parent_id = namespace[0].partition(":")[2]
         task = self._open.get(parent_id)
@@ -193,7 +207,7 @@ class TradingAgentsProjection:
             return
         tool_task = str(chunk.get("id"))
         names = _tool_names(chunk.get("input"))
-        if not names or tool_task in self._tool_tasks:     # a re-sent chunk is not a new round
+        if not names or tool_task in self._tool_tasks:  # a re-sent chunk is not a new round
             return
         self._tool_tasks.add(tool_task)
         rounds = self._tool_rounds.get(parent_id, 0) + 1
@@ -204,6 +218,35 @@ class TradingAgentsProjection:
             payload={"role": task.spec.role, "turn": task.turn, "round": rounds, "tools": names},
             dedupe_key=f"task:{tool_task}:tools",
         )
+
+    def _on_tool_results(self, namespace: tuple[str, ...], chunk: dict[str, Any]) -> None:
+        tool_task = str(chunk.get("id"))
+        task = self._open.get(namespace[0].partition(":")[2])
+        if task is None or tool_task in self._result_tasks:
+            return
+        self._result_tasks.add(tool_task)
+        messages = _as_dict(chunk.get("result")).get("messages") or []
+        for message in messages if isinstance(messages, list) else []:
+            name = (
+                message.get("name") if isinstance(message, dict) else getattr(message, "name", None)
+            )
+            content = (
+                message.get("content")
+                if isinstance(message, dict)
+                else getattr(message, "content", "")
+            )
+            if not isinstance(content, str):
+                content = str(content)
+            self.tool_results.append(
+                {
+                    "agent_id": task.spec.agent_id,
+                    "turn": task.turn,
+                    "round": self._tool_rounds.get(namespace[0].partition(":")[2], 0),
+                    "tool": name if isinstance(name, str) and _TOOL_NAME.match(name) else "other",
+                    "content": redact_text(content, limit=TOOL_RESULT_MAX_CHARS),
+                    "captured_at": datetime.now(UTC).isoformat(),
+                }
+            )
 
     def _on_finish(self, chunk: dict[str, Any]) -> None:
         task_id = str(chunk.get("id"))
@@ -221,9 +264,15 @@ class TradingAgentsProjection:
                 dedupe_key=f"task:{task_id}:end",
             )
             self.results.append(
-                AgentResult(run_id=self.run_id, agent_id=spec.agent_id, role=spec.role,
-                            status=AgentStatus.FAILED, started_at=task.started_at,
-                            completed_at=now, warnings=[reason])
+                AgentResult(
+                    run_id=self.run_id,
+                    agent_id=spec.agent_id,
+                    role=spec.role,
+                    status=AgentStatus.FAILED,
+                    started_at=task.started_at,
+                    completed_at=now,
+                    warnings=[reason],
+                )
             )
             return
 
@@ -233,8 +282,12 @@ class TradingAgentsProjection:
             self.sink(
                 EventType.DEBATE_MESSAGE,
                 agent_id=spec.agent_id,
-                payload={"debate": spec.debate, "stance": spec.stance, "turn": task.turn,
-                         "text": redact_text(text)},
+                payload={
+                    "debate": spec.debate,
+                    "stance": spec.stance,
+                    "turn": task.turn,
+                    "text": redact_text(text),
+                },
                 dedupe_key=f"task:{task_id}:debate",
             )
         report = str(result.get(spec.report_key, "") or "") if spec.report_key else text
@@ -242,15 +295,25 @@ class TradingAgentsProjection:
         self.sink(
             EventType.AGENT_COMPLETED,
             agent_id=spec.agent_id,
-            payload={"role": spec.role, "turn": task.turn, "summary": summary,
-                     "duration_ms": int((now - task.started_at).total_seconds() * 1000)},
+            payload={
+                "role": spec.role,
+                "turn": task.turn,
+                "summary": summary,
+                "duration_ms": int((now - task.started_at).total_seconds() * 1000),
+            },
             dedupe_key=f"task:{task_id}:end",
         )
         self.results.append(
-            AgentResult(run_id=self.run_id, agent_id=spec.agent_id, role=spec.role,
-                        status=AgentStatus.COMPLETED, started_at=task.started_at,
-                        completed_at=now, summary=summary,
-                        structured_output={"turn": task.turn, "phase": spec.phase})
+            AgentResult(
+                run_id=self.run_id,
+                agent_id=spec.agent_id,
+                role=spec.role,
+                status=AgentStatus.COMPLETED,
+                started_at=task.started_at,
+                completed_at=now,
+                summary=summary,
+                structured_output={"turn": task.turn, "phase": spec.phase},
+            )
         )
 
     @staticmethod
@@ -314,6 +377,8 @@ class EngineOutcome:
     coverage_gaps: list[str] = field(default_factory=list)  # data the engine could not get
     # Full sanitized report per agent (and both debate transcripts), for the analysis screen.
     reports: dict[str, str] = field(default_factory=dict)
+    # What the analysts' tools returned, for the evidence view (see TradingAgentsProjection).
+    tool_results: list[dict[str, Any]] = field(default_factory=list)
 
 
 class EngineNotConfiguredError(RuntimeError):
@@ -348,8 +413,10 @@ def reports_from_state(state: dict[str, Any]) -> dict[str, str]:
             text = str(state.get(spec.report_key, "") or "")
             if text.strip():
                 reports[spec.agent_id] = redact_text(text, limit=REPORT_MAX_CHARS)
-    for key, debate_key in (("investment_debate", "investment_debate_state"),
-                            ("risk_debate", "risk_debate_state")):
+    for key, debate_key in (
+        ("investment_debate", "investment_debate_state"),
+        ("risk_debate", "risk_debate_state"),
+    ):
         history = str((state.get(debate_key) or {}).get("history", "") or "")
         if history.strip():
             reports[key] = redact_text(history, limit=REPORT_MAX_CHARS)
@@ -370,4 +437,5 @@ def outcome_from_state(
         results=projection.results,
         warnings=warnings or [],
         reports=reports_from_state(state),
+        tool_results=list(projection.tool_results),
     )

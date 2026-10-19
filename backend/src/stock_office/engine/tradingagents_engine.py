@@ -187,11 +187,15 @@ class TradingAgentsEngine:
             finally:
                 context.run(stream.close)
 
+        # The engine fetches its own tool data. When its results were captured they are stored
+        # with the run (tool_results.json); only if nothing was captured is the evidence partial.
+        warnings = [] if projection.tool_results else [
+            "ENGINE_DATA_NOT_SNAPSHOTTED: TradingAgents fetched its own tool data; "
+            "only Stock Office provider snapshots are cited as evidence"]
         outcome = outcome_from_state(
             projection,
             run_rating(projection.final_state) if projection.final_state else None,
-            warnings=["ENGINE_DATA_NOT_SNAPSHOTTED: TradingAgents fetched its own tool data; "
-                      "only Stock Office provider snapshots are cited as evidence"],
+            warnings=warnings,
         )
         outcome.token_usage = {k: dict(v) for k, v in usage.usage_metadata.items()}
         outcome.coverage_gaps = list(gaps.gaps)

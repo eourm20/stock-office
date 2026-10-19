@@ -6,7 +6,7 @@
  */
 import { useState } from "react";
 import Markdown from "../app/Markdown";
-import type { Briefing, Decision, RunDetail, Snapshot } from "../lib/api";
+import type { Briefing, Decision, RunDetail, Snapshot, ToolResult } from "../lib/api";
 import { INSTRUMENT_KO } from "../office/auto";
 import { ACTION_KO, FLAG_KO, RATING_KO } from "../office/explain";
 import { agentName, humanizeTickers, PHASE_KO, toolNames } from "../office/names";
@@ -224,7 +224,7 @@ const KIND_KO: Record<string, string> = {
 const shortDate = (iso: string) => new Date(iso).toLocaleDateString("ko-KR", {
   timeZone: "Asia/Seoul", month: "numeric", day: "numeric" });
 
-export function EvidenceTab({ run, snapshots }: { run: RunDetail; snapshots: Snapshot[] }) {
+export function EvidenceTab({ run, snapshots, toolResults = null }: { run: RunDetail; snapshots: Snapshot[]; toolResults?: ToolResult[] | null }) {
   const gaps = [...new Set(run.coverage_gaps.map(plainGap))];
   const kinds = [...new Set(snapshots.map((s) => s.kind))];
   return (
@@ -240,6 +240,7 @@ export function EvidenceTab({ run, snapshots }: { run: RunDetail; snapshots: Sna
           </details>
         </div>
       )}
+      <ToolResults results={toolResults} />
       {kinds.map((kind) => {
         const items = snapshots.filter((s) => s.kind === kind);
         return (
@@ -260,6 +261,33 @@ export function EvidenceTab({ run, snapshots }: { run: RunDetail; snapshots: Sna
         );
       })}
     </div>
+  );
+}
+
+/** What the AI looked up itself during the meeting (tool results), as plain text. */
+function ToolResults({ results }: { results: ToolResult[] | null }) {
+  if (results === null) {
+    return <p className="text-xs text-[var(--muted)]">이 회의는 AI가 조회한 자료를 저장하기 전 기록입니다.</p>;
+  }
+  if (results.length === 0) return null;
+  return (
+    <details open className="rounded-lg border border-amber-700/50">
+      <summary className="cursor-pointer px-3 py-2 font-semibold">🔍 AI가 조회한 자료 {results.length}건
+        <span className="ml-2 text-xs font-normal text-[var(--muted)]">분석가가 회의 중 직접 찾아본 결과</span></summary>
+      <ul className="divide-y divide-[var(--line)]/60 border-t border-[var(--line)]">
+        {results.map((r, i) => (
+          <li key={`${r.agent_id}-${r.round}-${r.tool}-${i}`} className="px-3 py-2">
+            <details>
+              <summary className="cursor-pointer text-[13px]">
+                <span className="font-semibold">{agentName(r.agent_id)}</span> · {toolNames([r.tool])}
+                <span className="ml-1 text-[11px] text-[var(--muted)]">{r.round}번째 조회 · {kst(r.captured_at)}</span>
+              </summary>
+              <pre className="mt-1 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded bg-[#0f1729] p-2 text-[11px] leading-snug text-[#c7d7ee]">{r.content}</pre>
+            </details>
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
 

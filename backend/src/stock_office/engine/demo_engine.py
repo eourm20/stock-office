@@ -60,6 +60,10 @@ class DemoEngine:
                 message = SimpleNamespace(tool_calls=[{"name": t, "args": {}} for t in tools])
                 yield ns, "tasks", {"id": f"a{i}-tools{r}", "name": "tools",
                                     "input": {"messages": [message]}, "triggers": []}
+                results = [SimpleNamespace(name=t, content=f"{DEMO_PREFIX}{t} 결과 (합성 데이터)")
+                           for t in tools]
+                yield ns, "tasks", {"id": f"a{i}-tools{r}", "name": "tools", "error": None,
+                                    "result": {"messages": results}, "interrupts": []}
         for i, (node, key) in enumerate(analysts):
             if node == self.fail_at:
                 yield (), "tasks", {"id": f"a{i}", "name": node,

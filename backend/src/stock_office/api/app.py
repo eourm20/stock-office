@@ -242,6 +242,13 @@ def create_app(
         briefing = service.repo.get_briefing(run_id)
         return {"available": briefing is not None, "briefing": briefing}
 
+    @app.get("/api/v1/analysis-runs/{run_id}/tool-results")
+    def get_tool_results(run_id: str) -> dict[str, object]:
+        """What the analysts' tools returned (redacted). Older runs did not store them."""
+        _run_or_404(run_id)
+        results = service.repo.get_tool_results(run_id)
+        return {"available": results is not None, "results": results or []}
+
     @app.get("/api/v1/analysis-runs/{run_id}/decision")
     def get_decision(run_id: str) -> InvestmentDecision:
         run = _run_or_404(run_id)

@@ -210,6 +210,8 @@ class RunService:
             self.repo.save_outputs(run.id, outcome.results)
             if outcome.reports:
                 self.repo.write_json(run.id, "reports.json", outcome.reports)
+            if outcome.tool_results:
+                self.repo.write_json(run.id, "tool_results.json", outcome.tool_results)
             self._decide(run, engine, outcome, snapshots)
             self.brief(run)
             self._file_report(run)

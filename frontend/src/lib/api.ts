@@ -256,3 +256,9 @@ export async function decideInbox(id: number, action: "approve" | "reject" | "de
   if (!resp.ok) throw new Error((await resp.json().catch(() => ({ detail: resp.statusText }))).detail);
   return (await resp.json()) as InboxItem;
 }
+
+export interface ToolResult { agent_id: string; turn: number; round: number; tool: string; content: string; captured_at: string }
+
+/** What the analysts' tools returned in a meeting (stored since 2026-10-19). */
+export const getToolResults = (id: string) =>
+  getJson<{ available: boolean; results: ToolResult[] }>(`/api/v1/analysis-runs/${id}/tool-results`);

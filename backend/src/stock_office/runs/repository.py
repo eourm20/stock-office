@@ -109,6 +109,13 @@ class RunRepository:
         data = json.loads(path.read_text(encoding="utf-8"))
         return data if isinstance(data, dict) else None
 
+    def get_tool_results(self, run_id: str) -> list[dict[str, object]] | None:
+        path = self._dir(run_id) / "tool_results.json"
+        if not path.exists():
+            return None
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, list) else None
+
     def get_reports(self, run_id: str) -> dict[str, str] | None:
         path = self._dir(run_id) / "reports.json"
         if not path.exists():
