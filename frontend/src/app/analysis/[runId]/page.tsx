@@ -1,10 +1,7 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { useParams } from "next/navigation";
-import AnalysisView from "../../../analysis/AnalysisView";
-
-/** One run's analysis, shareable by URL. */
-export default function AnalysisPage() {
-  const { runId } = useParams<{ runId: string }>();
-  return <AnalysisView runId={runId} />;
+/** Old address of a run's analysis: now the meeting minutes. */
+export default async function OldAnalysisPage({ params }: { params: Promise<{ runId: string }> }) {
+  const { runId } = await params;
+  redirect(`/records/${runId}`);
 }

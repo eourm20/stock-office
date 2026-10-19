@@ -1,7 +1,7 @@
 # CLAUDE.md — Stock Office Project Operating Guide
 
 ## Mission
-Build **Stock Office**, a personal AI investment-office simulator that analyzes US+KR equities using TradingAgents, shows each run's decision, committee flow, reports, debate and evidence on a readable **Analysis screen (main, `/`)**, offers a game-like **2.5D isometric pixel-art office** (`/office`) where AI employees act out the stored run events as a replay/live view, and evaluates risk-gated **paper trading** performance. Do not claim investment alpha without matched, cost-adjusted evidence.
+Build **Stock Office**, a personal AI investment-office simulator that analyzes US+KR equities using TradingAgents, is used by its owner as the **CEO**: an **inbox** (`/`) of approval requests and reports, an **office** (`/office`) that works like CCTV — a game-like **2.5D isometric pixel-art office** showing only the work happening now — and **records** (`/records`) of meeting minutes, and evaluates risk-gated **paper trading** performance. Do not claim investment alpha without matched, cost-adjusted evidence.
 
 ## Mandatory reading order
 1. This `CLAUDE.md` (project-wide operating rules).
@@ -45,7 +45,7 @@ Build **Stock Office**, a personal AI investment-office simulator that analyzes 
 
 ## User experience principles
 - Company operating model (user decision 2026-10-19, IMPLEMENTATION_PLAN §3c): the user is the approver. Reports arrive in an inbox (daily, ad-hoc, approval requests); an approved BUY/SELL becomes a **paper** order only after the deterministic risk policy. The office shows only work happening now; past runs are records, not replays. Monthly budget 10,000 KRW (≈ $7) with a hard stop.
-- The Analysis screen is the main screen (user decision 2026-10-19): decision, committee graph, full reports, debate, evidence with timestamps and run facts. The office is a secondary replay/live view; keep investing in it modest.
+- Three tabs (user decision 2026-10-19): **결재함** (main; approval documents with approval line, plan table marked AI-given vs policy default, allocator reasoning, approve/defer/reject), **오피스** (CCTV: department monitors + live scene, no replays), **기록** (minutes: header, team reports, debate chat, conclusion and approval, attachments). Company settings (budget, watched stocks, allocation policy) live behind ⚙. Until paper orders exist an approval only records the decision, and the UI says so.
 - Game-like pixel-art office for *observing* the AI company: characters and animation are encouraged (moving between desks and meeting rooms, sitting at computers, debating with speech bubbles, delivering reports). Financial data, reports, sources and performance are shown in readable, professional UI panels, not inside the game art.
 - Desktop-first with responsive fallbacks, accessible keyboard interactions and `prefers-reduced-motion` support (reduced motion: characters switch places instead of walking, no ambient motion). The canvas always has a text equivalent (Activity Feed and agent panels) for screen readers.
 - Show who decided what, sourced market facts, model/version/config, potential risks, and whether a trade was *proposed* vs *paper-executed*.

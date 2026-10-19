@@ -156,3 +156,103 @@ export interface Briefing {
 
 export const getBriefing = (id: string) =>
   getJson<{ available: boolean; briefing: Briefing | null }>(`/api/v1/analysis-runs/${id}/briefing`);
+
+// ---------------------------------------------------------------- CEO inbox, records, office now
+
+export interface PlanAllocation {
+  qty: number;
+  notional: string;
+  notional_krw: string;
+  max_loss_krw: string;
+  binding: string;
+  lines: [string, string][];
+  blocked: string | null;
+}
+
+export interface ApprovalPlan {
+  currency: "KRW" | "USD";
+  limit: string;
+  stop: string;
+  target: string;
+  sources: Record<"limit" | "stop" | "target", "ai" | "policy">;
+  ref_price: string;
+  ref_at: string;
+  atr: string | null;
+  stop_distance: string;
+  multiplier: string;
+  multiplier_source: "ai" | "policy";
+  rating: string | null;
+  sizing_text: string | null;
+  horizon: string | null;
+  fx_krw_per_unit: string;
+  fx_at: string | null;
+  allocation: PlanAllocation;
+  policy_version: string;
+  account_basis: string;
+  valid_until?: string;
+}
+
+export type InboxStatus = "PENDING" | "APPROVED" | "REJECTED" | "DEFERRED" | "EXPIRED" | "INFO";
+
+export interface InboxItem {
+  id: number;
+  kind: "approval" | "daily" | "adhoc" | "execution" | "closing" | "research";
+  run_id: string | null;
+  instrument_id: string | null;
+  title: string;
+  summary: string;
+  payload: { action?: string; rating?: string | null; risk_flags?: string[]; demo?: boolean;
+             name?: string; trigger?: string; note?: string; review_reasons?: string[];
+             filed_late?: boolean };
+  status: InboxStatus;
+  expires_at: string | null;
+  read_at: string | null;
+  created_at: string;
+  decided_at: string | null;
+  plan: ApprovalPlan | null;
+  approvals: { action: string; comment: string; decided_at: string }[];
+}
+
+export interface RecordRow {
+  run_id: string;
+  instrument_id: string;
+  name: string;
+  status: string;
+  demo: boolean;
+  trigger: string | null;
+  requested_at: string;
+  action: string | null;
+  rating: string | null;
+  headline: string | null;
+  approval: InboxStatus | null;
+}
+
+export interface OfficeNow {
+  now: string;
+  active: { run_id: string; instrument_id: string; name: string; status: string; demo: boolean } | null;
+  next: { instrument_id: string; name: string; at: string; kind: string }[];
+  budget: { month: string; budget_usd: string; spent_usd: string; reserved_usd: string;
+            remaining_usd: string; paid_runs: number } | null;
+  pending_approvals: number;
+}
+
+export const getInbox = () => getJson<InboxItem[]>("/api/v1/inbox");
+export const getInboxItem = (id: number | string) => getJson<InboxItem>(`/api/v1/inbox/${id}`);
+export const getRecords = () => getJson<RecordRow[]>("/api/v1/records");
+export const getOfficeNow = () => getJson<OfficeNow>("/api/v1/office/now");
+
+export async function markRead(id: number): Promise<void> {
+  await fetch(`${API_BASE}/api/v1/inbox/${id}/read`, { method: "POST" });
+}
+
+/** CEO decision; the request id makes a double tap harmless. Throws with the server message. */
+export async function decideInbox(id: number, action: "approve" | "reject" | "defer",
+                                  comment: string, clientRequestId: string): Promise<InboxItem> {
+  const resp = await fetch(`${API_BASE}/api/v1/inbox/${id}/decision`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ action, comment, client_request_id: clientRequestId }),
+  });
+  if (!resp.ok) throw new Error((await resp.json().catch(() => ({ detail: resp.statusText }))).detail);
+  return (await resp.json()) as InboxItem;
+}

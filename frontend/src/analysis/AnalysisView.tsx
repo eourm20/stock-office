@@ -1,205 +1,36 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+/**
+ * Building blocks of a meeting's minutes (decision card, team reports, sources, run facts).
+ * The page itself is MinutesView.tsx.
+ */
+import { useState } from "react";
 import Markdown from "../app/Markdown";
-import NavBar from "../app/NavBar";
-import { fetchRunEvents, getBriefing, getDecision, getReports, getRunDetail, getSnapshots, getSummary,
-  startRun, type Briefing, type Decision, type RunDetail, type Snapshot } from "../lib/api";
-import { chooseAutoRun, INSTRUMENT_KO, timeAgo, type InstrumentSummary } from "../office/auto";
+import type { Briefing, Decision, RunDetail, Snapshot } from "../lib/api";
+import { INSTRUMENT_KO } from "../office/auto";
 import { ACTION_KO, FLAG_KO, RATING_KO } from "../office/explain";
 import { agentName, humanizeTickers, PHASE_KO, toolNames } from "../office/names";
 import type { RunEvent } from "../types";
-import DebateChat from "./DebateChat";
-import { debateTranscript, FLOW_NODES, formatDuration, plainGap, summarizeAgents, tokenTotals } from "./model";
+import { FLOW_NODES, formatDuration, plainGap, summarizeAgents, tokenTotals } from "./model";
 
-const FlowGraph = dynamic(() => import("./FlowGraph"), { ssr: false });
-
-const ACTION_COLOR: Record<string, string> = {
+export const ACTION_COLOR: Record<string, string> = {
   BUY: "text-emerald-300", SELL: "text-rose-300", HOLD: "text-sky-200", REVIEW: "text-amber-300",
 };
-const FINISHED = new Set(["COMPLETED", "FAILED", "INSUFFICIENT_DATA"]);
+export const FINISHED = new Set(["COMPLETED", "FAILED", "INSUFFICIENT_DATA"]);
 const REPORT_AGENTS = FLOW_NODES.map((n) => n.id)
   .filter((id) => !["decision", "data_collector", "memory_log"].includes(id));
 
-const kst = (iso: string | null) => (iso ? new Date(iso).toLocaleString("ko-KR", {
+export const kst = (iso: string | null) => (iso ? new Date(iso).toLocaleString("ko-KR", {
   timeZone: "Asia/Seoul", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit",
 }) : "—");
 
-interface Loaded {
+export interface Loaded {
   run: RunDetail;
   events: RunEvent[];
   decision: Decision | null;
   snapshots: Snapshot[];
   reports: { available: boolean; reports: Record<string, string> };
   briefing: Briefing | null;
-}
-
-type Tab = "reports" | "debate" | "evidence" | "facts";
-
-/**
- * Main screen: one run's decision, the committee graph, reports, debate, evidence and run facts.
- * `runId === null` follows the newest decision (or the meeting in progress).
- */
-export default function AnalysisView({ runId }: { runId: string | null }) {
-  const router = useRouter();
-  const [summary, setSummary] = useState<InstrumentSummary[]>([]);
-  const [resolved, setResolved] = useState<string | null>(runId);
-  const [data, setData] = useState<Loaded | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<string>("portfolio_manager");
-  const [tab, setTab] = useState<Tab>("reports");
-
-  useEffect(() => {
-    getSummary().then((items) => {
-      setSummary(items);
-      if (!runId) setResolved(chooseAutoRun(items)?.runId ?? null);
-    }).catch((e: Error) => setError(`API에 연결할 수 없습니다: ${e.message}`));
-  }, [runId]);
-
-  const load = useCallback(async (id: string) => {
-    const run = await getRunDetail(id);
-    if (!FINISHED.has(run.status)) {
-      // The event stream of a running run stays open; show its state and refresh until it ends.
-      setData({ run, events: [], decision: null, snapshots: [], reports: { available: false, reports: {} },
-                briefing: null });
-      return false;
-    }
-    const [events, decision, snapshots, reports, brief] = await Promise.all([
-      fetchRunEvents(id), getDecision(id), getSnapshots(id), getReports(id), getBriefing(id)]);
-    const briefing = brief.briefing?.status === "OK" ? brief.briefing : null;
-    setData({ run, events, decision, snapshots, reports, briefing });
-    return true;
-  }, []);
-
-  useEffect(() => {
-    if (!resolved) return;
-    setData(null);
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    let cancelled = false;
-    const tick = () => load(resolved).then((done) => {
-      if (!done && !cancelled) timer = setTimeout(tick, 10_000);
-    }).catch((e: Error) => setError(e.message));
-    void tick();
-    return () => { cancelled = true; if (timer) clearTimeout(timer); };
-  }, [resolved, load]);
-
-  const agents = useMemo(() => summarizeAgents(data?.events ?? [],
-    data ? FINISHED.has(data.run.status) : false), [data]);
-  const debate = useMemo(() => debateTranscript(data?.events ?? []), [data]);
-
-  return (
-    <main className="flex min-h-screen flex-col">
-      <NavBar><StartControls onStarted={(id) => router.push(`/office?run=${id}`)} /></NavBar>
-
-      <section className="flex gap-2 overflow-x-auto border-b border-[var(--line)] px-3 py-3 sm:px-4" aria-label="종목별 최신 결정">
-        {summary.map((s) => {
-          const id = s.active_run_id ?? s.latest?.run_id;
-          const active = id && id === resolved;
-          return (
-            <Link key={s.instrument_id} href={id ? `/analysis/${id}` : "/"}
-                  className={`min-w-40 shrink-0 rounded-lg border px-3 py-2 text-left ${active ? "border-[#ffd98a] bg-[#1d2944]" : "border-[var(--line)] bg-[var(--panel)]"}`}>
-              <div className="text-sm font-semibold">{INSTRUMENT_KO[s.instrument_id] ?? s.name ?? s.instrument_id}</div>
-              {s.active_run_id ? <div className="mt-0.5 text-sky-300">● 회의 중</div>
-                : s.latest ? (
-                  <div className="mt-0.5 flex items-baseline gap-2">
-                    <span className={`text-lg font-bold ${ACTION_COLOR[s.latest.action] ?? ""}`}>{ACTION_KO[s.latest.action]?.label ?? s.latest.action}</span>
-                    <span className="text-xs text-[var(--muted)]">{timeAgo(s.latest.decided_at)}</span>
-                  </div>
-                ) : <div className="mt-0.5 text-xs text-[var(--muted)]">아직 결정 없음</div>}
-            </Link>
-          );
-        })}
-      </section>
-
-      {error && <p role="alert" className="mx-4 mt-3 rounded bg-rose-900/70 px-3 py-2 text-sm">{error}</p>}
-      {!resolved && !error && <p className="p-6 text-[var(--muted)]">아직 분석 기록이 없습니다. 위에서 새 분석을 시작해 보세요.</p>}
-      {resolved && !data && !error && <p className="p-6 text-[var(--muted)]">불러오는 중…</p>}
-
-      {data && !FINISHED.has(data.run.status) && (
-        <div className="m-4 rounded-lg border border-sky-700 bg-sky-950/40 p-4">
-          <p className="font-semibold text-sky-200">이 회의는 지금 진행 중입니다 ({PHASE_KO[data.run.status] ?? data.run.status}).</p>
-          <p className="mt-1 text-sm text-[var(--muted)]">끝나면 이 화면이 자동으로 결과를 보여 줍니다. 진행 과정을 실시간으로 보려면
-            {" "}<Link className="underline" href={`/office?run=${data.run.id}`}>사무실에서 보기</Link>.</p>
-        </div>
-      )}
-
-      {data && FINISHED.has(data.run.status) && (
-        <div className="grid flex-1 gap-3 p-3 sm:gap-4 sm:p-4 xl:grid-cols-[minmax(0,1fr)_380px]">
-          <div className="flex min-w-0 flex-col gap-3 sm:gap-4">
-            <DecisionCard run={data.run} decision={data.decision} briefing={data.briefing} />
-            {/* The graph needs width; on phones the team list below carries the same content. */}
-            <section className="hidden rounded-lg border border-[var(--line)] bg-[var(--panel)] p-3 md:block">
-              <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-                <h2 className="font-semibold">위원회 흐름</h2>
-                <p className="text-xs text-[var(--muted)]">왼쪽에서 오른쪽 순서로 일했습니다. 칸을 누르면 오른쪽에 그 직원의 보고서가 나옵니다.{" "}
-                  <Link className="underline" href={`/office?run=${data.run.id}`}>사무실 애니메이션으로 다시보기</Link></p>
-              </div>
-              <FlowGraph agents={agents} action={data.decision?.action ?? null} selected={selected}
-                         onSelect={(id) => { setSelected(id); }} />
-            </section>
-            <section className="rounded-lg border border-[var(--line)] bg-[var(--panel)]">
-              <div role="tablist" aria-label="세부 내용"
-                   className="sticky top-0 z-10 flex gap-1 overflow-x-auto rounded-t-lg border-b border-[var(--line)] bg-[var(--panel)] p-2">
-                {([["reports", "팀별 의견"], ["debate", `토론 ${debate.length}`],
-                   ["evidence", `출처 ${data.snapshots.length}`], ["facts", "실행 정보"]] as [Tab, string][])
-                  .map(([t, label]) => (
-                    <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
-                            className={`shrink-0 whitespace-nowrap rounded px-3 py-1.5 text-sm ${tab === t ? "bg-[var(--accent)] text-black" : "hover:bg-[#1d2944]"}`}>{label}</button>
-                  ))}
-              </div>
-              <div className="p-3">
-                {tab === "reports" && <ReportsTab data={data} agents={agents} selected={selected} onSelect={setSelected} />}
-                {tab === "debate" && <DebateChat lines={debate} gists={data.briefing?.debate ?? {}}
-                                                 fullTranscripts={data.reports.reports} />}
-                {tab === "evidence" && <EvidenceTab run={data.run} snapshots={data.snapshots} />}
-                {tab === "facts" && <FactsTab run={data.run} decision={data.decision} />}
-              </div>
-            </section>
-            <Link href={`/office?run=${data.run.id}`} className="py-1 text-center text-sm text-[var(--muted)] underline md:hidden">
-              사무실 애니메이션으로 이 회의 다시보기
-            </Link>
-          </div>
-          {/* Desktop: the selected agent beside the content. Phones expand agents in place instead. */}
-          <aside className="hidden min-w-0 flex-col gap-2 rounded-lg border border-[var(--line)] bg-[var(--panel)] p-3 xl:sticky xl:top-2 xl:flex xl:max-h-[calc(100vh-1rem)] xl:overflow-y-auto">
-            <h2 className="text-lg font-semibold">{agentName(selected)}</h2>
-            <AgentBody data={data} agentId={selected} summary={agents[selected]} />
-          </aside>
-        </div>
-      )}
-    </main>
-  );
-}
-
-function StartControls({ onStarted }: { onStarted: (runId: string) => void }) {
-  const [instrument, setInstrument] = useState("US:NASDAQ:NVDA");
-  const [engine, setEngine] = useState<"demo" | "tradingagents">("demo");
-  const [busy, setBusy] = useState(false);
-  const [open, setOpen] = useState(false);
-  const start = async () => {
-    if (engine === "tradingagents" && !window.confirm(
-      `${INSTRUMENT_KO[instrument] ?? instrument}: 실제 분석은 OpenAI API 비용이 발생합니다 (실측 약 $0.05/회, 3~4분). 실행할까요?`)) return;
-    setBusy(true);
-    try { onStarted(await startRun(instrument, engine)); } catch (e) { window.alert((e as Error).message); } finally { setBusy(false); }
-  };
-  return (
-    <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
-      {/* Phones: starting a run is rare (and can cost money), so it sits behind one button. */}
-      <button onClick={() => setOpen(!open)} aria-expanded={open}
-              className="rounded border border-[var(--mint)] px-2 py-1 text-xs text-[var(--mint)] sm:hidden">{open ? "닫기" : "＋ 새 분석"}</button>
-      <div className={`${open ? "flex" : "hidden"} w-full flex-wrap items-center gap-1 sm:flex sm:w-auto`}>
-        <select aria-label="종목" className="min-w-0 flex-1 rounded bg-[var(--panel)] px-2 py-1 sm:flex-none" value={instrument} onChange={(e) => setInstrument(e.target.value)}>
-          {Object.entries(INSTRUMENT_KO).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-        </select>
-        <select aria-label="분석 종류" className="min-w-0 flex-1 rounded bg-[var(--panel)] px-2 py-1 sm:flex-none" value={engine} onChange={(e) => setEngine(e.target.value as "demo" | "tradingagents")}>
-          <option value="demo">DEMO (무료)</option><option value="tradingagents">실제 분석 (유료)</option>
-        </select>
-        <button disabled={busy} onClick={() => void start()} className="shrink-0 whitespace-nowrap rounded bg-[var(--mint)] px-3 py-1 font-semibold text-black disabled:opacity-50">새 분석 시작</button>
-      </div>
-    </div>
-  );
 }
 
 const BRIEF_SECTIONS = [
@@ -212,7 +43,7 @@ const BRIEF_SECTIONS = [
  * The verdict and the one-page briefing in one card: action, one-line conclusion, then reasons /
  * risks / what to watch (one list at a time on phones, three columns on wide screens).
  */
-function DecisionCard({ run, decision, briefing }: { run: RunDetail; decision: Decision | null; briefing: Briefing | null }) {
+export function DecisionCard({ run, decision, briefing }: { run: RunDetail; decision: Decision | null; briefing: Briefing | null }) {
   const [seg, setSeg] = useState<(typeof BRIEF_SECTIONS)[number]["key"]>("key_reasons");
   const name = INSTRUMENT_KO[run.instrument_id] ?? run.instrument_id;
   if (!decision) {
@@ -286,7 +117,7 @@ function DecisionCard({ run, decision, briefing }: { run: RunDetail; decision: D
 const stripSpeaker = (text: string) => text.replace(/^\s*[A-Za-z ]+(Analyst|Researcher):\s*/, "");
 
 /** An agent's summary first (AI), its lookups, and the long original collapsed at the end. */
-function AgentBody({ data, agentId, summary, lineShown = false }: { data: Loaded; agentId: string; summary?: ReturnType<typeof summarizeAgents>[string]; lineShown?: boolean }) {
+export function AgentBody({ data, agentId, summary, lineShown = false }: { data: Loaded; agentId: string; summary?: ReturnType<typeof summarizeAgents>[string]; lineShown?: boolean }) {
   const full = data.reports.reports[agentId];
   const line = data.briefing?.agents[agentId];
   const points = data.briefing?.agent_points?.[agentId] ?? [];
@@ -332,10 +163,10 @@ const TEAMS: { title: string; agents: string[] }[] = [
 ];
 
 /**
- * Agents grouped by team in working order, each with its one-line conclusion. Desktop: selecting
- * opens the side panel. Phones: the agent expands in place (no jump to the bottom of the page).
+ * Agents grouped by team in working order, each with its one-line conclusion; tapping one expands
+ * its key points and the collapsed original in place.
  */
-function ReportsTab({ data, agents, selected, onSelect }: { data: Loaded; agents: ReturnType<typeof summarizeAgents>; selected: string; onSelect: (id: string) => void }) {
+export function ReportsTab({ data, agents }: { data: Loaded; agents: ReturnType<typeof summarizeAgents> }) {
   const [open, setOpen] = useState<string | null>(null);
   const skipped = REPORT_AGENTS.filter((id) => agents[id]?.status === "skipped");
   return (
@@ -351,17 +182,17 @@ function ReportsTab({ data, agents, selected, onSelect }: { data: Loaded; agents
                 const line = data.briefing?.agents[id];
                 const isOpen = open === id;
                 return (
-                  <li key={id} className={`rounded-lg border ${isOpen ? "border-[#ffd98a88] bg-[#141f38]" : selected === id ? "border-[var(--line)] xl:border-[#ffd98a]" : "border-[var(--line)]"}`}>
-                    <button onClick={() => { onSelect(id); setOpen(isOpen ? null : id); }} aria-expanded={isOpen}
+                  <li key={id} className={`rounded-lg border ${isOpen ? "border-[#ffd98a88] bg-[#141f38]" : "border-[var(--line)]"}`}>
+                    <button onClick={() => setOpen(isOpen ? null : id)} aria-expanded={isOpen}
                             className="flex w-full items-start gap-2 px-3 py-2.5 text-left">
                       <span className="min-w-0 flex-1">
                         <span className="block text-sm font-semibold">{agentName(id)}</span>
                         {line && <span className="mt-0.5 block text-[13px] leading-snug text-[#c7d7ee]">{humanizeTickers(line)}</span>}
                       </span>
-                      <span aria-hidden="true" className="mt-0.5 text-xs text-[var(--muted)] xl:hidden">{isOpen ? "▲" : "▼"}</span>
+                      <span aria-hidden="true" className="mt-0.5 text-xs text-[var(--muted)]">{isOpen ? "▲" : "▼"}</span>
                     </button>
                     {isOpen && (
-                      <div className="border-t border-[var(--line)] px-3 py-2 xl:hidden">
+                      <div className="border-t border-[var(--line)] px-3 py-2">
                         <AgentBody data={data} agentId={id} summary={agents[id]} lineShown />
                       </div>
                     )}
@@ -393,7 +224,7 @@ const KIND_KO: Record<string, string> = {
 const shortDate = (iso: string) => new Date(iso).toLocaleDateString("ko-KR", {
   timeZone: "Asia/Seoul", month: "numeric", day: "numeric" });
 
-function EvidenceTab({ run, snapshots }: { run: RunDetail; snapshots: Snapshot[] }) {
+export function EvidenceTab({ run, snapshots }: { run: RunDetail; snapshots: Snapshot[] }) {
   const gaps = [...new Set(run.coverage_gaps.map(plainGap))];
   const kinds = [...new Set(snapshots.map((s) => s.kind))];
   return (
@@ -432,7 +263,7 @@ function EvidenceTab({ run, snapshots }: { run: RunDetail; snapshots: Snapshot[]
   );
 }
 
-function FactsTab({ run, decision }: { run: RunDetail; decision: Decision | null }) {
+export function FactsTab({ run, decision }: { run: RunDetail; decision: Decision | null }) {
   const rows: [string, string][] = [
     ["실행 ID", run.id],
     ["종목", INSTRUMENT_KO[run.instrument_id] ?? run.instrument_id],
