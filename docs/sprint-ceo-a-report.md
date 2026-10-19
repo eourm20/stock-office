@@ -32,3 +32,11 @@ Frontend **42 passed** (+5 inbox model: ordering, Korean deadline labels, money,
 `tsc` clean, `next build` OK. Browser (iPhone 13 emulation): inbox → document → approve with comment →
 stamp; review document; minutes; office idle; settings. Fixed during the check: clock hydration mismatch,
 repeated "대기", stamps wrapping, "0주 / 0원" on blocked plans.
+
+## Follow-up: fractional US shares (POLICY_V2, same day, owner decision)
+The owner buys US stocks in fractional quantities in their own securities app, so the allocator now sizes
+US positions in steps of 0.0001 share (KRX stays whole shares). The stored NVDA case that was blocked
+under V1 (budget 150,000 KRW < one share) now sizes to 0.4967 share. `Allocation.qty` is a Decimal;
+titles and the UI print it without trailing zeros. Documents already filed keep their V1 record.
+Tests: backend 128 passed (+1 real NVDA case, US fractional and KR whole-share variants); the guard test
+caught the word "brokerage" in a new comment, which was reworded. Frontend 42 passed.

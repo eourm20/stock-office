@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { decideInbox, getBriefing, getInboxItem, markRead, type Briefing, type InboxItem } from "../../../lib/api";
-import { approvalLine, deadlineLabel, kstDateTime, money, STATUS_KO, STATUS_TONE } from "../../../inbox/model";
+import { approvalLine, deadlineLabel, kstDateTime, money, shares, STATUS_KO, STATUS_TONE } from "../../../inbox/model";
 import { FLAG_KO, RATING_KO } from "../../../office/explain";
 import { humanizeTickers } from "../../../office/names";
 import NavBar from "../../NavBar";
@@ -102,7 +102,7 @@ export default function InboxDocument() {
                     <Row label="수량·금액" value="매수 불가" note={a.blocked} />
                   ) : (
                     <>
-                      <Row label="수량" value={`${a.qty}주`} />
+                      <Row label="수량" value={shares(a.qty)} note={Number.isInteger(Number(a.qty)) ? undefined : "소수점 수량"} />
                       <Row label="금액" value={money(a.notional_krw, "KRW")}
                            note={p.currency === "USD" ? `${money(a.notional, "USD")} · 환율 ${Number(p.fx_krw_per_unit).toLocaleString("ko-KR")}원` : undefined} />
                       <Row label="손절 시 최대 손실" value={money(a.max_loss_krw, "KRW")} />

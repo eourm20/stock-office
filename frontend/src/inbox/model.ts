@@ -63,6 +63,13 @@ export function kstDateTime(iso: string | null): string {
   return `${p.md} ${p.time}`;
 }
 
+/** "4" → "4주", "0.4967" → "0.4967주" (fractional US shares). */
+export function shares(qty: string | number): string {
+  const n = Number(qty);
+  if (!Number.isFinite(n)) return `${qty}주`;
+  return `${Number.isInteger(n) ? n.toLocaleString("ko-KR") : n.toLocaleString("ko-KR", { maximumFractionDigits: 4 })}주`;
+}
+
 /** 240000 KRW → "240,000원"; USD → "$224.33". */
 export function money(value: string | number, currency: "KRW" | "USD"): string {
   const n = Number(value);

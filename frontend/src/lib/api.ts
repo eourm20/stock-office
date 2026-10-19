@@ -160,7 +160,7 @@ export const getBriefing = (id: string) =>
 // ---------------------------------------------------------------- CEO inbox, records, office now
 
 export interface PlanAllocation {
-  qty: number;
+  qty: string;            // Decimal: whole shares (KRW) or fractional shares (USD)
   notional: string;
   notional_krw: string;
   max_loss_krw: string;

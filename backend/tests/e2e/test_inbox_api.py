@@ -33,7 +33,8 @@ def test_buy_meeting_becomes_an_approval_request_and_the_ceo_decides_once(
     # DEMO bars are too few for ATR: the policy's fallback stop and default multiplier apply.
     assert plan["sources"] == {"limit": "policy", "stop": "policy", "target": "policy"}
     assert plan["currency"] == "USD" and plan["fx_krw_per_unit"] == "1400"
-    assert plan["allocation"]["qty"] > 0 and plan["allocation"]["blocked"] is None
+    assert float(plan["allocation"]["qty"]) > 0 and plan["allocation"]["blocked"] is None
+    assert plan["policy_version"] == "POLICY_V2"
     assert len(plan["allocation"]["lines"]) == 4
     expires = datetime.fromisoformat(item["expires_at"])
     assert datetime.now(UTC) < expires < datetime.now(UTC) + timedelta(days=5)

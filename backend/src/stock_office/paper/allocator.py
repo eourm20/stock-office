@@ -13,7 +13,9 @@ from decimal import ROUND_DOWN, Decimal
 
 @dataclass(frozen=True)
 class Policy:
-    version: str = "POLICY_V1"
+    # V2 (2026-10-19, owner decision): US shares in fractional quantities, as the owner trades them
+    # in their own securities app; KR stays whole shares.
+    version: str = "POLICY_V2"
     initial_equity_krw: Decimal = Decimal(10_000_000)
     base_weight: Decimal = Decimal("0.10")  # a full-conviction position: 10% of NAV
     rating_factor: tuple[tuple[str, Decimal], ...] = (
@@ -25,17 +27,24 @@ class Policy:
     cash_floor: Decimal = Decimal("0.20")  # keep ≥ 20% of NAV in cash
     min_notional_krw: Decimal = Decimal(100_000)
     fee_rate: Decimal = Decimal("0.0005")  # buffer for commission/slippage in the sizing
+    quantity_step: tuple[tuple[str, Decimal], ...] = (
+        ("KRW", Decimal(1)),  # KRX: whole shares
+        ("USD", Decimal("0.0001")),  # US: fractional shares
+    )
+
+    def step(self, currency: str) -> Decimal:
+        return dict(self.quantity_step).get(currency, Decimal(1))
 
     def factor(self, rating: str | None) -> Decimal:
         return dict(self.rating_factor).get(rating or "", Decimal(0))
 
 
-POLICY_V1 = Policy()
+POLICY = Policy()
 
 
 @dataclass
 class Allocation:
-    qty: int
+    qty: Decimal  # whole shares for KRW, fractional (policy step) for USD
     notional: Decimal  # in the instrument's currency
     notional_krw: Decimal
     max_loss_krw: Decimal  # if the stop is hit
@@ -59,6 +68,7 @@ def allocate(
     limit: Decimal,
     stop: Decimal,
     fx_krw: Decimal,
+    currency: str = "KRW",
 ) -> Allocation:
     """Shares to buy at `limit` (instrument currency); `fx_krw` = KRW per unit (1 for KRW)."""
     factor = policy.factor(rating)
@@ -75,7 +85,12 @@ def allocate(
     lines = [(label, _won(max(value, Decimal(0)))) for label, value in rules]
     binding, budget = min(lines, key=lambda line: line[1])
     unit_krw = limit * fx_krw * (1 + policy.fee_rate)
-    qty = int((budget / unit_krw).to_integral_value(rounding=ROUND_DOWN)) if unit_krw > 0 else 0
+    step = policy.step(currency)
+    qty = (
+        (budget / unit_krw / step).to_integral_value(rounding=ROUND_DOWN) * step
+        if unit_krw > 0
+        else Decimal(0)
+    )
     notional = limit * qty
     notional_krw = _won(notional * fx_krw)
     blocked = None
@@ -84,7 +99,7 @@ def allocate(
     elif qty == 0 or notional_krw < policy.min_notional_krw:
         blocked = f"규정상 매수 가능 금액이 {policy.min_notional_krw:,.0f}원 미만"
     return Allocation(
-        qty=qty if not blocked else 0,
+        qty=qty if not blocked else Decimal(0),
         notional=notional if not blocked else Decimal(0),
         notional_krw=notional_krw if not blocked else Decimal(0),
         max_loss_krw=_won((limit - stop) * qty * fx_krw) if not blocked else Decimal(0),

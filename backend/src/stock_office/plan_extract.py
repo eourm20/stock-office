@@ -31,7 +31,7 @@ _NUMBER = re.compile(r"\d[\d,]*(?:\.\d+)?")
 _NOT_GIVEN = re.compile(r"not provided|제공되지 않|없음|n/?a", re.IGNORECASE)
 _MULTIPLIER = re.compile(r"(\d+(?:\.\d+)?)\s*(?:[~\-–]\s*(\d+(?:\.\d+)?))?\s*배")
 
-# Company policy defaults (POLICY_V1). Changing them is a policy decision: bump the version.
+# Company policy defaults (see paper/allocator.py Policy). Changing them: bump the policy version.
 LIMIT_MARKUP = Decimal("1.005")
 ATR_STOP_MULT = Decimal(2)
 STOP_MIN, STOP_MAX = Decimal("0.03"), Decimal("0.12")

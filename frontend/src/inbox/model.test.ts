@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { InboxItem, RecordRow } from "../lib/api";
-import { approvalLine, deadlineLabel, groupInbox, groupRecordsByDay, money } from "./model";
+import { approvalLine, deadlineLabel, groupInbox, groupRecordsByDay, money, shares } from "./model";
 
 function item(id: number, status: InboxItem["status"], extra: Partial<InboxItem> = {}): InboxItem {
   return { id, kind: status === "INFO" ? "daily" : "approval", run_id: `r${id}`, instrument_id: null,
@@ -39,6 +39,8 @@ describe("inbox model", () => {
   it("formats money per currency", () => {
     expect(money("240000", "KRW")).toBe("240,000원");
     expect(money("224.33", "USD")).toBe("$224.33");
+    expect(shares("9")).toBe("9주");
+    expect(shares("0.4967")).toBe("0.4967주");
   });
 
   it("draws the approval line with the CEO's stamp state", () => {

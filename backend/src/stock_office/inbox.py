@@ -23,7 +23,7 @@ from pydantic import BaseModel
 from stock_office.db import transaction
 from stock_office.domain.instruments import display_name, get_instrument
 from stock_office.domain.models import AnalysisRun, DecisionAction, Market
-from stock_office.paper.allocator import POLICY_V1, Policy, allocate
+from stock_office.paper.allocator import POLICY, Policy, allocate
 from stock_office.plan_extract import build_buy_plan, daily_bars, parse_labels
 from stock_office.runs.repository import RunRepository
 
@@ -81,6 +81,12 @@ def next_session_close(market: Market, now: datetime) -> datetime:
     raise RuntimeError("no session close within 15 days")
 
 
+def format_qty(qty: Decimal | str | int) -> str:
+    """4 → "4", 0.4530 → "0.453" (no trailing zeros, no exponent)."""
+    text = format(Decimal(str(qty)).normalize(), "f")
+    return text
+
+
 def _jsonable(value: Any) -> Any:
     if isinstance(value, Decimal):
         return str(value)
@@ -98,7 +104,7 @@ class Inbox:
         self,
         conn: sqlite3.Connection,
         repo: RunRepository,
-        policy: Policy = POLICY_V1,
+        policy: Policy = POLICY,
         fx: FxSource | None = None,
     ) -> None:
         self.conn, self.repo, self.policy, self.fx = conn, repo, policy, fx
@@ -142,7 +148,7 @@ class Inbox:
                 if expires <= now:
                     status = "EXPIRED"
                     payload["filed_late"] = True
-                title = f"[결재] {name} 매수 {plan_body['allocation']['qty']}주"
+                title = f"[결재] {name} 매수 {format_qty(plan_body['allocation']['qty'])}주"
                 plan_body["valid_until"] = _iso(expires)
             else:
                 title = f"[검토 필요] {name} 매수 제안"
@@ -217,6 +223,7 @@ class Inbox:
             limit=draft.limit,
             stop=draft.stop,
             fx_krw=fx_rate,
+            currency="USD" if market is Market.US else "KRW",
         )
         if alloc.blocked:
             reasons.append(alloc.blocked)
