@@ -58,6 +58,7 @@ export class OfficeScene extends Phaser.Scene {
   private selected: string | null = null;
   private selection!: Phaser.GameObjects.Graphics;
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
+  private overview = { x: 0, y: 0, w: 1, h: 1 };
 
   constructor(private readonly hooks: OfficeSceneHooks = {}) {
     super("office");
@@ -127,6 +128,35 @@ export class OfficeScene extends Phaser.Scene {
 
   setSpeed(multiplier: number): void {
     this.speed = Math.max(1, multiplier);
+  }
+
+  /**
+   * Department tabs: move the camera to one room and fit it to the view, or back to the whole
+   * office (`null`). Camera only; nothing about the characters changes.
+   */
+  focusZone(name: string | null): void {
+    const cam = this.cameras.main;
+    const zone = name ? this.layout?.zones.find((z) => z.name === name) : undefined;
+    let target = this.overview;
+    if (zone) {
+      // The four corners of the room's tile rectangle in world space.
+      const corners = [[zone.x0, zone.y0], [zone.x1, zone.y0], [zone.x0, zone.y1], [zone.x1, zone.y1]]
+        .map(([x, y]) => this.world({ x: x!, y: y! }));
+      const xs = corners.map((c) => c.x);
+      const ys = corners.map((c) => c.y);
+      const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys) - 70, maxY = Math.max(...ys);
+      target = { x: (minX + maxX) / 2, y: (minY + maxY) / 2, w: maxX - minX + 40, h: maxY - minY + 40 };
+    }
+    const zoom = Phaser.Math.Clamp(Math.min(this.scale.width / target.w, this.scale.height / target.h) * (zone ? 1 : 1.05), 0.4, 2.5);
+    const ms = this.reducedMotion ? 0 : 450;
+    cam.pan(target.x, target.y, ms, "Sine.easeInOut");
+    cam.zoomTo(zoom, ms, "Sine.easeInOut");
+  }
+
+  /** Zoom the camera by a factor (pinch, wheel, keys and the on-screen buttons). */
+  zoomBy(factor: number): void {
+    const cam = this.cameras.main;
+    cam.setZoom(Phaser.Math.Clamp(cam.zoom * factor, 0.4, 2.5));
   }
 
   setSelected(agentId: string | null): void {
@@ -211,15 +241,29 @@ export class OfficeScene extends Phaser.Scene {
     cam.setBounds(-200, -200, w + 400, h + 400);
     cam.centerOn(w / 2, h / 2);
     cam.setZoom(Math.min(this.scale.width / w, this.scale.height / h) * 1.05);
+    this.overview = { x: w / 2, y: h / 2, w, h };
     cam.setBackgroundColor("#0b1020");
 
+    // Touch: one finger pans, two fingers pinch-zoom. Mouse: drag pans, wheel zooms.
+    this.input.addPointer(1);
+    let pinch: number | null = null;
     this.input.on("pointermove", (p: Phaser.Input.Pointer) => {
+      const a = this.input.pointer1;
+      const b = this.input.pointer2;
+      if (a.isDown && b.isDown) {
+        const dist = Phaser.Math.Distance.Between(a.x, a.y, b.x, b.y);
+        if (pinch) this.zoomBy(dist / pinch);
+        pinch = dist;
+        return;
+      }
+      pinch = null;
       if (!p.isDown) return;
       cam.scrollX -= (p.x - p.prevPosition.x) / cam.zoom;
       cam.scrollY -= (p.y - p.prevPosition.y) / cam.zoom;
     });
+    this.input.on("pointerup", () => { pinch = null; });
     this.input.on("wheel", (_p: unknown, _o: unknown, _dx: number, dy: number) => {
-      cam.setZoom(Phaser.Math.Clamp(cam.zoom * (dy > 0 ? 0.9 : 1.1), 0.4, 2.5));
+      this.zoomBy(dy > 0 ? 0.9 : 1.1);
     });
     const kb = this.input.keyboard;
     if (kb) {

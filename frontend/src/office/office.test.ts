@@ -371,3 +371,37 @@ describe("API base", () => {
       .toBe("https://api.example");
   });
 });
+
+describe("department status board", () => {
+  it("shows each department's current task and n/m from the events only", async () => {
+    const { departmentStatus } = await import("./departments");
+    const { ROSTER: FULL } = await import("./roster");
+    seq = 0;
+    const events = [
+      ev("run.created"), ev("run.started"),
+      ev("agent.started", "data_collector", { role: "Data Collection" }),
+    ];
+    let s = foldEvents(initialOfficeState(FULL), events);
+    expect(departmentStatus(s)[0]).toMatchObject({ name: "분석실", phase: "working", task: "정보 수집 중", done: 0, total: 0 });
+    expect(departmentStatus(s)[1]).toMatchObject({ name: "리서치", phase: "idle", task: "대기" });
+
+    s = foldEvents(s, [
+      ev("agent.completed", "data_collector", { role: "Data Collection" }),
+      ev("agent.started", "market_analyst", { role: "Market Analyst" }),
+      ev("agent.started", "news_analyst", { role: "News Analyst" }),
+      ev("agent.started", "fundamentals_analyst", { role: "Fundamentals Analyst" }),
+      ev("tool.called", "market_analyst", { round: 1, tools: ["get_stock_data"] }),
+      ev("agent.completed", "news_analyst", { role: "News Analyst", summary: "n" }),
+    ]);
+    expect(departmentStatus(s)[0]).toMatchObject({ phase: "working", task: "자료 조회 중", done: 1, total: 3 });
+
+    s = foldEvents(s, [
+      ev("agent.completed", "market_analyst", { role: "Market Analyst", summary: "m" }),
+      ev("agent.completed", "fundamentals_analyst", { role: "Fundamentals Analyst", summary: "f" }),
+      ev("agent.started", "bull_researcher", { role: "Bull Researcher" }),
+    ]);
+    const board = departmentStatus(s);
+    expect(board[0]).toMatchObject({ phase: "done", task: "완료", done: 3, total: 3 });
+    expect(board[1]).toMatchObject({ phase: "working", task: "강세·약세 토론 중", done: 0, total: 1 });
+  });
+});

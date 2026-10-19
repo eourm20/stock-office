@@ -158,3 +158,14 @@ by letter and raw English error strings with URLs. Changes (desktop layout kept)
 
 Page height on the phone: 2,681 px → 2,115 px with more information above the fold. Screenshot:
 `docs/screenshots/sprint-2b-mobile-redesign.png`. Frontend 36 tests (+1 `plainGap`), `tsc` and `next build` OK.
+
+## Office on phones: zoom, department tabs, department status (2026-10-19, user request)
+| Change | Code |
+|---|---|
+| Pinch zoom (two pointers) and ＋/－ buttons; the canvas no longer lets the browser turn gestures into page zoom/scroll (`touch-action: none`) | [OfficeScene.ts](../frontend/src/game/OfficeScene.ts) `zoomBy`, [OfficeCanvas.tsx](../frontend/src/game/OfficeCanvas.tsx) |
+| Department tabs (전체 · 분석실 · 리서치 회의실 · 트레이딩 데스크 · 리스크·임원실) above the canvas move the camera to that room and fit it; camera only, characters unchanged | `focusZone` |
+| Department status board ("분석실 · 자료 조회 중 (1/3)") and progress on the tabs, a pure function of the office state (= stored events); "n/m" counts the department's agents that took part in this run | [departments.ts](../frontend/src/office/departments.ts), [office/page.tsx](../frontend/src/app/office/page.tsx) `DepartmentBoard` |
+| Overlays rearranged so nothing sits under the phone's bottom tab bar; desktop hint hidden on phones | `office/page.tsx` |
+
+Tests: frontend 37 passed (+1 board: data collection, lookups, n/m, done, next department). Screenshots:
+`sprint-2b-office-department-tabs.png`, `sprint-2b-office-department-board.png`.

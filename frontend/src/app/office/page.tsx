@@ -11,6 +11,7 @@ import { initialOfficeState, reduceEvent, type OfficeState } from "../../office/
 import type { EventType, RunEvent } from "../../types";
 import { agentName, humanizeTickers, PHASE_KO, STATUS_KO, toolNames } from "../../office/names";
 import { ACTION_KO, decisionLines, FLAG_KO, narrate } from "../../office/explain";
+import { departmentStatus } from "../../office/departments";
 import HelpPanel from "../HelpPanel";
 import Markdown from "../Markdown";
 import NavBar from "../NavBar";
@@ -268,24 +269,25 @@ export default function OfficePage() {
       </nav>
 
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <section className="relative h-[58vh] min-w-0 md:h-auto md:flex-1" aria-label="사무실">
+        <section className="relative h-[52vh] min-w-0 md:h-auto md:flex-1" aria-label="사무실">
           <OfficeCanvas state={state} animate={animate} speed={speed === "instant" ? 8 : speed}
                         reducedMotion={reducedMotion} selected={selected}
                         onAgentClick={(id) => setSelected(id)} />
-          <div className="pointer-events-none absolute left-1/2 top-3 w-[min(720px,90%)] -translate-x-1/2 rounded-xl border border-[#ffd98a66] bg-[#0b1020e6] px-4 py-2 text-center text-[15px] text-[#fff3d6] shadow-lg"
+          <div className="pointer-events-none absolute left-1/2 top-12 w-[min(720px,92%)] -translate-x-1/2 rounded-xl border border-[#ffd98a66] bg-[#0b1020e6] px-3 py-1.5 text-center text-[13px] text-[#fff3d6] shadow-lg sm:px-4 sm:py-2 sm:text-[15px]"
                role="status" aria-live="polite">
             <span className="mr-2 text-[var(--warn)]">지금</span>{narrate(state)}
           </div>
-          <div className="pointer-events-none absolute left-3 top-16 flex gap-2 text-xs">
+          <div className="pointer-events-none absolute bottom-3 left-3 flex flex-wrap gap-2 text-xs md:bottom-9">
             {state.demo && <span className="rounded bg-amber-400 px-2 py-1 font-bold text-black">DEMO · 합성 데이터, 분석 결과 아님</span>}
             {mode && <span className="rounded bg-[var(--panel)] px-2 py-1">{mode === "live" ? "● 실시간" : "▶ 다시보기"} · {PHASE_KO[state.phase] ?? state.phase}</span>}
             {current && <span className="rounded bg-[var(--panel)] px-2 py-1">{current.instrument_id}</span>}
           </div>
-          <p className="pointer-events-none absolute bottom-3 left-3 text-xs text-[var(--muted)]">드래그로 이동 · 휠/±로 확대 · 방향키 이동 · 직원 클릭 시 상세</p>
+          <p className="pointer-events-none absolute bottom-3 left-3 hidden text-xs text-[var(--muted)] md:block">드래그로 이동 · 휠/±로 확대 · 방향키 이동 · 직원 클릭 시 상세</p>
           {error && <p role="alert" className="absolute bottom-10 left-3 rounded bg-rose-900/80 px-3 py-2 text-sm">{error}</p>}
         </section>
 
         <aside className="flex w-full shrink-0 flex-col gap-3 border-t border-[var(--line)] bg-[#0d1426] p-3 text-sm md:w-[360px] md:overflow-y-auto md:border-l md:border-t-0">
+          <DepartmentBoard state={state} instrument={current ? INSTRUMENT_KO[current.instrument_id] ?? current.instrument_id : null} />
           <div className="rounded-lg border border-[var(--line)] bg-[var(--panel)] p-3">
             <h2 className="mb-1 text-xs uppercase tracking-widest text-[var(--muted)]">최종 결정</h2>
             {state.decision ? (
@@ -354,5 +356,33 @@ export default function OfficePage() {
       </div>
       {help && <HelpPanel onClose={() => setHelp(false)} />}
     </main>
+  );
+}
+
+const PHASE_DOT: Record<string, string> = {
+  working: "bg-sky-300 animate-pulse", done: "bg-emerald-400", failed: "bg-rose-400", idle: "bg-[var(--line)]",
+};
+
+/** What each department is doing now, from the events (same source as the characters). */
+function DepartmentBoard({ state, instrument }: { state: OfficeState; instrument: string | null }) {
+  const board = departmentStatus(state);
+  return (
+    <div className="rounded-lg border border-[var(--line)] bg-[var(--panel)] p-3" aria-label="부서 현황">
+      <h2 className="mb-1.5 flex items-baseline justify-between text-xs text-[var(--muted)]">
+        <span className="uppercase tracking-widest">부서 현황</span>
+        {instrument && <span className="text-sm font-semibold text-[var(--ink)]">{instrument}</span>}
+      </h2>
+      <ul className="space-y-1">
+        {board.map((d) => (
+          <li key={d.zone} className="flex items-center gap-2 text-sm">
+            <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${PHASE_DOT[d.phase]}`} />
+            <span className="w-24 shrink-0 text-[var(--muted)]">{d.name}</span>
+            <span className={d.phase === "working" ? "text-sky-200" : d.phase === "failed" ? "text-rose-300" : ""}>
+              {d.task}{d.total > 0 && d.phase !== "idle" ? ` (${d.done}/${d.total})` : ""}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
