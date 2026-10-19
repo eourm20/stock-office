@@ -1,8 +1,22 @@
 import type { InstrumentSummary } from "../office/auto";
 import type { RunEvent } from "../types";
 
-/** The browser talks to FastAPI directly (CORS) so SSE is never buffered by a proxy. */
-export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+/**
+ * Where the browser reaches FastAPI.
+ * - UI on port 3000 (dev server, SSH tunnel): FastAPI directly on port 8000 of the same host (CORS).
+ * - Anything else (Tailscale `serve` over HTTPS, phone home-screen app): same origin; the proxy
+ *   forwards `/api` to FastAPI.
+ * `NEXT_PUBLIC_API_BASE` overrides both.
+ */
+export function resolveApiBase(loc: { protocol: string; hostname: string; port: string } | null,
+                               override?: string): string {
+  if (override) return override;
+  if (!loc) return "http://localhost:8000";            // server-side render: never fetched
+  return loc.port === "3000" ? `${loc.protocol}//${loc.hostname}:8000` : "";
+}
+
+export const API_BASE = resolveApiBase(
+  typeof window === "undefined" ? null : window.location, process.env.NEXT_PUBLIC_API_BASE);
 
 export interface RunSummary {
   id: string;

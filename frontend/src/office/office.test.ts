@@ -358,3 +358,16 @@ describe("replay timing", () => {
     expect(run(4)).toEqual(run("instant"));
   });
 });
+
+describe("API base", () => {
+  it("uses port 8000 next to a :3000 UI and the same origin behind an HTTPS proxy", async () => {
+    const { resolveApiBase } = await import("../lib/api");
+    expect(resolveApiBase({ protocol: "http:", hostname: "localhost", port: "3000" }))
+      .toBe("http://localhost:8000");
+    expect(resolveApiBase({ protocol: "https:", hostname: "quant-worker.tail1234.ts.net", port: "" }))
+      .toBe("");
+    expect(resolveApiBase(null)).toBe("http://localhost:8000");
+    expect(resolveApiBase({ protocol: "https:", hostname: "x", port: "" }, "https://api.example"))
+      .toBe("https://api.example");
+  });
+});

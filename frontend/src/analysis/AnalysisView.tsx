@@ -89,6 +89,14 @@ export default function AnalysisView({ runId }: { runId: string | null }) {
     return () => { cancelled = true; if (timer) clearTimeout(timer); };
   }, [resolved, load]);
 
+  /** Select an agent; on one-column (phone) layouts the panel is below, so bring it into view. */
+  const selectAndShow = useCallback((id: string) => {
+    setSelected(id);
+    if (window.matchMedia("(max-width: 1279px)").matches) {
+      requestAnimationFrame(() => document.getElementById("agent-panel")?.scrollIntoView({ behavior: "smooth" }));
+    }
+  }, []);
+
   const agents = useMemo(() => summarizeAgents(data?.events ?? [],
     data ? FINISHED.has(data.run.status) : false), [data]);
   const debate = useMemo(() => debateTranscript(data?.events ?? []), [data]);
@@ -136,30 +144,33 @@ export default function AnalysisView({ runId }: { runId: string | null }) {
             <section className="rounded-lg border border-[var(--line)] bg-[var(--panel)] p-3">
               <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
                 <h2 className="font-semibold">위원회 흐름</h2>
-                <p className="text-xs text-[var(--muted)]">왼쪽에서 오른쪽 순서로 일했습니다. 칸을 누르면 오른쪽에 그 직원의 보고서가 나옵니다.
-                  {" "}<Link className="underline" href={`/office?run=${data.run.id}`}>사무실 애니메이션으로 다시보기</Link></p>
+                <p className="text-xs text-[var(--muted)]"><span className="hidden md:inline">왼쪽에서 오른쪽 순서로 일했습니다. 칸을 누르면 오른쪽에 그 직원의 보고서가 나옵니다.{" "}</span>
+                  <Link className="underline" href={`/office?run=${data.run.id}`}>사무실 애니메이션으로 다시보기</Link></p>
               </div>
-              <FlowGraph agents={agents} action={data.decision?.action ?? null} selected={selected}
-                         onSelect={(id) => { setSelected(id); }} />
+              <div className="hidden md:block">
+                <FlowGraph agents={agents} action={data.decision?.action ?? null} selected={selected}
+                           onSelect={(id) => { setSelected(id); }} />
+              </div>
+              <p className="text-sm text-[var(--muted)] md:hidden">큰 화면에서는 여기에 흐름 그래프가 나옵니다. 휴대폰에서는 아래 목록에서 직원을 눌러 보고서를 보세요.</p>
             </section>
             <section className="rounded-lg border border-[var(--line)] bg-[var(--panel)]">
-              <div role="tablist" aria-label="세부 내용" className="flex gap-1 border-b border-[var(--line)] p-2">
+              <div role="tablist" aria-label="세부 내용" className="flex gap-1 overflow-x-auto border-b border-[var(--line)] p-2">
                 {([["reports", "보고서"], ["debate", `토론 (${debate.length})`],
                    ["evidence", `근거 데이터 (${data.snapshots.length})`], ["facts", "실행 정보"]] as [Tab, string][])
                   .map(([t, label]) => (
                     <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
-                            className={`rounded px-3 py-1 text-sm ${tab === t ? "bg-[var(--accent)] text-black" : "hover:bg-[#1d2944]"}`}>{label}</button>
+                            className={`shrink-0 whitespace-nowrap rounded px-3 py-1 text-sm ${tab === t ? "bg-[var(--accent)] text-black" : "hover:bg-[#1d2944]"}`}>{label}</button>
                   ))}
               </div>
               <div className="p-3">
-                {tab === "reports" && <ReportsTab data={data} agents={agents} selected={selected} onSelect={setSelected} />}
+                {tab === "reports" && <ReportsTab data={data} agents={agents} selected={selected} onSelect={selectAndShow} />}
                 {tab === "debate" && <DebateTab lines={debate} reports={data.reports.reports} />}
                 {tab === "evidence" && <EvidenceTab run={data.run} snapshots={data.snapshots} />}
                 {tab === "facts" && <FactsTab run={data.run} decision={data.decision} />}
               </div>
             </section>
           </div>
-          <AgentPanel data={data} agentId={selected} summary={agents[selected]} />
+          <div id="agent-panel" className="min-w-0 scroll-mt-2"><AgentPanel data={data} agentId={selected} summary={agents[selected]} /></div>
         </div>
       )}
     </main>
@@ -177,14 +188,14 @@ function StartControls({ onStarted }: { onStarted: (runId: string) => void }) {
     try { onStarted(await startRun(instrument, engine)); } catch (e) { window.alert((e as Error).message); } finally { setBusy(false); }
   };
   return (
-    <div className="ml-auto flex items-center gap-1">
-      <select aria-label="종목" className="rounded bg-[var(--panel)] px-2 py-1" value={instrument} onChange={(e) => setInstrument(e.target.value)}>
+    <div className="flex w-full flex-wrap items-center gap-1 sm:ml-auto sm:w-auto">
+      <select aria-label="종목" className="min-w-0 flex-1 rounded bg-[var(--panel)] px-2 py-1 sm:flex-none" value={instrument} onChange={(e) => setInstrument(e.target.value)}>
         {Object.entries(INSTRUMENT_KO).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
       </select>
-      <select aria-label="분석 종류" className="rounded bg-[var(--panel)] px-2 py-1" value={engine} onChange={(e) => setEngine(e.target.value as "demo" | "tradingagents")}>
+      <select aria-label="분석 종류" className="min-w-0 flex-1 rounded bg-[var(--panel)] px-2 py-1 sm:flex-none" value={engine} onChange={(e) => setEngine(e.target.value as "demo" | "tradingagents")}>
         <option value="demo">DEMO (무료)</option><option value="tradingagents">실제 분석 (유료)</option>
       </select>
-      <button disabled={busy} onClick={() => void start()} className="rounded bg-[var(--mint)] px-3 py-1 font-semibold text-black disabled:opacity-50">새 분석 시작</button>
+      <button disabled={busy} onClick={() => void start()} className="shrink-0 whitespace-nowrap rounded bg-[var(--mint)] px-3 py-1 font-semibold text-black disabled:opacity-50">새 분석 시작</button>
     </div>
   );
 }
