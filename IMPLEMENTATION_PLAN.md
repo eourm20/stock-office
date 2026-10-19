@@ -275,3 +275,4 @@ DataProvider/IndicatorProvider 어댑터, KR·US 시점 정합성, 테스트 3�
 - [x] 발견·수정: 업스트림 `tradingagents` import 시 `.env`를 자동으로 읽어, 키를 지운 테스트가 실제 유료 호출을 할 수 있었음(e2e 단독 실행 시). import 가드 + 회귀 테스트. 이 확인 중 실제 호출 최대 2회(약 $0.10 이하) 발생
 - [ ] 3단계: Analysis Mode(`/analysis/[runId]`, React Flow 그래프·보고서)
 - [ ] 4단계: shadcn/ui 도입
+- [x] 2단계 실제 엔진 검증(사용자 승인 유료 1회, 약 $0.051): NVDA run `797d8777…` 완료, `tool.called` 4건 정상, 보고서·결정 정상 → 서버 배포(`054c4cd`, 10:37 KST), 준비 상태 점검 통과

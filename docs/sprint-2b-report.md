@@ -74,3 +74,16 @@ Windows socket error (WinError 10014) in 4 e2e tests; two repeats and the full s
 **Browser check** (DEMO run, 1×): tag over the market analyst, feed lines, 0 console errors. The first
 version of the tag blended into the server rack and room label; it now has a background and sits above
 room labels. Screenshot: `docs/screenshots/sprint-2b-demo-tool-called.png` (DEMO, labelled).
+
+**Real-engine verification before deploy (2026-10-19, user-approved paid run).** One NVDA analysis on
+the local machine (economy profile, scratch data dir), run `797d877793464202`: COMPLETED in 223 s,
+40 events with gap-free seq, **4 `tool.called` events** (market analyst rounds 1–3: `get_stock_data`,
+`get_indicators`, `get_verified_market_snapshot`; fundamentals analyst round 1: five statement tools),
+payload keys exactly `{role, turn, round, tools, demo}`. The news analyst made no tool call in this run.
+Reports from all analysts and the portfolio manager are intact and Korean (subgraph state did not
+replace the final state); decision BUY / Overweight with the usual `COVERAGE_GAP`,
+`ENGINE_DATA_NOT_SNAPSHOTTED` flags. Cost ≈ $0.051 (same price table as sprint-0-report §10).
+
+**Deployed** `054c4cd` to `quant-worker` with `tools/deploy.sh` at 10:37 KST: services active, health OK,
+web HTTP 200, engine readiness check on the server passes through `get_settings()` (no model called),
+next slots NVDA 2026-10-19 17:00 ET and 005930 2026-10-20 07:30 KST.
