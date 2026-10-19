@@ -121,3 +121,46 @@ def test_rating_mapping_never_defaults_to_hold(rating: str | None,
 def test_catalog_ids_unique() -> None:
     ids = [s.agent_id for s in AGENT_CATALOG.values()]
     assert len(ids) == len(set(ids))
+
+
+class _Msg:
+    def __init__(self, tool_calls: list[dict[str, Any]]) -> None:
+        self.tool_calls = tool_calls
+
+
+def test_tool_calls_inside_analyst_graph_publish_names_only() -> None:
+    rec = Recorder()
+    p = TradingAgentsProjection("r", rec)
+    p.consume("tasks", start("A", "Market Analyst"))
+    ns = ("Market Analyst:A",)
+    secret_args = {"symbol": "NVDA", "api_key": "sk-should-never-appear-000000"}
+    calls = [{"name": "get_stock_data", "args": secret_args, "id": "c1"},
+             {"name": "get_indicators", "args": {"indicator": "rsi"}, "id": "c2"},
+             {"name": "get_stock_data", "args": {}, "id": "c3"},
+             {"name": "bad name; rm -rf", "args": {}, "id": "c4"}]
+    p.consume("tasks", {"id": "t1", "name": "agent", "input": {}, "triggers": []}, ns)
+    p.consume("tasks", {"id": "t2", "name": "tools", "triggers": [],
+                        "input": {"messages": [_Msg(calls)]}}, ns)
+    p.consume("tasks", {"id": "t2", "name": "tools", "triggers": [],
+                        "input": {"messages": [_Msg(calls)]}}, ns)          # duplicate chunk
+    p.consume("tasks", {"id": "t2", "name": "tools", "result": {}, "error": None}, ns)
+    p.consume("values", {"messages": ["private"], "market_report": "draft"}, ns)
+    p.consume("tasks", {"id": "t3", "name": "tools", "triggers": [],      # dict-shaped message
+                        "input": {"messages": [{"tool_calls": [{"name": "get_indicators"}]}]}}, ns)
+    p.consume("tasks", {"id": "t9", "name": "tools", "triggers": [],      # parent not running
+                        "input": {"messages": [_Msg(calls)]}}, ("News Analyst:zzz",))
+    p.consume("tasks", done("A", "Market Analyst", {"market_report": "final"}))
+
+    tool_events = [(a, pl) for t, a, pl in rec.events if t is EventType.TOOL_CALLED]
+    assert tool_events == [
+        ("market_analyst", {"role": "Market Analyst", "turn": 1, "round": 1,
+                            "tools": ["get_stock_data", "get_indicators", "other"]}),
+        ("market_analyst", {"role": "Market Analyst", "turn": 1, "round": 2,
+                            "tools": ["get_indicators"]}),
+    ]
+    assert "sk-should-never-appear" not in repr(rec.events)
+    assert "rsi" not in repr(rec.events)
+    # The analyst's private working state never becomes the run's final state.
+    assert p.final_state == {}
+    assert [t.value for t, _, _ in rec.events] == [
+        "agent.started", "tool.called", "tool.called", "agent.completed"]

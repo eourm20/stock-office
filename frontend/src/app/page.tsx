@@ -9,7 +9,7 @@ import { ReplayPlayer, type Speed } from "../office/replay";
 import { ROSTER } from "../office/roster";
 import { initialOfficeState, reduceEvent, type OfficeState } from "../office/stateMachine";
 import type { EventType, RunEvent } from "../types";
-import { agentName, humanizeTickers, PHASE_KO, STATUS_KO } from "../office/names";
+import { agentName, humanizeTickers, PHASE_KO, STATUS_KO, toolNames } from "../office/names";
 import { ACTION_KO, decisionLines, FLAG_KO, narrate } from "../office/explain";
 import HelpPanel from "./HelpPanel";
 import Markdown from "./Markdown";
@@ -319,6 +319,9 @@ export default function OfficePage() {
                 <button onClick={() => setSelected(null)} className="text-xs text-[var(--muted)]">닫기</button>
               </div>
               <p className="text-xs text-[var(--muted)]">상태: {STATUS_KO[sel.status]}{sel.turn > 1 ? ` · ${sel.turn}번째 차례` : ""}</p>
+              {sel.lookup && sel.status === "working" && (
+                <p className="mt-1 text-xs text-amber-200">🔍 {sel.lookup.round}번째 자료 조회: {toolNames(sel.lookup.tools)}</p>
+              )}
               {sel.bubble && <p className="mt-2 font-semibold">“{sel.bubble.text}”</p>}
               {sel.summary && (
                 <details className="mt-2 text-xs text-[#c7d7ee]" open={!sel.bubble}>

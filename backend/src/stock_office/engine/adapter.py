@@ -5,7 +5,10 @@ top-level graph stream with `stream_mode=["tasks", "values"]`:
   * tasks start  -> {"id", "name", "input", "triggers"}            => agent.started
   * tasks finish -> {"id", "name", "error", "result", "interrupts"} => agent.completed/failed
   * values       -> the full run state after a step                 => kept as final state
-Only sanitized report excerpts are published; messages/tool calls are never forwarded.
+With `subgraphs=True`, chunks from inside an analyst's own graph arrive with a namespace
+`("<Analyst node>:<parent task id>", ...)`. Only its `tools` task starts are used, as tool.called
+with the tool *names*; arguments, results and messages are never forwarded.
+Only sanitized report excerpts are published.
 """
 
 from __future__ import annotations
@@ -81,6 +84,26 @@ _RISK_RESPONSE_KEY = {
 }
 
 
+_TOOL_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+_MAX_TOOLS_PER_EVENT = 8
+
+
+def _tool_names(task_input: Any) -> list[str]:
+    """Names of the tool calls a `tools` task is about to run (never their arguments)."""
+    messages = task_input.get("messages") if isinstance(task_input, dict) else None
+    if not messages:
+        return []
+    last = messages[-1]
+    calls = last.get("tool_calls") if isinstance(last, dict) else getattr(last, "tool_calls", None)
+    names: list[str] = []
+    for call in calls or []:
+        name = call.get("name") if isinstance(call, dict) else getattr(call, "name", None)
+        name = name if isinstance(name, str) and _TOOL_NAME.match(name) else "other"
+        if name not in names:
+            names.append(name)
+    return names[:_MAX_TOOLS_PER_EVENT]
+
+
 def _slug(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
 
@@ -127,8 +150,16 @@ class TradingAgentsProjection:
     results: list[AgentResult] = field(default_factory=list)
     _open: dict[str, _OpenTask] = field(default_factory=dict)
     _turns: dict[str, int] = field(default_factory=dict)
+    _tool_rounds: dict[str, int] = field(default_factory=dict)
+    _tool_tasks: set[str] = field(default_factory=set)
 
-    def consume(self, mode: str, chunk: Any) -> None:
+    def consume(self, mode: str, chunk: Any, namespace: tuple[str, ...] = ()) -> None:
+        if namespace:
+            # Inside an analyst's own graph. Its `values` are private working state and must
+            # never replace the run's final state.
+            if mode == "tasks" and isinstance(chunk, dict):
+                self._on_nested_task(namespace, chunk)
+            return
         if mode == "values" and isinstance(chunk, dict):
             self.final_state = chunk
         elif mode == "tasks" and isinstance(chunk, dict):
@@ -151,6 +182,27 @@ class TradingAgentsProjection:
             agent_id=spec.agent_id,
             payload={"role": spec.role, "phase": spec.phase, "turn": turn, "node": node},
             dedupe_key=f"task:{task_id}:start",
+        )
+
+    def _on_nested_task(self, namespace: tuple[str, ...], chunk: dict[str, Any]) -> None:
+        if chunk.get("name") != "tools" or "input" not in chunk or "result" in chunk:
+            return
+        parent_id = namespace[0].partition(":")[2]
+        task = self._open.get(parent_id)
+        if task is None:
+            return
+        tool_task = str(chunk.get("id"))
+        names = _tool_names(chunk.get("input"))
+        if not names or tool_task in self._tool_tasks:     # a re-sent chunk is not a new round
+            return
+        self._tool_tasks.add(tool_task)
+        rounds = self._tool_rounds.get(parent_id, 0) + 1
+        self._tool_rounds[parent_id] = rounds
+        self.sink(
+            EventType.TOOL_CALLED,
+            agent_id=task.spec.agent_id,
+            payload={"role": task.spec.role, "turn": task.turn, "round": rounds, "tools": names},
+            dedupe_key=f"task:{tool_task}:tools",
         )
 
     def _on_finish(self, chunk: dict[str, Any]) -> None:

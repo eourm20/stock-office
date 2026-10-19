@@ -7,7 +7,7 @@ reconnect catch-up, agent detail panel, Activity Feed, speech bubbles, decision 
 | Step | Status |
 |---|---|
 | 1. Whole committee in the office (12 characters + 2 equipment stations, 4 rooms) | **done** (2026-10-19) |
-| 2. `tool.called` events (sanitized) + "looking up data" animation | planned |
+| 2. `tool.called` events (sanitized) + "looking up data" animation | **done** (2026-10-19) |
 | 3. Analysis Mode `/analysis/[runId]` (React Flow graph, reports) | planned |
 | 4. shadcn/ui for panels | planned |
 
@@ -37,3 +37,40 @@ Screenshots: `docs/screenshots/sprint-2b-full-roster-risk-debate.png`, `sprint-2
 **Known limitations.** The sentiment analyst does not take part in the current engine configuration, so it
 stays idle at its seat (no status icon); that is accurate, not a fault. Zone labels can overlap a passing
 character for a moment.
+
+## Step 2 — `tool.called` (2026-10-19)
+Analysts run their tools inside their own LangGraph subgraph, invisible to the top-level stream.
+The engine now streams with `subgraphs=True`; chunks from inside an analyst carry the namespace
+`("<Analyst node>:<parent task id>",)`, which links a `tools` task to the running agent.
+
+| Change | Code |
+|---|---|
+| `tool.called` event: `{role, turn, round, tools}`; tool **names only** (regex-checked, max 8, unknown → `other`). Arguments, results and messages are never read into the payload. Subgraph `values` never replace the run's final state. Re-sent chunks do not count as a new round | [adapter.py](../backend/src/stock_office/engine/adapter.py) `_on_nested_task`, `_tool_names` |
+| Engine streams subgraphs | [tradingagents_engine.py](../backend/src/stock_office/engine/tradingagents_engine.py) |
+| DEMO engine emits scripted tool rounds through the same projection path (still labelled DEMO) | [demo_engine.py](../backend/src/stock_office/engine/demo_engine.py) |
+| Office: yellow "🔍 주가 외 1" tag over the employee while the latest lookup belongs to the current turn; Activity Feed "🔍 시장 분석가: 주가, 기술 지표 조회"; detail panel "n번째 자료 조회". Korean names for all 12 tools of the pinned engine | [stateMachine.ts](../frontend/src/office/stateMachine.ts), [eventAdapter.ts](../frontend/src/office/eventAdapter.ts), [names.ts](../frontend/src/office/names.ts), [OfficeScene.ts](../frontend/src/game/OfficeScene.ts) |
+
+Deviation from the plan table (§3a): the event does not name the data provider, because the
+upstream vendor router picks it inside the tool call. Provider coverage gaps are still recorded per run.
+
+**Found and fixed while testing: upstream loads `.env` on import.** `tradingagents/__init__.py`
+calls `load_dotenv(find_dotenv(usecwd=True))`. When the e2e tests ran on their own, the first import
+happened inside `test_tradingagents_without_key_fails_explicitly` *after* the test removed
+`OPENAI_API_KEY`, so the key came back from `backend/.env` and a real analysis started (the full suite
+hid this because contract tests imported the package first). Two such runs were started during this
+check before they were stopped; cost at most about 2 × $0.05. Fix: [upstream.py](../backend/src/stock_office/engine/upstream.py)
+imports the package with upstream's `.env` loading disabled; `get_settings()` stays the single place
+that exports `.env` (API and worker use it, so the server is unaffected). The live-test module no longer
+exports `.env` at collection time; only the opted-in paid test does.
+
+**Tests.** Backend `uv run pytest -q` → **101 passed**, 5 deselected (+1 projection unit test: names
+only, secrets/arguments absent, duplicates, nested values ignored; +2 contract: installed LangGraph's
+subgraph stream shape, upstream analysts have a `tools` node; +1 regression: a fresh interpreter in a
+folder whose `.env` holds a key imports the engine and still reports `ENGINE_NOT_CONFIGURED`; e2e: DEMO
+run stores 5 tool events). `tests/e2e` alone: 19 passed in 10 s, no network. ruff clean, mypy (src)
+clean. Frontend `npx vitest run` → **27 passed** (+3), `tsc` clean. One combined run hit a transient
+Windows socket error (WinError 10014) in 4 e2e tests; two repeats and the full suite passed.
+
+**Browser check** (DEMO run, 1×): tag over the market analyst, feed lines, 0 console errors. The first
+version of the tag blended into the server rack and room label; it now has a background and sits above
+room labels. Screenshot: `docs/screenshots/sprint-2b-demo-tool-called.png` (DEMO, labelled).

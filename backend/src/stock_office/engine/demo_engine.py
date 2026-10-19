@@ -7,11 +7,19 @@ produces is flagged `demo=true`; its output is synthetic and is never an analysi
 from __future__ import annotations
 
 from collections.abc import Iterator
+from types import SimpleNamespace
 from typing import Any
 
 from .adapter import EngineContext, EngineOutcome, TradingAgentsProjection, outcome_from_state
 
 DEMO_PREFIX = "DEMO (합성 데이터, 실제 분석 아님): "
+# Scripted tool rounds inside the analysts' own graphs (names only, like the real engine).
+DEMO_TOOL_ROUNDS = {
+    "Market Analyst": [["get_stock_data", "get_indicators"], ["get_verified_market_snapshot"]],
+    "News Analyst": [["get_news", "get_global_news"]],
+    "Fundamentals Analyst": [["get_fundamentals"], ["get_income_statement", "get_balance_sheet"]],
+}
+Chunk = tuple[tuple[str, ...], str, Any]
 
 
 class DemoEngineFailure(RuntimeError):
@@ -38,24 +46,31 @@ class DemoEngine:
     def check_ready(self) -> None:
         return None
 
-    def _trace(self, ctx: EngineContext) -> Iterator[tuple[str, Any]]:
+    def _trace(self, ctx: EngineContext) -> Iterator[Chunk]:
         sym = ctx.instrument.id
         state: dict[str, Any] = {"company_of_interest": sym, "trade_date": ctx.trade_date}
         analysts = [("Market Analyst", "market_report"), ("News Analyst", "news_report"),
                     ("Fundamentals Analyst", "fundamentals_report"), ("Memory Log", "memory_note")]
         # Parallel analyst phase: all start, then finish.
         for i, (node, _) in enumerate(analysts):
-            yield "tasks", {"id": f"a{i}", "name": node, "input": {}, "triggers": ["__start__"]}
+            yield (), "tasks", {"id": f"a{i}", "name": node, "input": {}, "triggers": ["__start__"]}
+        for i, (node, _) in enumerate(analysts):
+            ns = (f"{node}:a{i}",)
+            for r, tools in enumerate(DEMO_TOOL_ROUNDS.get(node, [])):
+                message = SimpleNamespace(tool_calls=[{"name": t, "args": {}} for t in tools])
+                yield ns, "tasks", {"id": f"a{i}-tools{r}", "name": "tools",
+                                    "input": {"messages": [message]}, "triggers": []}
         for i, (node, key) in enumerate(analysts):
             if node == self.fail_at:
-                yield "tasks", {"id": f"a{i}", "name": node, "error": DemoEngineFailure("injected"),
-                                "result": None, "interrupts": []}
+                yield (), "tasks", {"id": f"a{i}", "name": node,
+                                    "error": DemoEngineFailure("injected"),
+                                    "result": None, "interrupts": []}
                 raise DemoEngineFailure(f"injected failure at {node}")
             text = f"{DEMO_PREFIX}{node} 보고서 — {sym}, 스냅샷 {len(ctx.snapshots)}건 사용."
             state[key] = text
-            yield "tasks", {"id": f"a{i}", "name": node, "error": None,
+            yield (), "tasks", {"id": f"a{i}", "name": node, "error": None,
                             "result": {key: text}, "interrupts": []}
-        yield "values", dict(state)
+        yield (), "values", dict(state)
 
         sequence = [
             ("Bull Researcher", "investment",
@@ -71,10 +86,11 @@ class DemoEngine:
         invest: dict[str, str] = {"bull_history": "", "bear_history": "", "current_response": ""}
         risk: dict[str, str] = {"conservative_history": ""}
         for i, (node, kind, text) in enumerate(sequence):
-            yield "tasks", {"id": f"s{i}", "name": node, "input": {}, "triggers": []}
+            yield (), "tasks", {"id": f"s{i}", "name": node, "input": {}, "triggers": []}
             if node == self.fail_at:
-                yield "tasks", {"id": f"s{i}", "name": node, "error": DemoEngineFailure("injected"),
-                                "result": None, "interrupts": []}
+                yield (), "tasks", {"id": f"s{i}", "name": node,
+                                    "error": DemoEngineFailure("injected"),
+                                    "result": None, "interrupts": []}
                 raise DemoEngineFailure(f"injected failure at {node}")
             result: dict[str, Any]
             if kind == "investment":
@@ -91,22 +107,22 @@ class DemoEngine:
             else:
                 result = {"trader_investment_plan": text}
             state.update(result)
-            yield "tasks", {"id": f"s{i}", "name": node, "error": None, "result": result,
+            yield (), "tasks", {"id": f"s{i}", "name": node, "error": None, "result": result,
                             "interrupts": []}
 
         final = (f"{DEMO_PREFIX}최종 결정. Rating: {self.rating}" if self.rating
                  else f"{DEMO_PREFIX}등급 표기가 없는 최종 결정.")
-        yield "tasks", {"id": "pm", "name": "Portfolio Manager", "input": {}, "triggers": []}
+        yield (), "tasks", {"id": "pm", "name": "Portfolio Manager", "input": {}, "triggers": []}
         state["final_trade_decision"] = final
-        yield "tasks", {"id": "pm", "name": "Portfolio Manager", "error": None,
+        yield (), "tasks", {"id": "pm", "name": "Portfolio Manager", "error": None,
                         "result": {"final_trade_decision": final}, "interrupts": []}
-        yield "values", dict(state)
+        yield (), "values", dict(state)
 
     def run(self, ctx: EngineContext) -> EngineOutcome:
         projection = TradingAgentsProjection(run_id=ctx.run_id, sink=ctx.sink)
         try:
-            for mode, chunk in self._trace(ctx):
-                projection.consume(mode, chunk)
+            for namespace, mode, chunk in self._trace(ctx):
+                projection.consume(mode, chunk, namespace)
         except BaseException as exc:
             projection.abort_open_tasks(f"run aborted: {type(exc).__name__}")
             raise

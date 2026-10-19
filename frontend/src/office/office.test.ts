@@ -5,7 +5,7 @@ import type { EventType, RunEvent } from "../types";
 import { chooseAutoRun, timeAgo, type InstrumentSummary } from "./auto";
 import { adaptEvent } from "./eventAdapter";
 import { decisionLines, narrate, shortSpeech } from "./explain";
-import { humanizeTickers } from "./names";
+import { humanizeTickers, toolNames } from "./names";
 import { facing, isoToWorld, parseTiledMap, planPath, targetSpot, zoneOf, type TiledMap }
   from "./layout";
 import { characterFor, frameRange, resolveAnimation, type Registry, type SpriteMetadata }
@@ -69,7 +69,49 @@ describe("event adapter", () => {
     expect(adaptEvent(created!)).toEqual([{ type: "run", phase: "QUEUED" }]);
     expect(adaptEvent(start!)).toEqual([{ type: "start", agentId: "market_analyst",
                                           role: "Market Analyst", turn: 1 }]);
-    expect(adaptEvent({ ...start!, type: "tool.called" as EventType })).toEqual([]);
+    expect(adaptEvent({ ...start!, type: "risk.rejected" as EventType })).toEqual([]);
+  });
+});
+
+describe("tool.called", () => {
+  function toolRun(): RunEvent[] {
+    seq = 0;
+    return [
+      ev("run.created"), ev("run.started"),
+      ev("agent.started", "market_analyst", { role: "Market Analyst", turn: 1 }),
+      ev("tool.called", "market_analyst", { role: "Market Analyst", turn: 1, round: 1,
+                                            tools: ["get_stock_data", "get_indicators"] }),
+      ev("tool.called", "market_analyst", { role: "Market Analyst", turn: 1, round: 2,
+                                            tools: ["get_verified_market_snapshot"] }),
+      ev("tool.called", "data_collector", { round: 1, tools: ["get_news"] }),
+      ev("agent.completed", "market_analyst", { role: "Market Analyst", summary: "ok" }),
+    ];
+  }
+
+  it("shows the latest lookup while working and clears it when the turn ends", () => {
+    const events = toolRun();
+    const mid = foldEvents(initialOfficeState(ROSTER), events.slice(0, 5));
+    expect(mid.characters.market_analyst).toMatchObject({
+      status: "working", activity: "work",
+      lookup: { tools: ["get_verified_market_snapshot"], round: 2, seq: 5 } });
+    const end = foldEvents(initialOfficeState(ROSTER), events);
+    expect(end.characters.market_analyst).toMatchObject({ status: "done", lookup: null });
+    expect(end.offstage.data_collector?.status).toBe("working");
+    expect(end.feed[3]!.text).toBe("🔍 시장 분석가: 주가, 기술 지표 조회");
+    expect(end.feed[4]!.text).toBe("🔍 시장 분석가: 시장 스냅샷 조회");
+  });
+
+  it("keeps replay deterministic with tool events in the log", () => {
+    const events = toolRun();
+    let chunked = initialOfficeState(ROSTER);
+    for (const e of events) chunked = reduceEvent(reduceEvent(chunked, e), e);   // duplicates
+    expect(chunked).toEqual(foldEvents(initialOfficeState(ROSTER), events));
+  });
+
+  it("labels every tool of the pinned engine in Korean, unknown ones generically", () => {
+    expect(adaptEvent(toolRun()[3]!)).toEqual([{ type: "tool", agentId: "market_analyst",
+      role: "Market Analyst", tools: ["get_stock_data", "get_indicators"], round: 1 }]);
+    expect(toolNames(["get_balance_sheet", "made_up"])).toBe("재무상태표, 기타 자료");
   });
 });
 

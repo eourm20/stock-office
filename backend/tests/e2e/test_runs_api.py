@@ -55,6 +55,13 @@ def test_nvda_demo_run_full_lifecycle(client: TestClient) -> None:
     assert debate == ["bull", "bear", "aggressive", "conservative", "neutral"]
     # every started agent finishes (none left RUNNING)
     assert len(started) == len([e for e in events if e["type"] == "agent.completed"])
+    # analysts' lookups arrive as tool.called with names only, between their start and finish
+    tools = [e for e in events if e["type"] == "tool.called"]
+    assert [(e["agent_id"], e["payload"]["round"]) for e in tools] == [
+        ("market_analyst", 1), ("market_analyst", 2), ("news_analyst", 1),
+        ("fundamentals_analyst", 1), ("fundamentals_analyst", 2)]
+    assert set(tools[0]["payload"]) == {"role", "turn", "round", "tools", "demo"}
+    assert tools[0]["payload"]["tools"] == ["get_stock_data", "get_indicators"]
 
     decision = client.get(f"/api/v1/analysis-runs/{run_id}/decision").json()
     assert decision["action"] == "HOLD" and decision["engine_rating"] == "Hold"

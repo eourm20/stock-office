@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Callable, Sequence
 from datetime import datetime
 from pathlib import Path
@@ -13,12 +14,19 @@ from stock_office.domain.models import EngineName
 from stock_office.engine.adapter import AnalysisEngine
 from stock_office.engine.demo_engine import DemoEngine
 from stock_office.engine.tradingagents_engine import TradingAgentsEngine
+from stock_office.engine.upstream import import_tradingagents
 from stock_office.providers.base import MarketDataProvider
 from stock_office.providers.fixture import FixtureProvider
 from stock_office.runs.repository import RunRepository
 from stock_office.runs.service import RunService
 
 AS_OF = "2026-10-16T00:00:00Z"
+
+# Import the engine package before any test module does, without upstream's import-time
+# `.env` loading: otherwise backend/.env keys leak into os.environ for the whole session and a
+# "no key" test can make a real, paid LLM call.
+with contextlib.suppress(ImportError):
+    import_tradingagents()
 
 
 class InlineDispatcher:

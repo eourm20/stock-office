@@ -4,7 +4,7 @@ import { facing, isoToWorld, parseTiledMap, planPath, targetSpot, zoneOf, type O
 import { characterFor, frameRange, resolveAnimation, type Action, type Direction,
   type Registry, type SpriteMetadata } from "../office/registry";
 import type { CharacterState, CharacterStatus, OfficeState } from "../office/stateMachine";
-import { agentShortName, ZONE_KO } from "../office/names";
+import { agentShortName, TOOL_NAME_KO, ZONE_KO } from "../office/names";
 import { STATION_AGENTS } from "../office/roster";
 
 /**
@@ -100,7 +100,8 @@ export class OfficeScene extends Phaser.Scene {
     for (const v of this.views.values()) {
       v.sprite.setDepth(v.sprite.y);
       v.label.setPosition(v.sprite.x, v.sprite.y + 4).setDepth(v.sprite.y + 1);
-      v.icon.setPosition(v.sprite.x, v.sprite.y - 70).setDepth(v.sprite.y + 2);
+      // Status icons stay above room labels and furniture so they are always readable.
+      v.icon.setPosition(v.sprite.x, v.sprite.y - 70).setDepth(99_500 + v.sprite.y / 1000);
       v.bubble?.setPosition(v.sprite.x, v.sprite.y - 84);
     }
     this.selection.clear();
@@ -332,7 +333,16 @@ export class OfficeScene extends Phaser.Scene {
 
   private updateIcon(view: View, ch: CharacterState): void {
     const [text, color] = STATUS_ICON[ch.status];
-    view.icon.setText(text).setColor(color);
+    if (ch.status === "working" && ch.lookup) {
+      // A real tool call (tool.called): show what is being looked up instead of "…".
+      const first = TOOL_NAME_KO[ch.lookup.tools[0] ?? ""] ?? "자료";
+      const more = ch.lookup.tools.length > 1 ? ` 외 ${ch.lookup.tools.length - 1}` : "";
+      view.icon.setText(`🔍 ${first}${more}`).setColor("#1b1405").setFontSize(12)
+        .setBackgroundColor("#ffd98a").setPadding(4, 2, 4, 2).setStroke("#000000", 0);
+      return;
+    }
+    view.icon.setText(text).setColor(color).setFontSize(16).setBackgroundColor("transparent")
+      .setPadding(0, 0, 0, 0).setStroke("#0b1020", 4);
   }
 
   private updateBubble(view: View, ch: CharacterState): void {

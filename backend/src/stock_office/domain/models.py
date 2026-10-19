@@ -144,6 +144,7 @@ class EventType(StrEnum):
     AGENT_COMPLETED = "agent.completed"
     AGENT_FAILED = "agent.failed"
     DEBATE_MESSAGE = "debate.message"
+    TOOL_CALLED = "tool.called"
     DECISION_CREATED = "decision.created"
     RUN_COMPLETED = "run.completed"
     RUN_FAILED = "run.failed"

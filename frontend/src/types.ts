@@ -2,7 +2,7 @@
 export type EventType =
   | "run.created" | "run.started"
   | "agent.started" | "agent.completed" | "agent.failed"
-  | "debate.message" | "decision.created"
+  | "debate.message" | "tool.called" | "decision.created"
   | "run.completed" | "run.failed";
 
 export interface RunEvent {

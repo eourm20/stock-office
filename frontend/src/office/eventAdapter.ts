@@ -1,6 +1,6 @@
 import type { RunEvent } from "../types";
 import { bubbleText, shortSpeech } from "./explain";
-import { agentName } from "./names";
+import { agentName, toolNames } from "./names";
 
 const ACTION_LABEL_KO: Record<string, string> = {
   BUY: "매수", SELL: "매도", HOLD: "보유", REVIEW: "판단 보류",
@@ -13,6 +13,7 @@ export type OfficeCommand =
   | { type: "complete"; agentId: string; role: string; summary: string }
   | { type: "fail"; agentId: string; role: string; error: string }
   | { type: "say"; agentId: string; text: string; stance: string; debate: string }
+  | { type: "tool"; agentId: string; role: string; tools: string[]; round: number }
   | { type: "decide"; action: string; rating: string | null; flags: string[]; execution: string };
 
 const str = (v: unknown, fallback = ""): string => (typeof v === "string" ? v : fallback);
@@ -40,6 +41,10 @@ export function adaptEvent(ev: RunEvent): OfficeCommand[] {
     case "debate.message":
       return [{ type: "say", agentId, text: str(p.text), stance: str(p.stance),
                 debate: str(p.debate) }];
+    case "tool.called":
+      return [{ type: "tool", agentId, role,
+                tools: Array.isArray(p.tools) ? p.tools.map(String) : [],
+                round: typeof p.round === "number" ? p.round : 1 }];
     case "decision.created":
       return [{
         type: "decide",
@@ -61,6 +66,10 @@ export function describeEvent(ev: RunEvent): string {
     case "agent.completed": return `✓${who} 완료`;
     case "agent.failed": return `✗${who} 실패: ${String(ev.payload.error ?? "")}`;
     case "debate.message": return `💬${who}: “${shortSpeech(bubbleText(String(ev.payload.text ?? "")), 110)}”`;
+    case "tool.called": {
+      const tools = Array.isArray(ev.payload.tools) ? ev.payload.tools.map(String) : [];
+      return `🔍${who}: ${toolNames(tools)} 조회`;
+    }
     case "decision.created":
       return `★ 최종 결정: ${ACTION_LABEL_KO[String(ev.payload.action)] ?? String(ev.payload.action)} · 제안만, 주문 없음`;
     case "run.created": return "실행 등록";

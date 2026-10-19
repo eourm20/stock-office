@@ -27,6 +27,19 @@ export function agentShortName(agentId: string, fallback = ""): string {
   return AGENT_NAME_KO[agentId]?.short ?? (fallback || agentId);
 }
 
+/** Upstream TradingAgents tool names → what the employee is looking up. Display only. */
+export const TOOL_NAME_KO: Record<string, string> = {
+  get_stock_data: "주가", get_indicators: "기술 지표", get_verified_market_snapshot: "시장 스냅샷",
+  get_fundamentals: "기업 개요", get_balance_sheet: "재무상태표", get_cashflow: "현금흐름표",
+  get_income_statement: "손익계산서", get_insider_transactions: "내부자 거래",
+  get_news: "종목 뉴스", get_global_news: "글로벌 뉴스", get_macro_indicators: "거시 지표",
+  get_prediction_markets: "예측 시장",
+};
+
+export function toolNames(tools: string[]): string {
+  return tools.map((t) => TOOL_NAME_KO[t] ?? "기타 자료").join(", ");
+}
+
 export const STATUS_KO: Record<CharacterStatus, string> = {
   idle: "대기", working: "작업 중", talking: "발언 중", done: "완료", failed: "실패",
 };

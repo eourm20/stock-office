@@ -52,7 +52,7 @@ Agent 상태는 `PENDING/RUNNING/COMPLETED/FAILED/SKIPPED/BLOCKED`. 장식용 �
 | `agent.failed` | 실패 표시(머리 위 경고) | 구현됨 |
 | `debate.message` | Bull/Bear·리스크 토론, 말풍선(정제된 발언 요약) | 구현됨 |
 | `decision.created` | Portfolio Manager 최종 결정 발표 | 구현됨 |
-| `tool.called` | 데이터 조회·문서 확인 애니메이션 | **신규 (Sprint 2B)**: 도구명·데이터 공급자만 공개, 인자·원문 결과·프롬프트는 비공개 |
+| `tool.called` | 데이터 조회·문서 확인 애니메이션 | **구현 (Sprint 2B, 2026-10-19)**: payload `{role, turn, round, tools:[도구명]}`. 인자·원문 결과·프롬프트는 비공개. 데이터 공급자는 도구 내부 라우터가 고르므로 이 이벤트에는 넣지 않음(계획 대비 축소) |
 | `risk.rejected` | 위험 검토에서 제안 거절 | **신규 (Sprint 3)**: 결정론적 Risk Policy가 모의주문 제안을 거부할 때만 발생 (LLM 토론 결과가 아님) |
 | `order.filled` | 모의 주문 체결 연출 | **신규 (Sprint 3)**: PAPER 체결에서만 발생 |
 
@@ -169,7 +169,7 @@ Agent 상태는 `PENDING/RUNNING/COMPLETED/FAILED/SKIPPED/BLOCKED`. 장식용 �
 
 Agent 결과 공통 구조: `{run_id,agent_id,role,status,started_at,completed_at,summary,findings:[{claim,polarity,evidence_snapshot_ids}],structured_output,warnings}`.
 Decision: `{run_id,action:'BUY'|'SELL'|'HOLD'|'REVIEW',proposed_weight_pct,confidence,rationale,counterarguments,risk_flags,evidence_snapshot_ids,model_version}`. **confidence는 모델 자기평가이지 확률 아님**.
-Event: `{event_id,run_id,seq,type,agent_id,occurred_at,payload}`. 타입: `run.created/started/completed/failed`, `agent.started/completed/failed`, `debate.message`, `decision.created` (구현됨) + `tool.called`(2B), `risk.rejected`·`order.filled`(Sprint 3). 엔진 내부 비공개 추론, 키 및 원문 프롬프트 저장·노출 금지. 실패/결측은 `REVIEW` 또는 거래 차단.
+Event: `{event_id,run_id,seq,type,agent_id,occurred_at,payload}`. 타입: `run.created/started/completed/failed`, `agent.started/completed/failed`, `debate.message`, `decision.created`, `tool.called` (구현됨) + `risk.rejected`·`order.filled`(Sprint 3). 엔진 내부 비공개 추론, 키 및 원문 프롬프트 저장·노출 금지. 실패/결측은 `REVIEW` 또는 거래 차단.
 
 ## 9. Sprint/Phase 계획
 ### Sprint 0 — 기술 검증 / 첫 수직 슬라이스
@@ -271,6 +271,7 @@ DataProvider/IndicatorProvider 어댑터, KR·US 시점 정합성, 테스트 3�
 - 남은 것: 실행별 비용이 저장·표시되지 않음(월 예산 차단 = Sprint R 첫 작업), 하루 8회 상한만 있음
 ### 2026-10-19 — Sprint 2B 시작 (상세: `docs/sprint-2b-report.md`)
 - [x] 1단계: 직원 12명 전원 사무실 입장(4개 공간), 데이터 수집·기록 보관은 서버 랙·보관함 상태 표시. 리스크 분석가는 트레이딩 데스크에 앉아 있다가 리스크·임원실 탁자에서 토론. 테스트 24개 통과
-- [ ] 2단계: `tool.called` 이벤트(정제) + 자료 조회 연출
+- [x] 2단계: `tool.called` 이벤트(도구명만) + 머리 위 "🔍 조회" 표시·활동 기록·상세 패널. 분석가 하위 그래프 스트림(`subgraphs=True`)에서 추출, DEMO 엔진도 동일 경로
+- [x] 발견·수정: 업스트림 `tradingagents` import 시 `.env`를 자동으로 읽어, 키를 지운 테스트가 실제 유료 호출을 할 수 있었음(e2e 단독 실행 시). import 가드 + 회귀 테스트. 이 확인 중 실제 호출 최대 2회(약 $0.10 이하) 발생
 - [ ] 3단계: Analysis Mode(`/analysis/[runId]`, React Flow 그래프·보고서)
 - [ ] 4단계: shadcn/ui 도입

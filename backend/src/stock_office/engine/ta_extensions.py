@@ -19,6 +19,7 @@ from datetime import date
 
 from stock_office.domain.instruments import REGISTRY
 from stock_office.domain.models import Instrument, Market, MarketSnapshot
+from stock_office.engine.upstream import import_tradingagents
 from stock_office.events.sanitize import redact_text
 from stock_office.providers.dart import DartDisclosureProvider
 
@@ -50,6 +51,7 @@ def format_disclosures(symbol: str, start: str, end: str,
 def make_kr_news_vendor(provider_factory: Callable[[], DartDisclosureProvider]
                         ) -> Callable[[str, str, str], str]:
     def kr_dart_news(ticker: str, start_date: str, end_date: str) -> str:
+        import_tradingagents()
         from tradingagents.dataflows.errors import NoMarketDataError
 
         instrument = instrument_for_provider_symbol(ticker)
@@ -68,6 +70,7 @@ def make_kr_news_vendor(provider_factory: Callable[[], DartDisclosureProvider]
 
 
 def register_kr_news_vendor(provider_factory: Callable[[], DartDisclosureProvider]) -> None:
+    import_tradingagents()
     from tradingagents.dataflows.router import VENDOR_METHODS
 
     VENDOR_METHODS["get_news"][KR_NEWS_VENDOR] = make_kr_news_vendor(provider_factory)
@@ -79,6 +82,7 @@ def register_prediction_markets_off() -> None:
     Upstream treats prediction markets as optional: an unavailable vendor degrades to a
     "data unavailable" note for the model and a logged warning (recorded as a coverage gap).
     """
+    import_tradingagents()
     from tradingagents.dataflows.errors import VendorUnavailableError
     from tradingagents.dataflows.router import VENDOR_METHODS
 

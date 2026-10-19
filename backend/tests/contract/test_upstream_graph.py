@@ -212,3 +212,71 @@ def test_prediction_markets_off_answers_unavailable_without_network(
                                       _env_file=None))
     assert "get_prediction_markets" not in on.build_config(work).get("tool_vendors", {})
     assert on.config_hash() != engine.config_hash()
+
+
+def test_subgraph_tool_stream_shape_feeds_tool_called() -> None:
+    """With subgraphs=True the installed LangGraph tags analyst-internal tool tasks with the
+    parent task id, and the tools task input carries the model's tool calls."""
+    from langchain_core.messages import AIMessage
+    from langchain_core.tools import tool
+    from langgraph.graph import END, START, StateGraph
+    from langgraph.graph.message import add_messages
+    from langgraph.prebuilt import ToolNode
+
+    @tool
+    def get_stock_data(symbol: str) -> str:
+        """Stock data."""
+        return "rows"
+
+    # Functional form: the module's postponed annotations cannot see the local import.
+    S = TypedDict("S", {"messages": Annotated[list[Any], add_messages], "market_report": str})  # noqa: UP013
+
+    def agent(state: Any) -> dict[str, Any]:
+        if len(state["messages"]) < 2:
+            call = {"name": "get_stock_data", "args": {"symbol": "X"}, "id": "c1"}
+            return {"messages": [AIMessage("", tool_calls=[call])]}
+        return {"messages": [AIMessage("done")], "market_report": "ok"}
+
+    sub = StateGraph(S)
+    sub.add_node("agent", agent)
+    sub.add_node("tools", ToolNode([get_stock_data]))
+    sub.add_edge(START, "agent")
+    sub.add_conditional_edges("agent", lambda s: "tools" if s["messages"][-1].tool_calls else END,
+                              ["tools", END])
+    sub.add_edge("tools", "agent")
+    top = StateGraph(S)
+    top.add_node("Market Analyst", sub.compile())
+    top.add_edge(START, "Market Analyst")
+    top.add_edge("Market Analyst", END)
+
+    events: list[tuple[EventType, str | None, dict[str, Any] | None]] = []
+    projection = TradingAgentsProjection(
+        "r", lambda t, *, agent_id=None, payload=None, dedupe_key=None:
+        events.append((t, agent_id, payload)))
+    for namespace, mode, chunk in top.compile().stream(
+            {"messages": [], "market_report": ""}, stream_mode=["tasks", "values"],
+            subgraphs=True):
+        projection.consume(mode, chunk, tuple(namespace))
+
+    assert [(t, a) for t, a, _ in events] == [
+        (EventType.AGENT_STARTED, "market_analyst"), (EventType.TOOL_CALLED, "market_analyst"),
+        (EventType.AGENT_COMPLETED, "market_analyst")]
+    assert events[1][2] == {"role": "Market Analyst", "turn": 1, "round": 1,
+                            "tools": ["get_stock_data"]}
+    assert projection.final_state["market_report"] == "ok"
+
+
+def test_upstream_analysts_run_tools_in_their_own_graph(tmp_path: Path,
+                                                        monkeypatch: pytest.MonkeyPatch) -> None:
+    """tool.called relies on each analyst being a subgraph with a node named `tools`."""
+    from tradingagents.graph.trading_graph import TradingAgentsGraph
+
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-not-a-real-key-000000")  # client init only
+    settings = Settings(data_dir=tmp_path, _env_file=None)  # type: ignore[call-arg]
+    work = tmp_path / "runs" / "r1"
+    work.mkdir(parents=True)
+    graph = TradingAgentsGraph(selected_analysts=("market", "news", "fundamentals"),
+                               config=TradingAgentsEngine(settings).build_config(work))
+    nodes = set(graph.graph.get_graph(xray=1).nodes)
+    for analyst in ("Market Analyst", "News Analyst", "Fundamentals Analyst"):
+        assert f"{analyst}:tools" in nodes, sorted(nodes)

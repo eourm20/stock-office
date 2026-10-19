@@ -17,6 +17,7 @@ from typing import Any
 
 from stock_office.config import TRADINGAGENTS_COMMIT, TRADINGAGENTS_VERSION, Settings
 from stock_office.domain.models import Instrument, Market
+from stock_office.engine.upstream import import_tradingagents
 from stock_office.providers.dart import DartDisclosureProvider
 
 from .adapter import (
@@ -107,7 +108,7 @@ class TradingAgentsEngine:
 
     def check_ready(self) -> None:
         try:
-            import tradingagents  # noqa: F401
+            import_tradingagents()
         except ImportError:
             raise EngineNotConfiguredError(
                 "TradingAgents is not installed (uv sync --extra engine)"
@@ -127,6 +128,7 @@ class TradingAgentsEngine:
         return DartDisclosureProvider(api_key=key.get_secret_value() if key else None)
 
     def build_config(self, work_dir: Path, instrument: Instrument | None = None) -> dict[str, Any]:
+        import_tradingagents()
         from tradingagents.default_config import build_default_config
 
         config: dict[str, Any] = build_default_config()
@@ -165,6 +167,7 @@ class TradingAgentsEngine:
         init_state = graph.create_run_state(ticker, ctx.trade_date)
         args = graph.propagator.get_graph_args()
         args["stream_mode"] = ["tasks", "values"]
+        args["subgraphs"] = True  # analysts' own graphs, for tool.called (names only)
 
         projection = TradingAgentsProjection(run_id=ctx.run_id, sink=ctx.sink)
         context = run_config_context(graph.config)
@@ -172,8 +175,8 @@ class TradingAgentsEngine:
             stream = context.run(graph.graph.stream, init_state, **args)
             try:
                 while (step := context.run(next, stream, None)) is not None:
-                    mode, chunk = step
-                    projection.consume(mode, chunk)
+                    namespace, mode, chunk = step
+                    projection.consume(mode, chunk, tuple(namespace))
             except BaseException as exc:
                 projection.abort_open_tasks(f"run aborted: {type(exc).__name__}")
                 raise
