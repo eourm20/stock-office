@@ -1,8 +1,8 @@
 # Portfolio Evidence — Stock Office (draft)
 
 Only **implemented and verified** items are listed as results. Planned work is labelled as
-planned. There are no investment-performance claims: no real analysis has run yet and no
-paper trading exists.
+planned. There are no investment-performance claims: real analyses run daily, but their decisions
+are unevaluated proposals, and no paper trading exists yet.
 
 ## Sprint 0 (2026-10-16) — implemented
 | Feature | Code | Verification |
@@ -27,12 +27,31 @@ frontend 3 passed. ruff + mypy strict clean. Details: [sprint-0-report.md](sprin
 | Event Adapter → deterministic Character State Machine | [eventAdapter.ts](../frontend/src/office/eventAdapter.ts), [stateMachine.ts](../frontend/src/office/stateMachine.ts) | 18 vitest tests incl. whole/chunked/duplicate/replay equality |
 | Replay and live SSE with paced queue, debate dwell, catch-up | [replay.ts](../frontend/src/office/replay.ts) | tests + replays of real NVDA/005930 runs |
 | Character Registry with generated CC0 placeholders | [registry.ts](../frontend/src/office/registry.ts), [gen_placeholder_art.py](../tools/gen_placeholder_art.py) | registry fallback tests |
-| Measured frame rate | — | dev build 44–60 fps (mean ≈ 54); production not measured |
+| Measured frame rate | — | dev build 44–60 fps (mean ≈ 54); production build 57–62 fps (mean ≈ 61), 2026-10-19 |
+| Korean reports/debate, plain-language narrator, auto mode, `/history` | [sprint-2a-report.md §6](sprint-2a-report.md) | unit tests + browser checks |
+
+## Daily scheduled analysis on a private server (2026-10-16 deploy, verified 2026-10-19)
+| Feature | Code | Verification |
+|---|---|---|
+| Exchange-calendar schedule (NVDA 17:00 ET after close, 005930 07:30 KST before open), one run per slot, paid-run cap | [schedule.py](../backend/src/stock_office/schedule.py), [worker.py](../backend/src/stock_office/worker.py) | unit tests; live runs below |
+| Server deploy: systemd api/worker/web, loopback only, SSH-tunnel access | [deploy.md](deploy.md), [deploy.sh](../tools/deploy.sh) | services active since 2026-10-16 |
+
+First scheduled runs (real engine, economy profile, `tradingagents-0.6.0@1394a3f`):
+
+| Slot | Run | Latency | Decision | Cost (computed) |
+|---|---|---|---|---|
+| `US:NASDAQ:NVDA@2026-10-16` | `7dcf0bb672b84ee8` | 186 s | BUY / Overweight | ≈ $0.048 |
+| `KR:KRX:005930@2026-10-19` | `afd91499c4df4ee0` | 176 s | SELL / Underweight | ≈ $0.046 |
+
+Cost is stored `token_usage` × the per-token prices in [sprint-0-report.md §10](sprint-0-report.md) (not yet
+reconciled with the OpenAI invoice). All 7 real server runs so far ≈ $0.31; projected ≈ $2/month for 2 instruments.
+Both decisions carry `COVERAGE_GAP` and `ENGINE_DATA_NOT_SNAPSHOTTED`: they are proposals, not evidence of
+performance.
 
 ## Not yet achieved (do not present as results)
-- Real LLM analysis of NVDA / 005930 (blocked: no API key). Cost and latency not measured.
-- OpenDART live verification.
-- PostgreSQL, committee UI (React Flow/Motion), paper trading, strategy comparison.
+- Per-run cost stored/displayed and a monthly budget stop (planned, Sprint R).
+- Full snapshotting of the data the engine fetches itself (`ENGINE_DATA_NOT_SNAPSHOTTED`).
+- PostgreSQL, Analysis Mode (React Flow), remaining 9 agent characters, paper trading, strategy comparison.
 
 ## Reusable artifacts for the write-up
 - Agent event JSON: `GET /api/v1/analysis-runs/{id}/events` (DEMO runs must be shown labelled DEMO).

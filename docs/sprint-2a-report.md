@@ -38,12 +38,18 @@ Screenshots: `docs/screenshots/sprint-2a-*.png`. They show replays of real runs 
 ## 4. Performance (measured, not assumed)
 Edge window 1500×860, **Next.js dev build**, 4× replay with characters walking: `actualFps` per second = 60, 60, 59, 59, 48, 44, 48, 51, 53, 55, 56 → **44–60 fps, mean ≈ 54**. Dips happen while several characters walk. The production build was not measured. Target "≈60 fps on desktop": **partly met**.
 
+**Production build (2026-10-19):** `next build` + `next start`, same Edge window size, 4× replay of the Korean runs
+`3ec11363…` (NVDA) and `a1e851f3…` (005930). The `__officeGame` hook is dev-only, so frames were counted with a
+`requestAnimationFrame` counter (Phaser renders on rAF), 20 one-second samples each: NVDA 58–62 (mean 60.9),
+005930 57–61 (mean 60.6), 0 console errors. Target "≈60 fps on desktop": **met in production**. One extra sample
+dropped to 1 fps when the browser window was covered; that is browser background throttling, not the scene.
+
 ## 5. Known limitations / next (Sprint 2B)
 - Only 4 of 13 agents have characters; `data_collector` and Memory Log are not yet shown as office objects.
 - `tool.called` events do not exist yet, so there is no "looking up data" animation.
 - Placeholder art is intentionally simple. The meeting spot for Bear overlaps the table edge slightly.
 - No shadcn/ui yet; the Analysis Mode (React Flow) is not built.
-- FPS dips while walking (sprite and text depth updates every frame); to optimize in 2B if it persists in a production build.
+- ~~FPS dips while walking~~: dev build only; the production build holds ≈60 fps (§4), so no optimization is planned.
 
 ## 6. Follow-ups after the first slice (2026-10-16, same day)
 | Change | Why | Verification |
