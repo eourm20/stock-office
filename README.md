@@ -12,9 +12,10 @@ runs the company as its **CEO** from a phone-friendly web app with three tabs:
 - **기록 (records)** — meeting minutes: team reports, the bull/bear and risk debates as a chat, the decision and
   its approval, and attachments (sources, what the AI looked up, run facts).
 
-> **PAPER ONLY.** There is no securities-firm, account or order-execution code. Approvals become simulated paper
-> orders only through a deterministic risk policy; nothing leaves the app. Nothing here is investment advice, and no
-> performance is claimed.
+> **MOCK ONLY.** No real-account orders, keys or account numbers. Approvals become simulated orders only through a
+> deterministic risk policy: today in the app's own paper book; next (step K, planned) also on Kiwoom's 모의투자
+> mock-trading server with mock accounts. Moving to real trading is not built and would be a separate decision.
+> Nothing here is investment advice, and no performance is claimed.
 
 ## Status (2026-10-20)
 | Area | State |
@@ -27,7 +28,9 @@ runs the company as its **CEO** from a phone-friendly web app with three tabs:
 | Auto-approval (CEO opinion kept apart), paper orders settled on daily bars, KRW ledger, portfolio page (step D) | ✅ deployed 2026-10-20 (first real fills pending) |
 | Shared boardroom in the office scene: both debates and their chairs meet there, from real events | ✅ deployed 2026-10-20 |
 | Phone notifications (web push): meeting started, meeting ended, approval request; quiet hours | ✅ local, deploy + server key next |
-| Intraday monitoring and ad-hoc reports (C), research screener and watchlist (B), investment policy statement | planned |
+| **Step K: Kiwoom 모의투자** (mock accounts, domestic + overseas): read-only link, mock orders with the same risk gate, fills read back, comparison with the paper book | next |
+| Intraday monitoring (C, also triggers K exits), research screener (B), investment policy statement | planned |
+| **Step E: one month of mock trading** on the Kiwoom mock accounts, criteria fixed in advance | planned |
 
 Tests: backend 173 passed (unit/contract/e2e, no network) · frontend 48 passed. Reports per step are in
 [docs/](docs/); the current overview and remaining work are in [IMPLEMENTATION_PLAN.md §0](IMPLEMENTATION_PLAN.md).
