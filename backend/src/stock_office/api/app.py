@@ -224,6 +224,23 @@ def create_app(
     notifier = build_notifier(settings, inbox.conn, service.repo)
     mock_link = build_link(settings)
 
+    @app.get("/api/v1/kiwoom-mock/activity")
+    def kiwoom_mock_activity(market: str | None = None) -> list[dict[str, object]]:
+        """Orders the desks placed on the Kiwoom mock accounts (newest first)."""
+        if inbox.desks is None or market not in (None, "KR", "US"):
+            return []
+        rows: list[dict[str, object]] = inbox.desks.orders(market=market)
+        return rows
+
+    @app.get("/api/v1/kiwoom-mock/performance")
+    def kiwoom_mock_performance(market: str = "KR") -> dict[str, object]:
+        """Evaluation basis per desk: starting equity and one value per closed session."""
+        if inbox.desks is None or market not in ("KR", "US"):
+            return {"start": None, "history": []}
+        start = inbox.desks.start_equity(market)
+        return {"start": str(start) if start is not None else None,
+                "history": inbox.desks.nav_history(market)}
+
     @app.get("/api/v1/kiwoom-mock")
     def kiwoom_mock_status(refresh: bool = False) -> dict[str, object]:
         """Kiwoom 모의투자 accounts, read-only (step K1): deposits, holdings, today's fills.

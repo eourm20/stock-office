@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getInbox, getKiwoomMock, getOfficeNow, type InboxItem, type MockAccount, type OfficeNow } from "../lib/api";
 import { MARKET_KO, marketOf, useMarket, type Market } from "../lib/market";
-import { buyPlan, deadlineLabel, groupInbox, kstDateTime, money, nextWorkLabel, paperLine, pnlTone, sellPlan, shares,
+import { buyPlan, deadlineLabel, groupInbox, kstDateTime, mockLine, money, nextWorkLabel, paperLine, pnlTone, sellPlan, shares,
          STATUS_KO, STATUS_TONE } from "../inbox/model";
 import ConveneButton from "./ConveneButton";
 import NavBar from "./NavBar";
@@ -153,14 +153,14 @@ function ApprovalCard({ item, now }: { item: InboxItem; now: number }) {
         </div>
         {plan && a && (
           <div className="mt-1 text-sm text-[#c7d7ee]">
-            {money(plan.limit, plan.currency)} 지정가 · {plan.currency === "USD" ? money(a.notional, "USD") : money(a.notional_krw, "KRW")}
-            <span className="text-[var(--muted)]"> · 손절 시 최대 {money(a.max_loss_krw, "KRW")}</span>
+            {money(plan.limit, plan.currency)} 지정가 · {money(a.notional_krw, plan.account_currency ?? "KRW")}
+            <span className="text-[var(--muted)]"> · 손절 시 최대 {money(a.max_loss_krw, plan.account_currency ?? "KRW")}</span>
           </div>
         )}
         {sell && (
           <div className="mt-1 text-sm text-[#c7d7ee]">
-            {shares(sell.qty)} · 평가 {money(sell.value_krw, "KRW")}
-            <span className="text-[var(--muted)]"> · 다음 장 시가에 매도</span>
+            {shares(sell.qty)} · 평가 {money(sell.value_krw, sell.account_currency ?? "KRW")}
+            <span className="text-[var(--muted)]"> · {sell.venue === "kiwoom_mock" ? "장중 키움 모의 매도" : "다음 장 시가에 매도"}</span>
           </div>
         )}
         {item.summary && <p className="mt-1 line-clamp-2 text-[13px] text-[var(--muted)]">{item.summary}</p>}
@@ -177,7 +177,7 @@ function ReportRow({ item }: { item: InboxItem }) {
   const action = item.payload.action;
   const realized = item.payload.realized_krw;
   const tone = realized !== undefined ? pnlTone(realized) : action ? ACTION_COLOR[action] ?? "" : "";
-  const paper = item.kind === "approval" ? paperLine(item.paper) : null;
+  const paper = item.kind === "approval" ? (mockLine(item.mock_orders) ?? paperLine(item.paper)) : null;
   const href = item.kind === "approval" ? `/inbox/${item.id}` : item.run_id ? `/records/${item.run_id}` : `/inbox/${item.id}`;
   return (
     <li>

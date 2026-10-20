@@ -94,12 +94,16 @@ def test_kiwoom_is_reached_only_through_the_mock_server() -> None:
         KiwoomMockClient("k", "s", base_url="https://api.kiwoom.com")
 
 
-def test_no_kiwoom_order_api_in_step_k1() -> None:
-    """K1 is read-only: no order endpoint or order API id (domestic kt1000x, US ust2000x)."""
+def test_kiwoom_orders_only_from_the_desks() -> None:
+    """Order endpoints and order API ids (domestic kt1000x, US ust2000x) appear only where the
+    mock client allows them and where the desks send approved, risk-checked orders."""
     order = re.compile(r"/api/(?:dostk|us)/ordr|\bkt1000[0-9]\b|\bust2000[0-9]\b")
-    assert [str(p.relative_to(SRC)) for p, text in _source() if order.search(text)] == []
-    from stock_office.kiwoom_mock.client import ALLOWED_PATHS
-    assert {"/api/dostk/acnt", "/api/us/acnt"} == ALLOWED_PATHS
+    users = {str(p.relative_to(SRC)) for p, text in _source() if order.search(text)}
+    assert users == {str(Path("kiwoom_mock") / "client.py"), str(Path("kiwoom_mock") / "desks.py")}
+    from stock_office.kiwoom_mock.client import ALLOWED_PATHS, ORDER_API_IDS, ORDER_PATHS
+    assert "/api/dostk/ordr" not in ALLOWED_PATHS and "/api/us/ordr" not in ALLOWED_PATHS
+    assert {"/api/dostk/ordr", "/api/us/ordr"} == ORDER_PATHS
+    assert {"kt10000", "kt10001", "kt10003", "ust20000", "ust20001", "ust20003"} == ORDER_API_IDS
 
 
 def test_health_declares_paper_only(tmp_path: Path) -> None:

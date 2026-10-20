@@ -104,6 +104,9 @@ def main(clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> None:
     if notifier is not None:
         threading.Thread(target=notify_loop, args=(settings, service.repo, clock), daemon=True,
                          name="notify").start()
+    if scheduling:
+        threading.Thread(target=desk_loop, args=(settings, clock), daemon=True,
+                         name="kiwoom-mock-desks").start()
     last_tick = 0.0
     while True:
         drain(service)
@@ -119,6 +122,20 @@ def main(clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> None:
         if args.once:
             return
         time.sleep(args.interval)
+
+
+def desk_loop(settings: Settings, clock: Callable[[], datetime], every_s: float = 30.0) -> None:
+    """Kiwoom mock desks on their own thread and connection: place approved orders during each
+    market's regular session, read fills, cancel at deadlines, watch stops/targets, and record
+    each closed session's account value. Meetings never wait for it, nor it for them."""
+    from stock_office.kiwoom_mock.desks import build_desks
+
+    desks = build_desks(settings, connect(settings.data_dir))
+    while True:
+        now = clock()
+        desks.tick(now)
+        desks.record_nav(now)
+        time.sleep(every_s)
 
 
 def notify_loop(settings: Settings, repo: object, clock: Callable[[], datetime],

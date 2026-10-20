@@ -156,6 +156,49 @@ MIGRATIONS: list[str] = [
         outcome TEXT
     )
     """,
+    # 5: the Kiwoom mock desks (국장, 미장): approved plans as orders on Kiwoom's MOCK server, what
+    # Kiwoom reported back, and one account snapshot per closed session (with the benchmark close)
+    """
+    CREATE TABLE km_orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        item_id INTEGER REFERENCES inbox_items (id),
+        parent_id INTEGER REFERENCES km_orders (id),
+        market TEXT NOT NULL CHECK (market IN ('KR', 'US')),
+        instrument_id TEXT NOT NULL,
+        role TEXT NOT NULL CHECK (role IN ('entry', 'take_profit', 'stop', 'exit')),
+        side TEXT NOT NULL CHECK (side IN ('BUY', 'SELL')),
+        qty TEXT,
+        limit_price TEXT,
+        stop TEXT,
+        target TEXT,
+        currency TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('WAITING', 'SENDING', 'SENT', 'FILLED',
+            'CANCELLED', 'EXPIRED', 'REJECTED', 'REVIEW')),
+        ext_order_no TEXT,
+        filled_qty TEXT NOT NULL DEFAULT '0',
+        fill_price TEXT,
+        valid_until TEXT,
+        reason TEXT NOT NULL DEFAULT '',
+        detail TEXT NOT NULL DEFAULT '{}',
+        idempotency_key TEXT NOT NULL UNIQUE,
+        created_at TEXT NOT NULL,
+        sent_at TEXT,
+        closed_at TEXT
+    );
+    CREATE INDEX km_orders_status ON km_orders (market, status);
+    CREATE TABLE km_nav (
+        market TEXT NOT NULL,
+        session TEXT NOT NULL,
+        nav TEXT NOT NULL,
+        cash TEXT NOT NULL,
+        holdings_value TEXT NOT NULL,
+        currency TEXT NOT NULL,
+        benchmark TEXT,
+        benchmark_close TEXT,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (market, session)
+    )
+    """,
 ]
 
 

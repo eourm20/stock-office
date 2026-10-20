@@ -167,3 +167,12 @@ def closed_sessions(market: Market, now: datetime, limit: int = 5) -> list[Sessi
 def session_of(market: Market, day: date) -> Session | None:
     cal = _calendar(MARKET_CALENDAR[market])
     return _session(cal, day) if cal.is_session(day.isoformat()) else None
+
+
+MARKET_TZ = {Market.KR: ZoneInfo("Asia/Seoul"), Market.US: ZoneInfo("America/New_York")}
+
+
+def open_session(market: Market, now: datetime) -> Session | None:
+    """The regular session in progress at `now`, or None (Kiwoom mock: regular hours only)."""
+    session = session_of(market, now.astimezone(MARKET_TZ[market]).date())
+    return session if session and session.open <= now < session.close else None

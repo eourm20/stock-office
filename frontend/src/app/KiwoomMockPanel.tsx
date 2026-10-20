@@ -29,7 +29,7 @@ export default function KiwoomMockPanel({ market }: { market?: Market }) {
         <AccountBlock key={m} title={TITLE[m]} configured={status.configured[m]} acc={status.accounts[m]} />
       ))}
       <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--muted)]">
-        <span>조회만 · 모의 서버 {status.server.replace("https://", "")} · 주문 연결은 다음 단계(K2){checked ? ` · ${kstDateTime(checked)} 확인` : ""}</span>
+        <span>모의 서버 {status.server.replace("https://", "")} · 승인된 결재안을 정규장에 모의 주문{checked ? ` · ${kstDateTime(checked)} 확인` : ""}</span>
         <button disabled={busy} onClick={() => load(true)} className="shrink-0 underline disabled:opacity-50">{busy ? "조회 중…" : "새로 조회"}</button>
       </div>
     </div>

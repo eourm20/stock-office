@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { decideInbox, getBriefing, getInboxItem, markRead, type Briefing, type InboxItem } from "../../../lib/api";
-import { approvalLine, buyPlan, deadlineLabel, kstDateTime, money, ORDER_STATUS_KO, paperLine, pnlTone, ROLE_KO,
+import { approvalLine, buyPlan, deadlineLabel, kstDateTime, mockLine, MOCK_STATUS_KO, money, ORDER_STATUS_KO, paperLine, pnlTone, ROLE_KO,
          sellPlan, shares, signedWon, STATUS_KO, STATUS_TONE } from "../../../inbox/model";
 import { FLAG_KO, RATING_KO } from "../../../office/explain";
 import { humanizeTickers } from "../../../office/names";
@@ -59,6 +59,7 @@ export default function InboxDocument() {
   const p = buyPlan(item);
   const sp = sellPlan(item);
   const a = p?.allocation;
+  const acct = p?.account_currency ?? "KRW";
 
   return (
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col">
@@ -78,6 +79,9 @@ export default function InboxDocument() {
             </div>
             <h1 className="mt-1 text-xl font-bold">{item.title}</h1>
             {item.kind === "approval" && <Stamps item={item} />}
+            {item.kind === "approval" && item.mock_orders && item.mock_orders.length > 0 && (
+              <p className="mt-3 rounded bg-[#e5efe6] px-2 py-1.5 text-sm font-semibold text-[#2f6b3d]">{mockLine(item.mock_orders)}</p>
+            )}
             {item.kind === "approval" && item.paper && item.paper.length > 0 && (
               <p className="mt-3 rounded bg-[#e5efe6] px-2 py-1.5 text-sm font-semibold text-[#2f6b3d]">{paperLine(item.paper)}</p>
             )}
@@ -121,9 +125,9 @@ export default function InboxDocument() {
                   ) : (
                     <>
                       <Row label="수량" value={shares(a.qty)} note={Number.isInteger(Number(a.qty)) ? undefined : "소수점 수량"} />
-                      <Row label="금액" value={money(a.notional_krw, "KRW")}
-                           note={p.currency === "USD" ? `${money(a.notional, "USD")} · 환율 ${Number(p.fx_krw_per_unit).toLocaleString("ko-KR")}원` : undefined} />
-                      <Row label="손절 시 최대 손실" value={money(a.max_loss_krw, "KRW")} />
+                      <Row label="금액" value={money(a.notional_krw, acct)}
+                           note={p.currency === "USD" && acct === "KRW" ? `${money(a.notional, "USD")} · 환율 ${Number(p.fx_krw_per_unit).toLocaleString("ko-KR")}원` : undefined} />
+                      <Row label="손절 시 최대 손실" value={money(a.max_loss_krw, acct)} />
                     </>
                   )}
                   <Row label="유효기간" value={item.expires_at ? kstDateTime(item.expires_at) + "까지" : "—"} />
@@ -136,7 +140,7 @@ export default function InboxDocument() {
               <ul className="space-y-1 text-[13px]">
                 {a.lines.map(([label, value]) => (
                   <li key={label} className={`flex justify-between gap-2 rounded px-2 py-1 ${label === a.binding ? "bg-[#fff3c4] font-semibold" : ""}`}>
-                    <span>{label}{label === a.binding ? " ← 적용" : ""}</span><span>{money(value, "KRW")} 이하</span>
+                    <span>{label}{label === a.binding ? " ← 적용" : ""}</span><span>{money(value, acct)} 이하</span>
                   </li>
                 ))}
               </ul>
@@ -152,11 +156,31 @@ export default function InboxDocument() {
                   <Row label="수량" value={shares(sp.qty)} />
                   <Row label="평균 매수가" value={money(sp.avg_price, sp.currency)} />
                   <Row label="최근 종가" value={money(sp.last_price, sp.currency)} note={`${sp.marked_session} 기준`} />
-                  <Row label="평가 금액" value={money(sp.value_krw, "KRW")} />
-                  <Row label="평가 손익" value={signedWon(Number(sp.value_krw) - Number(sp.cost_krw))} note="비용 포함 매수 금액 대비" />
-                  <Row label="처리 방식" value="다음 장 시가" note={sp.execution} />
+                  <Row label="평가 금액" value={money(sp.value_krw, sp.account_currency ?? "KRW")} />
+                  {sp.cost_krw !== null && sp.cost_krw !== undefined && (
+                    <Row label="평가 손익" value={signedWon(Number(sp.value_krw) - Number(sp.cost_krw))} note="비용 포함 매수 금액 대비" />
+                  )}
+                  <Row label="처리 방식" value={sp.venue === "kiwoom_mock" ? "장중 키움 모의 매도" : "다음 장 시가"} note={sp.execution} />
                 </tbody>
               </table>
+            </section>
+          )}
+
+          {item.mock_orders && item.mock_orders.length > 0 && (
+            <section className="border-t border-[#d8d2c2] p-4">
+              <h2 className="mb-2 text-sm font-bold">키움 모의 주문 <span className="font-normal text-[#6b6455]">({marketOf(item.instrument_id) === "US" ? "미장" : "국장"} 계좌 · 모의투자 서버)</span></h2>
+              <ul className="space-y-1.5 text-[13px]">
+                {item.mock_orders.map((o) => (
+                  <li key={o.id} className="flex flex-wrap items-baseline justify-between gap-x-2 rounded bg-[#ece7da] px-2 py-1.5">
+                    <span><b>{ROLE_KO[o.role]}</b> {o.qty ? shares(o.qty) : "수량 계산 전"}{o.limit_price ? ` · 지정가 ${money(o.limit_price, o.currency)}` : ""}</span>
+                    <span className={o.status === "FILLED" ? "font-semibold text-[#2f6b3d]" : o.status === "SENT" || o.status === "WAITING" ? "text-[#2b5c8a]" : "text-[#6b6455]"}>
+                      {MOCK_STATUS_KO[o.status]}{o.fill_price ? ` @ ${money(o.fill_price, o.currency)}` : ""}{o.ext_order_no ? ` · #${o.ext_order_no}` : ""}
+                    </span>
+                    {o.reason && <span className="w-full text-[11px] text-[#6b6455]">{o.reason}</span>}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-[11px] text-[#6b6455]">정규장에만 주문합니다. 체결은 키움 모의 계좌의 체결 내역으로 확인하고, 보유 중에는 목표가·손절가에 닿으면 매도합니다. <Link href="/portfolio" className="underline">포트폴리오 보기</Link></p>
             </section>
           )}
 

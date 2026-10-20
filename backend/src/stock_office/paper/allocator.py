@@ -31,15 +31,29 @@ class Policy:
         ("KRW", Decimal(1)),  # KRX: whole shares
         ("USD", Decimal("0.0001")),  # US: fractional shares
     )
+    # Smallest order worth placing, in the account's currency.
+    min_notional: tuple[tuple[str, Decimal], ...] = (("KRW", Decimal(100_000)),)
 
     def step(self, currency: str) -> Decimal:
         return dict(self.quantity_step).get(currency, Decimal(1))
+
+    def minimum(self, account_currency: str) -> Decimal:
+        return dict(self.min_notional).get(account_currency, self.min_notional_krw)
 
     def factor(self, rating: str | None) -> Decimal:
         return dict(self.rating_factor).get(rating or "", Decimal(0))
 
 
 POLICY = Policy()
+
+# V3 (2026-10-20, owner decision): two desks, each sized on its own Kiwoom mock account in its own
+# currency (국장 KRW, 미장 USD, no conversion). Whole shares on both (fractional US orders are not
+# confirmed through Kiwoom's API).
+POLICY_V3 = Policy(
+    version="POLICY_V3",
+    quantity_step=(("KRW", Decimal(1)), ("USD", Decimal(1))),
+    min_notional=(("KRW", Decimal(100_000)), ("USD", Decimal(100))),
+)
 
 
 @dataclass
@@ -69,8 +83,11 @@ def allocate(
     stop: Decimal,
     fx_krw: Decimal,
     currency: str = "KRW",
+    account_currency: str = "KRW",
 ) -> Allocation:
-    """Shares to buy at `limit` (instrument currency); `fx_krw` = KRW per unit (1 for KRW)."""
+    """Shares to buy at `limit` (instrument currency); `fx_krw` = account currency per unit (1 when
+    the account trades in the instrument's own currency). Amounts named `_krw` are in the account
+    currency (KRW for 국장 and the internal book, USD for the 미장 account under POLICY_V3)."""
     factor = policy.factor(rating)
     stop_distance = (limit - stop) / limit
     rules = [
@@ -96,8 +113,10 @@ def allocate(
     blocked = None
     if factor == 0:
         blocked = f"등급 '{rating}'은(는) 매수 대상이 아님"
-    elif qty == 0 or notional_krw < policy.min_notional_krw:
-        blocked = f"규정상 매수 가능 금액이 {policy.min_notional_krw:,.0f}원 미만"
+    elif qty == 0 or notional_krw < policy.minimum(account_currency):
+        least = policy.minimum(account_currency)
+        least_text = f"${least:,.0f}" if account_currency == "USD" else f"{least:,.0f}원"
+        blocked = f"규정상 매수 가능 금액이 1주 가격 또는 최소 주문 금액 {least_text} 미만"
     return Allocation(
         qty=qty if not blocked else Decimal(0),
         notional=notional if not blocked else Decimal(0),

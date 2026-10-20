@@ -171,6 +171,9 @@ export interface PlanAllocation {
 
 export interface ApprovalPlan {
   side?: "BUY" | "SELL";
+  /** "kiwoom_mock": sized on the desk's Kiwoom mock account (POLICY_V3); amounts in account_currency. */
+  venue?: "kiwoom_mock";
+  account_currency?: "KRW" | "USD";
   currency: "KRW" | "USD";
   limit: string;
   stop: string;
@@ -196,6 +199,8 @@ export interface ApprovalPlan {
 /** SELL request: the whole paper position, sold at the next open. */
 export interface SellPlan {
   side: "SELL";
+  venue?: "kiwoom_mock";
+  account_currency?: "KRW" | "USD";
   currency: "KRW" | "USD";
   qty: string;
   avg_price: string;
@@ -293,6 +298,8 @@ export interface InboxItem {
   plan: ApprovalPlan | SellPlan | null;
   approvals: { action: string; comment: string; decided_at: string; auto?: boolean; opinion?: boolean }[];
   paper?: PaperOrder[];
+  /** Orders on the Kiwoom mock account (국장/미장 desks). */
+  mock_orders?: MockOrder[];
   auto_approved?: boolean;
   /** CEO's view on an auto-approved request (recorded only; the paper order follows the model). */
   ceo_opinion?: "approve" | "reject" | "defer" | null;
@@ -356,6 +363,44 @@ export interface KiwoomMockStatus {
   configured: { KR: boolean; US: boolean };
   accounts: { KR: MockAccount | null; US: MockAccount | null };
 }
+
+export type MockOrderStatus = "WAITING" | "SENDING" | "SENT" | "FILLED" | "CANCELLED" | "EXPIRED" | "REJECTED" | "REVIEW";
+
+/** An order the desk placed (or will place) on the Kiwoom mock account. */
+export interface MockOrder {
+  id: number;
+  item_id: number | null;
+  parent_id: number | null;
+  market: "KR" | "US";
+  instrument_id: string;
+  name: string;
+  role: OrderRole;
+  side: "BUY" | "SELL";
+  qty: string | null;
+  limit_price: string | null;
+  stop: string | null;
+  target: string | null;
+  currency: "KRW" | "USD";
+  status: MockOrderStatus;
+  ext_order_no: string | null;
+  filled_qty: string;
+  fill_price: string | null;
+  valid_until: string | null;
+  reason: string;
+  detail: { pnl?: string; closed?: boolean; trigger_price?: string; binding?: string };
+  created_at: string;
+  sent_at: string | null;
+  closed_at: string | null;
+}
+
+export interface MockPerformance {
+  start: string | null;
+  history: { market: string; session: string; nav: string; cash: string; holdings_value: string; currency: string;
+             benchmark: string | null; benchmark_close: string | null }[];
+}
+
+export const getMockActivity = (market: "KR" | "US") => getJson<MockOrder[]>(`/api/v1/kiwoom-mock/activity?market=${market}`);
+export const getMockPerformance = (market: "KR" | "US") => getJson<MockPerformance>(`/api/v1/kiwoom-mock/performance?market=${market}`);
 
 export const getKiwoomMock = (refresh = false) =>
   getJson<KiwoomMockStatus>(`/api/v1/kiwoom-mock${refresh ? "?refresh=true" : ""}`);

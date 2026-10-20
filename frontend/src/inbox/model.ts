@@ -1,5 +1,6 @@
 /** CEO inbox and records: pure helpers (sorting, deadlines, stamps, grouping), unit-tested. */
-import type { ApprovalPlan, InboxItem, InboxStatus, OfficeNow, OrderRole, OrderStatus, PaperOrder, RecordRow, SellPlan } from "../lib/api";
+import type { ApprovalPlan, InboxItem, InboxStatus, MockOrder, MockOrderStatus, OfficeNow, OrderRole, OrderStatus, PaperOrder, RecordRow,
+              SellPlan } from "../lib/api";
 
 const TZ = "Asia/Seoul";
 
@@ -112,6 +113,41 @@ export const ROLE_KO: Record<OrderRole, string> = { entry: "매수", take_profit
 export const ORDER_STATUS_KO: Record<OrderStatus, string> = {
   OPEN: "대기", FILLED: "체결", CANCELLED: "취소", EXPIRED: "미체결", REJECTED: "거절",
 };
+
+export const MOCK_STATUS_KO: Record<MockOrderStatus, string> = {
+  WAITING: "주문 대기", SENDING: "주문 중", SENT: "주문 접수", FILLED: "체결", CANCELLED: "취소(재주문)",
+  EXPIRED: "미체결 취소", REJECTED: "거절", REVIEW: "확인 필요",
+};
+
+/** One line on what the Kiwoom mock desk did with an approved document. */
+export function mockLine(orders: MockOrder[] | undefined): string | null {
+  const main = orders?.find((o) => o.role === "entry" || o.role === "exit");
+  if (!main) return null;
+  const what = main.role === "exit" ? "전량 매도" : "매수";
+  const qty = main.qty ? `${shares(main.qty)} ` : "";
+  const px = main.limit_price ? `지정가 ${money(main.limit_price, main.currency)}` : "";
+  switch (main.status) {
+    case "WAITING":
+      return `키움 모의 ${what} 대기 · 장이 열리면 계좌 기준으로 수량을 다시 계산해 주문`;
+    case "SENDING":
+    case "SENT":
+      return `키움 모의 ${what} 주문 접수 · ${qty}${px}${main.valid_until ? ` · ${kstDateTime(main.valid_until)}까지` : ""}`;
+    case "FILLED": {
+      const exit = orders?.find((o) => (o.role === "take_profit" || o.role === "stop") && o.status === "FILLED");
+      const base = `키움 모의 ${what} 체결 ${shares(main.filled_qty)} @ ${money(main.fill_price ?? 0, main.currency)}`;
+      if (exit?.fill_price) return `${base} → ${ROLE_KO[exit.role]} @ ${money(exit.fill_price, exit.currency)}`;
+      return main.role === "entry" ? `${base} · 보유 중 (목표가·손절가 감시)` : base;
+    }
+    case "EXPIRED":
+      return `미체결 · ${main.reason || "기한까지 가격이 닿지 않음"}`;
+    case "REJECTED":
+      return `주문 안 함 · ${main.reason}`;
+    case "REVIEW":
+      return `확인 필요 · ${main.reason}`;
+    default:
+      return `${MOCK_STATUS_KO[main.status]} · ${main.reason}`;
+  }
+}
 
 /** "엔비디아 회의" / "국내 장 마감 정산": the next scheduled job, by kind. */
 export function nextWorkLabel(n: OfficeNow["next"][number], meeting = "회의"): string {

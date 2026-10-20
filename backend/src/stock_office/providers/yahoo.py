@@ -145,3 +145,24 @@ def daily_bar(instrument_id: str, session: date) -> DayBar | None:
         except (ArithmeticError, ValueError, KeyError):
             return None
     return None
+
+
+def index_close(symbol: str, session: date) -> Decimal | None:
+    """A benchmark index's close for that session (e.g. ^KS11 KOSPI, ^NDX NASDAQ-100), or None."""
+    try:
+        import yfinance as yf
+
+        frame = yf.Ticker(symbol).history(
+            start=session.isoformat(), end=(session + timedelta(days=1)).isoformat(),
+            interval="1d", auto_adjust=False)
+    except Exception:
+        return None
+    if frame is None or frame.empty:
+        return None
+    for idx, row in frame.iterrows():
+        if idx.to_pydatetime().date() == session:
+            try:
+                return Decimal(_dec(row["Close"]))
+            except (ArithmeticError, ValueError, KeyError):
+                return None
+    return None

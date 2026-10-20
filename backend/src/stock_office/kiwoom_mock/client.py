@@ -2,8 +2,9 @@
 
 Safety, by construction:
 - The base URL is the mock server, fixed here; any other base is refused.
-- Only the paths in ALLOWED_PATHS can be called (K1: account queries). Order paths are added in K2,
-  in this package only, behind the deterministic risk policy.
+- `query` reaches only READ paths (accounts, quotes). `send` reaches only the order path of each
+  market with the order API ids listed here; it is called from `desks.py` alone, after the
+  deterministic risk policy (MOCK ONLY: the mock server is the only place an order can go).
 - App key, secret and token never appear in logs, exceptions or return values.
 """
 
@@ -19,7 +20,11 @@ import httpx
 
 MOCK_BASE_URL = "https://mockapi.kiwoom.com"
 TOKEN_PATH = "/oauth2/token"
-ALLOWED_PATHS = frozenset({"/api/dostk/acnt", "/api/us/acnt"})
+ALLOWED_PATHS = frozenset({"/api/dostk/acnt", "/api/us/acnt",       # accounts
+                           "/api/dostk/stkinfo", "/api/us/mrkcond"})  # current prices
+ORDER_PATHS = frozenset({"/api/dostk/ordr", "/api/us/ordr"})
+# buy, sell, cancel (domestic kt1000x, US ust2000x); modify is not used
+ORDER_API_IDS = frozenset({"kt10000", "kt10001", "kt10003", "ust20000", "ust20001", "ust20003"})
 # Mock server limit: about one call per second per API and account; keep a little margin.
 MIN_INTERVAL_S = 1.1
 KST = ZoneInfo("Asia/Seoul")
@@ -73,7 +78,17 @@ class KiwoomMockClient:
               max_pages: int = 5) -> list[dict[str, Any]]:
         """Call one allowed API, following `cont-yn`/`next-key` pages; returns the payloads."""
         if path not in ALLOWED_PATHS:
-            raise KiwoomMockError(f"path not allowed in this step: {path}")
+            raise KiwoomMockError(f"path not allowed for queries: {path}")
+        return self._call(path, api_id, body, max_pages)
+
+    def send(self, path: str, api_id: str, body: dict[str, Any]) -> dict[str, Any]:
+        """One order request (buy/sell/cancel) to the MOCK server. Only `desks.py` calls this."""
+        if path not in ORDER_PATHS or api_id not in ORDER_API_IDS:
+            raise KiwoomMockError(f"order request not allowed: {api_id} {path}")
+        return self._call(path, api_id, body, 1)[0]
+
+    def _call(self, path: str, api_id: str, body: dict[str, Any],
+              max_pages: int) -> list[dict[str, Any]]:
         pages: list[dict[str, Any]] = []
         cont, next_key = "N", ""
         with self._lock:

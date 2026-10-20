@@ -26,7 +26,7 @@ from pydantic import BaseModel
 from stock_office.db import transaction
 from stock_office.domain.instruments import display_name, get_instrument
 from stock_office.domain.models import AnalysisRun, DecisionAction, Market
-from stock_office.paper.allocator import POLICY, Policy, allocate
+from stock_office.paper.allocator import POLICY, POLICY_V3, Policy, allocate
 from stock_office.paper.book import Book
 from stock_office.plan_extract import build_buy_plan, daily_bars, parse_labels
 from stock_office.runs.repository import RunRepository
@@ -58,7 +58,8 @@ class InboxItem(BaseModel):
     decided_at: datetime | None
     plan: dict[str, Any] | None = None
     approvals: list[dict[str, Any]] = []
-    paper: list[dict[str, Any]] = []  # simulated orders this document produced
+    paper: list[dict[str, Any]] = []  # simulated orders this document produced (internal book)
+    mock_orders: list[dict[str, Any]] = []  # orders on the Kiwoom mock account (국장/미장 desks)
     auto_approved: bool = False
     ceo_opinion: str | None = None  # approve/reject/defer on an auto-approved request
     opinion_open: bool = False      # auto-approved and still within its deadline
@@ -116,14 +117,32 @@ class Inbox:
         fx: FxSource | None = None,
         book: Book | None = None,
         book_demo_runs: bool = False,
+        desks: Any = None,
+        accounts: Callable[[str], dict[str, Any] | None] | None = None,
     ) -> None:
         self.conn, self.repo, self.policy, self.fx = conn, repo, policy, fx
         self.book = book or Book(conn, policy)
         # DEMO meetings use fixture prices: they never reach the paper book (tests opt in).
         self.book_demo_runs = book_demo_runs
+        # The Kiwoom mock desks (stock_office.kiwoom_mock.desks.Desks) and a cached read of each
+        # desk's account. When a desk is connected, real meetings of that market trade there; the
+        # internal paper book keeps only DEMO meetings (tests) and orders it already holds.
+        self.desks = desks
+        self.accounts = accounts
 
     def _books(self, demo: bool) -> bool:
         return not demo or self.book_demo_runs
+
+    def _kiwoom(self, market: Market, demo: bool) -> bool:
+        return (not demo and self.desks is not None
+                and self.desks.clients(market.value) is not None)
+
+    def _account(self, market: Market) -> dict[str, Any] | None:
+        try:
+            acc = self.accounts(market.value) if self.accounts else None
+        except Exception:
+            return None
+        return acc if acc and acc.get("ok") else None
 
     # ---------------------------------------------------------------- filing (worker)
     def file_run(self, run: AnalysisRun, now: datetime) -> int | None:
@@ -151,8 +170,34 @@ class Inbox:
         plan_body: dict[str, Any] | None = None
         kind, status, expires = "daily", "INFO", None
         title = f"[일일 보고] {name} {ACTION_KO.get(decision.action.value, decision.action.value)}"
-        position = self.book.position(inst.id) if self._books(run.demo) else None
-        if decision.action is DecisionAction.SELL and position is not None:
+        kiwoom = self._kiwoom(inst.market, run.demo)
+        position = None
+        if kiwoom:
+            acc = self._account(inst.market)
+            held = [h for h in (acc or {}).get("holdings", [])
+                    if h.get("code") == inst.symbol and Decimal(h.get("qty") or 0) > 0]
+            if held:
+                position = held[0]
+        elif self._books(run.demo):
+            position = self.book.position(inst.id)
+        if decision.action is DecisionAction.SELL and position is not None and kiwoom:
+            kind, status = "approval", "PENDING"
+            expires = next_session_close(inst.market, decision.created_at)
+            if expires <= now:
+                status = "EXPIRED"
+                payload["filed_late"] = True
+            ccy = "USD" if inst.market is Market.US else "KRW"
+            plan_body = {
+                "side": "SELL", "venue": "kiwoom_mock", "currency": ccy, "account_currency": ccy,
+                "qty": position.get("qty"), "avg_price": position.get("avg_price"),
+                "last_price": position.get("price"), "value_krw": position.get("value"),
+                "cost_krw": None, "last_fx": "1", "marked_session": "",
+                "rating": decision.engine_rating, "policy_version": POLICY_V3.version,
+                "valid_until": _iso(expires),
+                "execution": "승인되면 장중에 키움 모의 계좌에서 전량 매도 (현재가 근처 지정가)",
+            }
+            title = f"[결재] {name} 전량 매도 {format_qty(position.get('qty') or '0')}주"
+        elif decision.action is DecisionAction.SELL and position is not None:
             kind, status = "approval", "PENDING"
             expires = next_session_close(inst.market, decision.created_at)
             if expires <= now:
@@ -173,7 +218,7 @@ class Inbox:
                 "보유 종목이 없어 참고 보고로 올렸습니다 (모의 계좌는 매수만, 보유분만 매도)."
             )
         if decision.action is DecisionAction.BUY:
-            plan_body, reasons = self._buy_plan(run, inst.market, decision.engine_rating)
+            plan_body, reasons = self._buy_plan(run, inst.market, decision.engine_rating, kiwoom)
             if plan_body is not None:
                 plan_body["side"] = "BUY"
             if plan_body and not reasons:
@@ -225,7 +270,7 @@ class Inbox:
         return item_id
 
     def _buy_plan(
-        self, run: AnalysisRun, market: Market, rating: str | None
+        self, run: AnalysisRun, market: Market, rating: str | None, kiwoom: bool = False
     ) -> tuple[dict[str, Any] | None, list[str]]:
         reports = self.repo.get_reports(run.id)
         if reports:
@@ -243,6 +288,8 @@ class Inbox:
             return None, ["회의에 쓰인 시세 데이터가 없어 매매 조건을 만들 수 없음"]
         reasons = list(draft.review_reasons)
         fx_rate, fx_at = Decimal(1), None
+        if kiwoom:
+            return self._kiwoom_plan(run, market, rating, draft, reasons)
         if market is Market.US:
             got = self.fx() if self.fx else None
             if got is None:
@@ -296,6 +343,42 @@ class Inbox:
         }
         return body, reasons
 
+    def _kiwoom_plan(self, run: AnalysisRun, market: Market, rating: str | None, draft: Any,
+                     reasons: list[str]) -> tuple[dict[str, Any] | None, list[str]]:
+        """Plan sized on the desk's own Kiwoom mock account (POLICY_V3: own currency, whole shares).
+        The desk sizes it again on the live account when the order is placed."""
+        cur = "USD" if market is Market.US else "KRW"
+        acc = self._account(market)
+        if acc is not None:
+            nav = Decimal(acc.get("cash") or 0) + Decimal(acc.get("total_value") or 0)
+            cash = Decimal(acc.get("orderable") or acc.get("cash") or 0)
+            held = sum((Decimal(h.get("value") or 0) for h in acc.get("holdings", [])
+                        if h.get("code") == get_instrument(run.instrument_id).symbol), Decimal(0))
+            basis = "키움 모의 계좌 현재 상태 기준 (주문 직전에 다시 계산)"
+        else:
+            start = self.desks.start_equity(market.value) if self.desks else None
+            nav = cash = start or (Decimal(100_000) if cur == "USD" else Decimal(10_000_000))
+            held = Decimal(0)
+            basis = "키움 모의 계좌 조회 실패: 시작 자산 기준으로 표시 (주문 직전에 다시 계산)"
+        alloc = allocate(POLICY_V3, nav_krw=nav, cash_krw=cash, held_krw=held,
+                         rating=rating or draft.rating, multiplier=draft.multiplier,
+                         limit=draft.limit, stop=draft.stop, fx_krw=Decimal(1), currency=cur,
+                         account_currency=cur)
+        if alloc.blocked:
+            reasons.append(alloc.blocked)
+        body = {
+            "venue": "kiwoom_mock", "currency": cur, "account_currency": cur,
+            "limit": draft.limit, "stop": draft.stop, "target": draft.target,
+            "sources": draft.sources, "ref_price": draft.ref_price, "ref_at": draft.ref_at,
+            "atr": draft.atr, "stop_distance": draft.stop_distance,
+            "multiplier": draft.multiplier, "multiplier_source": draft.multiplier_source,
+            "rating": rating or draft.rating, "sizing_text": draft.sizing_text,
+            "horizon": draft.horizon, "fx_krw_per_unit": Decimal(1), "fx_at": None,
+            "allocation": asdict(alloc), "policy_version": POLICY_V3.version,
+            "account_basis": basis,
+        }
+        return body, reasons
+
     # ---------------------------------------------------------------- reading (API)
     def _row(self, row: sqlite3.Row, detail: bool = False) -> InboxItem:
         item = InboxItem(
@@ -334,6 +417,8 @@ class Inbox:
             ]
         if item.kind == "approval":
             item.paper = self.book.orders_for_item(item.id)
+            if self.desks is not None:
+                item.mock_orders = self.desks.orders(item_id=item.id)
         return item
 
     def list(self, limit: int = 100) -> list[InboxItem]:
@@ -355,8 +440,9 @@ class Inbox:
             " AND a.action='approve' AND a.kind='decision') AS approved_by, "
             "(SELECT action FROM approvals a WHERE a.item_id=i.id AND a.kind='opinion' "
             " ORDER BY a.id DESC LIMIT 1) AS opinion, "
-            "(SELECT status FROM paper_orders o WHERE o.item_id=i.id "
-            " AND o.role IN ('entry','exit')) AS paper "
+            "COALESCE((SELECT status FROM km_orders k WHERE k.item_id=i.id "
+            " AND k.role IN ('entry','exit')), (SELECT status FROM paper_orders o "
+            " WHERE o.item_id=i.id AND o.role IN ('entry','exit'))) AS paper "
             "FROM inbox_items i WHERE i.run_id IS NOT NULL"
         ):
             out[r["run_id"]] = {
@@ -436,11 +522,21 @@ class Inbox:
         return self._opinion(item_id) in (None, "defer")
 
     def _book_approved(self, item_id: int, now: datetime) -> None:
-        """Approved plan → simulated order in the paper book (same transaction)."""
+        """Approved plan → a WAITING order on the Kiwoom mock desk (no network here; the worker
+        places it during the session), or a simulated order in the internal paper book."""
         row = self.conn.execute(
-            "SELECT i.instrument_id, i.payload, p.side, p.body FROM inbox_items i "
+            "SELECT i.instrument_id, i.payload, i.expires_at, p.side, p.body FROM inbox_items i "
             "JOIN plans p ON p.item_id = i.id WHERE i.id=?", (item_id,)).fetchone()
-        if row is None or not self._books(bool(json.loads(row["payload"]).get("demo"))):
+        if row is None:
+            return
+        body = json.loads(row["body"])
+        if body.get("venue") == "kiwoom_mock" and self.desks is not None:
+            if row["side"] == "SELL":
+                self.desks.queue_exit(item_id, row["instrument_id"], row["expires_at"], now)
+            else:
+                self.desks.queue_entry(item_id, row["instrument_id"], body, row["expires_at"], now)
+            return
+        if not self._books(bool(json.loads(row["payload"]).get("demo"))):
             return
         if row["side"] == "SELL":
             self.book.book_exit(item_id, row["instrument_id"], now)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Any
 
 from stock_office.briefing import BriefingWriter, DemoBriefingWriter, QuickModelBriefingWriter
 from stock_office.config import Settings
@@ -69,10 +70,19 @@ def costs_from(settings: Settings) -> Costs:
 
 
 def build_inbox(settings: Settings, repo: RunRepository) -> Inbox:
+    from stock_office.kiwoom_mock.desks import build_desks
+    from stock_office.kiwoom_mock.link import build_link
     from stock_office.providers.yahoo import usd_krw_rate
 
     conn = connect(settings.data_dir)
-    return Inbox(conn, repo, fx=usd_krw_rate, book=Book(conn, costs=costs_from(settings)))
+    link = build_link(settings)
+
+    def accounts(market: str) -> dict[str, Any] | None:
+        acc: dict[str, Any] | None = link.status()["accounts"].get(market)
+        return acc
+
+    return Inbox(conn, repo, fx=usd_krw_rate, book=Book(conn, costs=costs_from(settings)),
+                 desks=build_desks(settings, conn), accounts=accounts)
 
 
 def build_settler(inbox: Inbox) -> Settler:

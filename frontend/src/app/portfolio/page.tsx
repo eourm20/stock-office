@@ -2,31 +2,29 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { getPortfolio, getPortfolioActivity, type Holding, type PaperOrder, type Portfolio } from "../../lib/api";
-import { FILL_RULE_KO, kstDateTime, money, ORDER_STATUS_KO, pnlTone, ROLE_KO, shares, signedPct, signedWon } from "../../inbox/model";
-import { MARKET_KO, marketOf, useMarket } from "../../lib/market";
+import { getMockActivity, getMockPerformance, type MockOrder, type MockPerformance } from "../../lib/api";
+import { kstDateTime, MOCK_STATUS_KO, money, pnlTone, ROLE_KO, shares, signedPct } from "../../inbox/model";
+import { MARKET_CURRENCY, MARKET_KO, useMarket } from "../../lib/market";
 import KiwoomMockPanel from "../KiwoomMockPanel";
 import NavBar from "../NavBar";
 
-// Cost lines that apply to each desk (the rest belong to the other market).
-const COST_FOR = { KR: /국내|미끄러짐/, US: /미국|환전|미끄러짐/ } as const;
+const BENCH_KO: Record<string, string> = { "^KS11": "코스피", "^NDX": "나스닥100" };
 
-/** One desk's portfolio: its Kiwoom mock account first; the internal paper book (being replaced) below. */
+/** One desk's portfolio: its Kiwoom mock account, performance against the benchmark, orders. */
 export default function PortfolioPage() {
   const { market } = useMarket();
-  const [book, setBook] = useState<Portfolio | null>(null);
-  const [activity, setActivity] = useState<PaperOrder[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [orders, setOrders] = useState<MockOrder[] | null>(null);
+  const [perf, setPerf] = useState<MockPerformance | null>(null);
 
   useEffect(() => {
-    getPortfolio().then(setBook).catch((e: Error) => setError(`불러오지 못했습니다: ${e.message}`));
-    getPortfolioActivity().then(setActivity).catch(() => setActivity([]));
-  }, []);
+    setOrders(null);
+    setPerf(null);
+    getMockActivity(market).then(setOrders).catch(() => setOrders([]));
+    getMockPerformance(market).then(setPerf).catch(() => setPerf(null));
+  }, [market]);
 
-  const holdings = (book?.holdings ?? []).filter((h) => marketOf(h.instrument_id) === market);
-  const pending = (book?.pending ?? []).filter((o) => o.market === market);
-  const history = (activity ?? []).filter((o) => o.status !== "OPEN" && o.market === market);
-  const settle = book?.last_settles.find((x) => x.market === market);
+  const open = (orders ?? []).filter((o) => ["WAITING", "SENDING", "SENT", "REVIEW"].includes(o.status));
+  const done = (orders ?? []).filter((o) => !open.includes(o));
 
   return (
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col">
@@ -42,90 +40,62 @@ export default function PortfolioPage() {
           <KiwoomMockPanel market={market} />
         </Card>
 
-        {error && <p role="alert" className="rounded bg-rose-900/70 px-3 py-2 text-sm">{error}</p>}
-        {book && (
-          <details className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4">
-            <summary className="cursor-pointer font-semibold">
-              내부 모의 장부 <span className="text-xs font-normal text-[var(--muted)]">(전환 전 · 보유 {holdings.length} · 대기 {pending.length} · 기록 {history.length})</span>
-            </summary>
-            <p className="mt-1 text-xs text-[var(--muted)]">
-              키움 모의 주문을 연결하기 전까지 승인된 결재안을 기록하는 앱 내부 장부입니다. 연결 뒤에는 위 키움 계좌로 바뀌고, 이 기록은 성과에 섞지 않습니다.
-              {settle ? ` 마지막 정산 ${settle.session}${settle.status === "OK" ? "" : ` (${settle.status})`}.` : ""}
-            </p>
+        <Card title="성과" sub="장 마감마다 계좌 평가액을 기록하고 비교 지수와 견줍니다. 검증 전 모의투자 결과입니다.">
+          <Performance perf={perf} market={market} />
+        </Card>
 
-            <h3 className="mt-3 text-sm font-semibold">보유 {holdings.length}</h3>
-            {holdings.length === 0 ? <Empty text="보유 중인 종목이 없습니다." /> : (
-              <ul className="divide-y divide-[var(--line)]">{holdings.map((h) => <HoldingRow key={h.instrument_id} h={h} />)}</ul>
-            )}
+        <Card title={`진행 중인 주문 ${open.length}`} sub="정규장에만 주문합니다. 기한까지 체결되지 않으면 취소하고, 보유 중에는 목표가·손절가를 감시합니다.">
+          {orders === null ? <Empty text="불러오는 중…" /> : open.length === 0 ? <Empty text="진행 중인 주문이 없습니다." /> : (
+            <ul className="divide-y divide-[var(--line)] text-sm">{open.map((o) => <OrderRow key={o.id} o={o} />)}</ul>
+          )}
+        </Card>
 
-            <h3 className="mt-3 text-sm font-semibold">대기 중인 예약 {pending.length}</h3>
-            {pending.length === 0 ? <Empty text="대기 중인 예약이 없습니다." /> : (
-              <ul className="divide-y divide-[var(--line)] text-sm">
-                {pending.map((o) => (
-                  <li key={o.id} className="py-2">
-                    <div className="flex justify-between gap-2">
-                      <span className="font-semibold">{o.name} · {ROLE_KO[o.role]} {shares(o.qty)}</span>
-                      <span>{o.role === "exit" ? "시가" : `지정가 ${money(o.price ?? 0, o.currency)}`}</span>
-                    </div>
-                    <div className="text-xs text-[var(--muted)]">
-                      {kstDateTime(o.active_from)}부터{o.valid_until ? ` ${kstDateTime(o.valid_until)}까지` : ""}
-                      {o.item_id ? <> · <Link href={`/inbox/${o.item_id}`} className="underline">결재 문서</Link></> : null}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            <h3 className="mt-3 text-sm font-semibold">체결·청산 기록</h3>
-            {activity === null ? <Empty text="불러오는 중…" /> : history.length === 0 ? <Empty text="아직 기록이 없습니다." /> : (
-              <ul className="divide-y divide-[var(--line)] text-sm">{history.map((o) => <ActivityRow key={o.id} o={o} />)}</ul>
-            )}
-
-            <h3 className="mt-3 text-sm font-semibold">비용 가정 (내부 장부)</h3>
-            <ul className="space-y-1 text-sm">
-              {book.costs.filter((c) => COST_FOR[market].test(c.label)).map((c) => (
-                <li key={c.label} className="flex justify-between gap-2"><span>{c.label}</span><span className="text-[var(--muted)]">{c.value}</span></li>
-              ))}
-            </ul>
-          </details>
-        )}
+        <Card title="주문·체결 기록">
+          {orders === null ? <Empty text="불러오는 중…" /> : done.length === 0 ? <Empty text="아직 기록이 없습니다." /> : (
+            <ul className="divide-y divide-[var(--line)] text-sm">{done.map((o) => <OrderRow key={o.id} o={o} />)}</ul>
+          )}
+        </Card>
       </div>
     </main>
   );
 }
 
-function HoldingRow({ h }: { h: Holding }) {
-  const last = Number(h.last_price);
-  const away = (price: string | null) => (price ? `${money(price, h.currency)} (${signedPct((Number(price) / last - 1) * 100)})` : "—");
+function Performance({ perf, market }: { perf: MockPerformance | null; market: "KR" | "US" }) {
+  if (!perf) return <Empty text="불러오는 중…" />;
+  const cur = MARKET_CURRENCY[market];
+  const last = perf.history[perf.history.length - 1];
+  if (!perf.start) return <Empty text="첫 주문 때 시작 자산을 기록하고, 그날 장 마감부터 성과를 계산합니다." />;
+  const start = Number(perf.start);
+  const ret = last ? (Number(last.nav) / start - 1) * 100 : 0;
+  const first = perf.history.find((h) => h.benchmark_close);
+  const lastBench = [...perf.history].reverse().find((h) => h.benchmark_close);
+  const bench = first && lastBench ? (Number(lastBench.benchmark_close) / Number(first.benchmark_close) - 1) * 100 : null;
   return (
-    <li className="py-2.5 text-sm">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="font-semibold">{h.name} <span className="text-xs font-normal text-[var(--muted)]">{shares(h.qty)}</span></span>
-        <span className={`font-semibold ${pnlTone(h.pnl_krw)}`}>{signedWon(h.pnl_krw)} ({signedPct(h.pnl_pct)})</span>
-      </div>
-      <dl className="mt-1 grid grid-cols-1 gap-x-4 gap-y-0.5 text-xs sm:grid-cols-2">
-        <Fact label="평균가" value={money(h.avg_price, h.currency)} />
-        <Fact label="현재가" value={`${money(h.last_price, h.currency)} (${h.marked_session.slice(5).replace("-", "/")} 종가)`} />
-        <Fact label="평가액" value={money(h.value_krw, "KRW")} />
-        <Fact label="매입 원가" value={money(h.cost_krw, "KRW")} />
-        <Fact label="목표가" value={away(h.take_profit)} />
-        <Fact label="손절가" value={away(h.stop)} />
-      </dl>
-    </li>
+    <dl className="grid grid-cols-1 gap-y-1 text-sm sm:grid-cols-2 sm:gap-x-4">
+      <Fact label="시작 자산" value={money(start, cur)} />
+      <Fact label={last ? `평가액 (${last.session})` : "평가액"} value={last ? money(last.nav, cur) : "장 마감 후 기록"} />
+      <Fact label="수익률" value={last ? signedPct(ret) : "—"} tone={last ? pnlTone(ret) : ""} />
+      <Fact label={`비교 지수 (${BENCH_KO[lastBench?.benchmark ?? ""] ?? (market === "KR" ? "코스피" : "나스닥100")})`}
+            value={bench === null ? "—" : signedPct(bench)} tone={bench === null ? "" : pnlTone(bench)} />
+      <Fact label="기록된 장" value={`${perf.history.length}일`} />
+    </dl>
   );
 }
 
-function ActivityRow({ o }: { o: PaperOrder }) {
-  const f = o.fill;
+function OrderRow({ o }: { o: MockOrder }) {
+  const pnl = o.detail.pnl;
   return (
     <li className="py-2">
       <div className="flex justify-between gap-2">
-        <span><span className="font-semibold">{o.name} · {ROLE_KO[o.role]}</span> <span className="text-xs text-[var(--muted)]">{ORDER_STATUS_KO[o.status]}</span></span>
-        {f?.realized_krw ? <span className={`font-semibold ${pnlTone(f.realized_krw)}`}>{signedWon(f.realized_krw)}</span> : null}
+        <span><span className="font-semibold">{o.name} · {ROLE_KO[o.role]}</span> <span className="text-xs text-[var(--muted)]">{MOCK_STATUS_KO[o.status]}</span></span>
+        {pnl ? <span className={`font-semibold ${pnlTone(pnl)}`}>{Number(pnl) >= 0 ? "+" : "−"}{money(Math.abs(Number(pnl)), o.currency)}</span> : null}
       </div>
       <div className="text-xs text-[var(--muted)]">
-        {f ? `${f.session} · ${shares(f.qty)} @ ${money(f.price, o.currency)} · ${FILL_RULE_KO[f.rule] ?? f.rule} · 수수료 ${money(f.fee, o.currency)}${Number(f.tax) > 0 ? ` · 세금 ${money(f.tax, o.currency)}` : ""} · ${money(f.amount_krw, "KRW")}`
-           : `${kstDateTime(o.closed_at ?? o.created_at)}${o.reason ? ` · ${o.reason}` : ""}`}
+        {o.qty ? `${shares(o.qty)} · ` : ""}{o.limit_price ? `지정가 ${money(o.limit_price, o.currency)}` : "가격은 주문 때 결정"}
+        {o.fill_price ? ` · 체결 ${shares(o.filled_qty)} @ ${money(o.fill_price, o.currency)}` : ""}
+        {o.status === "WAITING" && o.valid_until ? ` · ${kstDateTime(o.valid_until)}까지` : ""}
+        {o.closed_at ? ` · ${kstDateTime(o.closed_at)}` : o.sent_at ? ` · ${kstDateTime(o.sent_at)} 주문` : ""}
+        {o.reason ? ` · ${o.reason}` : ""}
         {o.item_id ? <> · <Link href={`/inbox/${o.item_id}`} className="underline">결재 문서</Link></> : null}
       </div>
     </li>
@@ -134,7 +104,7 @@ function ActivityRow({ o }: { o: PaperOrder }) {
 
 function Fact({ label, value, tone = "" }: { label: string; value: string; tone?: string }) {
   return (
-    <div className="flex justify-between gap-2 sm:block">
+    <div className="flex justify-between gap-2">
       <dt className="text-[var(--muted)]">{label}</dt>
       <dd className={`font-medium ${tone}`}>{value}</dd>
     </div>
