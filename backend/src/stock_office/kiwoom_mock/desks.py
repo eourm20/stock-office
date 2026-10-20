@@ -51,6 +51,7 @@ BENCHMARK = {"KR": "^KS11", "US": "^NDX"}  # KOSPI, NASDAQ-100
 ROLE_KO = {"entry": "매수", "take_profit": "익절", "stop": "손절", "exit": "매도"}
 MOVE_STEPS = (D(3), D(5), D(10))      # C: report a watched stock's day move at ±3%, ±5%, ±10%
 FILINGS_EVERY = timedelta(minutes=10)
+GAP_LIMIT = D("0.05")   # pre-order check: skip when the price moved > 5% from the meeting's price
 
 
 def iso(dt: datetime) -> str:
@@ -110,7 +111,8 @@ class Desks:
             (item_id, market, instrument_id, str(plan["limit"]), str(plan["stop"]),
              str(plan["target"]), "USD" if market == "US" else "KRW", valid_until,
              json.dumps({"rating": plan.get("rating"),
-                         "multiplier": str(plan.get("multiplier", 1))}),
+                         "multiplier": str(plan.get("multiplier", 1)),
+                         "ref_price": str(plan.get("ref_price") or plan["limit"])}),
              f"km-entry:{item_id}", iso(now)))
 
     def queue_exit(self, item_id: int, instrument_id: str, valid_until: str | None,
@@ -436,10 +438,38 @@ class Desks:
                 self._notice(row, "execution", f"[리스크 거절] {name} 매수", reason,
                              f"rejected:{row['id']}", now)
             return
+        held_back = self._precheck(market, client, row, detail)
+        if held_back:
+            with transaction(self.conn):
+                self._set(row["id"], status="REJECTED", closed_at=iso(now),
+                          reason=f"주문 보류: {held_back}")
+                name = display_name(row["instrument_id"])
+                self._notice(row, "execution", f"[주문 보류] {name} 매수", held_back,
+                             f"held:{row['id']}", now)
+            return
         with transaction(self.conn):
             self._set(row["id"], detail=json.dumps({**detail, "binding": alloc.binding,
                                                     "nav": str(nav), "cash": str(cash)}))
         self._place(market, client, row, "BUY", alloc.qty, D(row["limit_price"]), now)
+
+    def _precheck(self, market: str, client: KiwoomMockClient, row: sqlite3.Row,
+                  detail: dict[str, Any]) -> str | None:
+        """Just before a buy goes out: is the meeting's premise still intact at the open?
+        Returns why the order is held back, or None to go ahead."""
+        price = self._price(market, client, row["instrument_id"])
+        if price is None:
+            return None   # no quote: the limit price still protects the entry
+        cur = row["currency"]
+        if price <= D(row["stop"]):
+            return (f"현재가 {money(price, cur)}가 이미 손절가 {money(row['stop'], cur)} 이하 "
+                    "(회의 전제가 깨짐)")
+        ref = D(detail.get("ref_price") or row["limit_price"])
+        move = price / ref - 1
+        if abs(move) > GAP_LIMIT:
+            return (f"현재가 {money(price, cur)}가 회의 때 기준가 {money(ref, cur)}보다 "
+                    f"{'+' if move > 0 else '−'}{abs(move) * 100:.1f}% 움직임 "
+                    f"(±{GAP_LIMIT * 100:.0f}% 넘으면 주문하지 않음)")
+        return None
 
     def _send_exit(self, market: str, client: KiwoomMockClient, acc: MockAccount,
                    row: sqlite3.Row, now: datetime) -> None:

@@ -135,7 +135,8 @@ class Notifier:
                 verdict = (ACTION_KO.get(decision.action.value, decision.action.value)
                            if decision else "결론 없음")
                 self.enqueue(f"end:{run.id}", "meeting_end", f"[회의 끝] {name} · {verdict}",
-                             doc["summary"] if doc and doc["summary"] else "결재함에서 보고 확인",
+                             doc["summary"] if doc and doc["summary"]
+                             else "결재함에서 보고 확인" if doc else "주문 없음 · 회의록에서 확인",
                              f"/inbox/{doc['id']}" if doc else f"/records/{run.id}", now)
 
     def _orders(self, since: str, now: datetime) -> None:

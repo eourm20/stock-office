@@ -359,3 +359,24 @@ def test_an_add_on_buy_joins_the_position_and_the_stop_sells_it_all(tmp_path: Pa
     desks.tick(KR_OPEN + timedelta(minutes=5))
     loss = (D(48_000) - avg) * (19 + added)
     assert titles(desks)[-1].endswith(f"−{abs(loss).quantize(D(1)):,}원")
+
+
+@pytest.mark.parametrize(("price", "why"), [(D(46_500), "이미 손절가"), (D(53_000), "+6.0% 움직임"),
+                                            (D(47_400), "−5.2% 움직임")])
+def test_precheck_holds_back_a_buy_when_the_premise_broke(tmp_path: Path, price: D,
+                                                         why: str) -> None:
+    desks, fake = setup(tmp_path)
+    approve(desks)                      # meeting price 50,000 (the limit), stop 47,000
+    fake.price = price
+    desks.tick(KR_OPEN)
+    o = order(desks)
+    assert fake.sent == [] and o["status"] == "REJECTED" and why in o["reason"]
+    assert titles(desks) == ["[주문 보류] 삼성전자 매수"]
+
+
+def test_precheck_lets_a_normal_open_through(tmp_path: Path) -> None:
+    desks, fake = setup(tmp_path)
+    approve(desks)
+    fake.price = D(51_500)              # +3%: within ±5%
+    desks.tick(KR_OPEN)
+    assert order(desks)["status"] == "SENT"

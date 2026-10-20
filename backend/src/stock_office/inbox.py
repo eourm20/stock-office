@@ -244,6 +244,11 @@ class Inbox:
             else:
                 title = f"[검토 필요] {name} 매수 제안"
                 payload["review_reasons"] = reasons
+        if (kiwoom and position is None and kind != "approval"
+                and decision.action is not DecisionAction.BUY):
+            # Nothing to do (no holding, not a buy): the minutes stay in the records, the inbox
+            # stays for decisions and things that happened (owner's choice, 2026-10-20).
+            return None
         with transaction(self.conn):
             cur = self.conn.execute(
                 "INSERT INTO inbox_items (kind, run_id, instrument_id, title, summary, payload, "
