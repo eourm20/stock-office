@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { getRecords, type RecordRow } from "../../lib/api";
 import { approvalNote, groupRecordsByDay, STATUS_KO, STATUS_TONE } from "../../inbox/model";
+import { MARKET_KO, marketOf, useMarket } from "../../lib/market";
 import { ACTION_KO } from "../../office/explain";
 import { humanizeTickers, PHASE_KO } from "../../office/names";
 import NavBar from "../NavBar";
@@ -14,8 +15,9 @@ const ACTION_BADGE: Record<string, string> = {
 };
 const time = (iso: string) => new Date(iso).toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit", hour12: false });
 
-/** 기록: every meeting's minutes, by day, with its decision and what the CEO did with it. */
+/** 기록: one market's meeting minutes, by day, with each decision and what the CEO did with it. */
 export default function RecordsPage() {
+  const { market } = useMarket();
   const [rows, setRows] = useState<RecordRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [stock, setStock] = useState("all");
@@ -26,8 +28,10 @@ export default function RecordsPage() {
     getRecords().then(setRows).catch((e: Error) => setError(`서버에 연결할 수 없습니다: ${e.message}`));
   }, []);
 
-  const stocks = useMemo(() => [...new Map((rows ?? []).map((r) => [r.instrument_id, r.name])).entries()], [rows]);
-  const filtered = (rows ?? []).filter((r) => (stock === "all" || r.instrument_id === stock) &&
+  const mine = useMemo(() => (rows ?? []).filter((r) => marketOf(r.instrument_id) === market), [rows, market]);
+  const stocks = useMemo(() => [...new Map(mine.map((r) => [r.instrument_id, r.name])).entries()], [mine]);
+  useEffect(() => setStock("all"), [market]);
+  const filtered = mine.filter((r) => (stock === "all" || r.instrument_id === stock) &&
     (action === "all" || r.action === action) && (demo || !r.demo));
   const days = groupRecordsByDay(filtered);
 
@@ -35,7 +39,7 @@ export default function RecordsPage() {
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col">
       <NavBar />
       <div className="flex flex-wrap items-center gap-2 p-3">
-        <h1 className="mr-auto text-lg font-bold">회의록</h1>
+        <h1 className="mr-auto text-lg font-bold">{MARKET_KO[market]} 회의록</h1>
         <select aria-label="종목" value={stock} onChange={(e) => setStock(e.target.value)} className="rounded bg-[var(--panel)] px-2 py-1 text-sm">
           <option value="all">전체 종목</option>
           {stocks.map(([id, name]) => <option key={id} value={id}>{name}</option>)}

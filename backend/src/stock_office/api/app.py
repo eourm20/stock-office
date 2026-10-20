@@ -283,11 +283,13 @@ def create_app(
         slots = sorted(next_slots(now), key=lambda s: s.scheduled_at)
         upcoming: list[dict[str, object]] = [
             {"instrument_id": s.rule.instrument_id, "name": display_name(s.rule.instrument_id),
-             "at": s.scheduled_at, "kind": "committee"} for s in slots]
+             "market": s.rule.instrument_id.split(":")[0], "at": s.scheduled_at,
+             "kind": "committee"} for s in slots]
         if inbox.book.started_at() is not None:
             upcoming += [{"instrument_id": None,
                           "name": "국내 장 마감 정산" if m is Market.KR else "미국 장 마감 정산",
-                          "at": at, "kind": "settle"} for m, at in settle_times(now)]
+                          "market": m.value, "at": at, "kind": "settle"}
+                         for m, at in settle_times(now)]
             upcoming.sort(key=lambda u: u["at"])  # type: ignore[arg-type,return-value]
         status = service.budget()
         return {

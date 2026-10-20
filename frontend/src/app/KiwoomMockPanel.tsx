@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import { getKiwoomMock, type KiwoomMockStatus, type MockAccount } from "../lib/api";
 import { kstDateTime, money, pnlTone } from "../inbox/model";
+import type { Market } from "../lib/market";
 
 const TITLE: Record<"KR" | "US", string> = { KR: "국내 모의 계좌", US: "해외 모의 계좌" };
 
-/** Kiwoom 모의투자 accounts, read-only (step K1): deposits, holdings, today's fills. */
-export default function KiwoomMockPanel() {
+/** Kiwoom 모의투자 accounts, read-only (step K1): deposits, holdings, today's fills. One market or both. */
+export default function KiwoomMockPanel({ market }: { market?: Market }) {
   const [status, setStatus] = useState<KiwoomMockStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -20,10 +21,11 @@ export default function KiwoomMockPanel() {
 
   if (error) return <p className="text-sm text-rose-300">불러오지 못했습니다: {error}</p>;
   if (!status) return <p className="text-sm text-[var(--muted)]">{busy ? "키움 모의 서버에 조회 중… (최대 10초)" : "불러오는 중…"}</p>;
-  const checked = [status.accounts.KR, status.accounts.US].find((a) => a?.checked_at)?.checked_at;
+  const shown: Market[] = market ? [market] : ["KR", "US"];
+  const checked = shown.map((m) => status.accounts[m]).find((a) => a?.checked_at)?.checked_at;
   return (
     <div className="space-y-3">
-      {(["KR", "US"] as const).map((m) => (
+      {shown.map((m) => (
         <AccountBlock key={m} title={TITLE[m]} configured={status.configured[m]} acc={status.accounts[m]} />
       ))}
       <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--muted)]">

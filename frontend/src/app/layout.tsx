@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { MarketProvider } from "../lib/market";
 
 export const metadata: Metadata = {
   title: "Stock Office",
-  description: "AI investment office simulator — paper trading only",
+  description: "AI investment office simulator — mock trading only (국장·미장)",
   // iOS "홈 화면에 추가": full-screen app with its own icon and name.
   appleWebApp: { capable: true, title: "Stock Office", statusBarStyle: "black-translucent" },
   icons: { apple: "/icons/apple-touch-icon.png" },
@@ -23,7 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     // Browser extensions add attributes to <html> before React hydrates; ignore that mismatch.
     <html lang="ko" suppressHydrationWarning>
       {/* Safe-area padding keeps content clear of the notch / home bar; phones also reserve room for the bottom tab bar. */}
-      <body className="min-h-screen antialiased pt-[env(safe-area-inset-top)] pb-[calc(4rem+env(safe-area-inset-bottom))] sm:pb-[env(safe-area-inset-bottom)]">{children}</body>
+      <body className="min-h-screen antialiased pt-[env(safe-area-inset-top)] pb-[calc(4rem+env(safe-area-inset-bottom))] sm:pb-[env(safe-area-inset-bottom)]"><MarketProvider>{children}</MarketProvider></body>
     </html>
   );
 }

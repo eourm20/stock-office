@@ -6,11 +6,13 @@ import { kstDateTime } from "../../inbox/model";
 import { INSTRUMENT_KO } from "../../office/auto";
 import { disablePush, enablePush, getNotifyStatus, pushState, sendTestPush, type NotifyStatus,
          type PushState } from "../../lib/push";
+import { MARKET_KO, marketOf, useMarket } from "../../lib/market";
 import KiwoomMockPanel from "../KiwoomMockPanel";
 import NavBar from "../NavBar";
 
-/** ⚙ 회사 운영: budget, paper-trading switch, watched stocks, the asset-allocation policy. */
+/** ⚙ 회사 운영: the selected desk (account, watched stocks) first, then what both desks share. */
 export default function SettingsPage() {
+  const { market } = useMarket();
   const [now, setNow] = useState<OfficeNow | null>(null);
   const [company, setCompany] = useState<CompanySettings | null>(null);
   const [saving, setSaving] = useState(false);
@@ -40,7 +42,27 @@ export default function SettingsPage() {
       <div className="flex flex-col gap-4 p-3">
         <h1 className="text-lg font-bold">회사 운영</h1>
 
-        <Card title="이번 달 예산" sub="AI 사용료. 한도에 닿으면 유료 회의를 시작하지 않습니다.">
+        <h2 className="-mb-2 text-sm font-semibold text-[var(--accent)]">{MARKET_KO[market]}</h2>
+        <Card title={`${MARKET_KO[market]} 계좌 · 키움 모의투자`} sub={market === "KR" ? "국장 운용 자금(원화). 지금은 조회만 하고, 다음 단계에서 승인된 국장 결재안을 이 계좌로 모의 주문합니다." : "미장 운용 자금(달러, 환전 없음). 지금은 조회만 하고, 다음 단계에서 승인된 미장 결재안을 이 계좌로 모의 주문합니다."}>
+          <KiwoomMockPanel market={market} />
+        </Card>
+
+        <Card title={`${MARKET_KO[market]} 관심 종목`} sub="매일 정기 회의하는 종목. 리서치팀이 고르는 관찰·집중 종목은 다음 단계에서 추가됩니다.">
+          <ul className="divide-y divide-[var(--line)] text-sm">
+            {Object.entries(INSTRUMENT_KO).filter(([id]) => marketOf(id) === market).map(([id, name]) => {
+              const next = now?.next.find((n) => n.instrument_id === id && n.kind !== "settle");
+              return (
+                <li key={id} className="flex items-center justify-between py-2">
+                  <span>{name} <span className="text-xs text-[var(--muted)]">{id}</span></span>
+                  <span className="text-xs text-[var(--muted)]">{next ? `다음 회의 ${kstDateTime(next.at)}` : ""}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </Card>
+
+        <h2 className="-mb-2 mt-2 text-sm font-semibold text-[var(--muted)]">공통</h2>
+        <Card title="AI 예산 (공통)" sub="두 시장 회의를 합친 이번 달 AI 사용료. 한도에 닿으면 유료 회의를 시작하지 않습니다.">
           {b ? (
             <>
               <div className="flex items-baseline justify-between text-sm">
@@ -55,7 +77,7 @@ export default function SettingsPage() {
           ) : <p className="text-sm text-[var(--muted)]">불러오는 중…</p>}
         </Card>
 
-        <Card title="자동 승인 (모의투자)" sub="모델 성능만 재기 위해, 결재안이 올라오는 즉시 그대로 승인해 모의 예약 주문을 넣습니다.">
+        <Card title="자동 승인 (모의투자)" sub="모델 성능만 재기 위해, 국장·미장 모두 결재안이 올라오는 즉시 그대로 승인해 모의 주문을 넣습니다.">
           {company ? (
             <>
               <div className="flex items-center justify-between gap-3">
@@ -71,45 +93,21 @@ export default function SettingsPage() {
                 켜져 있어도 결재 문서의 버튼은 남습니다. 기한 안에 누르면 <b>CEO 의견(동의·보류·반대)</b>으로만 기록되고 모의 주문은 바뀌지 않습니다. 나중에 모델 판단과 CEO 판단을 비교하는 데 씁니다.
                 DEMO(연습) 회의는 모의 계좌에 들어가지 않습니다.
               </p>
-              <h3 className="mb-1 mt-3 text-xs font-semibold text-[var(--muted)]">모의 체결 비용 가정</h3>
-              <ul className="space-y-0.5 text-sm">
-                {company.costs.map((c) => <li key={c.label} className="flex justify-between gap-2"><span>{c.label}</span><span className="text-[var(--muted)]">{c.value}</span></li>)}
-              </ul>
             </>
           ) : <p className="text-sm text-[var(--muted)]">불러오는 중…</p>}
         </Card>
 
-        <Card title="키움 모의투자 연결" sub="회사가 쓸 키움 모의투자 계좌(국내·해외). 지금은 조회만 합니다. 다음 단계에서 승인된 결재안을 이 계좌로 모의 주문합니다.">
-          <KiwoomMockPanel />
-        </Card>
-
         <NotifyCard />
 
-        <Card title="관심 종목" sub="지금은 아래 종목을 매일 정기 회의합니다. 리서치팀이 고르는 관찰·집중 종목은 다음 단계에서 추가됩니다.">
-          <ul className="divide-y divide-[var(--line)] text-sm">
-            {Object.entries(INSTRUMENT_KO).map(([id, name]) => {
-              const next = now?.next.find((n) => n.instrument_id === id && n.kind !== "settle");
-              return (
-                <li key={id} className="flex items-center justify-between py-2">
-                  <span>{name} <span className="text-xs text-[var(--muted)]">{id}</span></span>
-                  <span className="text-xs text-[var(--muted)]">{next ? `다음 회의 ${kstDateTime(next.at)}` : ""}</span>
-                </li>
-              );
-            })}
-          </ul>
-        </Card>
-
-        <Card title="자산운용 규정 (POLICY_V2)" sub="자산운용 담당이 매수 비중을 정하는 기준. 결재 문서에 계산 과정이 표시됩니다.">
+        <Card title="자산운용 규정" sub="자산운용 담당이 매수 비중을 정하는 기준. 결재 문서에 계산 과정이 표시됩니다.">
           <ul className="space-y-1.5 text-sm">
-            <li>· 가상 계좌 시작 금액: <b>10,000,000원</b> (모의투자, 실제 돈 아님)</li>
-            <li>· 기본 비중: 자산의 10% × 등급 계수(매수 1.0, 비중확대 0.6) × AI 제시 배수</li>
-            <li>· 손절 시 손실은 자산의 <b>1%</b> 이내</li>
+            <li>· 국장과 미장은 <b>따로 운영하는 두 포트폴리오</b>입니다. 계좌 사이에 돈을 옮기지 않고, 비중은 각 계좌의 자산 기준으로 계산합니다(키움 모의 주문 연결 시 POLICY_V3).</li>
+            <li>· 기본 비중: 계좌 자산의 10% × 등급 계수(매수 1.0, 비중확대 0.6) × AI 제시 배수</li>
+            <li>· 손절 시 손실은 계좌 자산의 <b>1%</b> 이내</li>
             <li>· 한 종목 최대 <b>20%</b>, 현금 <b>20%</b> 이상 유지</li>
-            <li>· 수량: 국내 주식은 1주 단위, <b>미국 주식은 소수점(0.0001주) 단위</b></li>
-            <li>· 10만 원 미만이면 매수하지 않음</li>
+            <li>· 수량: 국장·미장 모두 <b>1주 단위</b> (키움 API로 소수점 주문 확인 전)</li>
             <li>· AI가 가격을 주지 않으면: 지정가 = 종가 +0.5%, 손절 = 변동성(ATR)×2 (3~12%), 목표 = 손절 폭의 2배</li>
-            <li>· 결재하지 않은 문서는 국내 당일 장 마감, 미국 다음 장 마감에 자동 만료 (자동 승인이 켜져 있으면 올라오는 즉시 승인)</li>
-            <li>· 승인된 매수는 다음 장에 지정가 예약 → 장 마감 후 일봉으로 체결 판정 → 목표가·손절가에 자동 청산 (같은 날 둘 다 닿으면 손절)</li>
+            <li>· 결재하지 않은 문서는 국장 당일 장 마감, 미장 다음 장 마감에 자동 만료 (자동 승인이 켜져 있으면 올라오는 즉시 승인)</li>
           </ul>
         </Card>
       </div>
@@ -150,7 +148,7 @@ function NotifyCard() {
   };
   const ready = status?.enabled && status.public_key;
   return (
-    <Card title="휴대폰 알림" sub="회의 시작·끝과 결재 요청만 보냅니다. 체결·청산·정산 같은 나머지는 결재함과 포트폴리오에서 확인합니다.">
+    <Card title="휴대폰 알림 (공통)" sub="회의 시작·끝과 결재 요청만 보냅니다. 체결·청산·정산 같은 나머지는 결재함과 포트폴리오에서 확인합니다.">
       {status && (
         <ul className="mb-3 space-y-0.5 text-sm">
           {status.categories.map((c) => <li key={c}>· {c}</li>)}

@@ -8,6 +8,7 @@ import { approvalLine, buyPlan, deadlineLabel, kstDateTime, money, ORDER_STATUS_
          sellPlan, shares, signedWon, STATUS_KO, STATUS_TONE } from "../../../inbox/model";
 import { FLAG_KO, RATING_KO } from "../../../office/explain";
 import { humanizeTickers } from "../../../office/names";
+import { MARKET_KO, marketOf, useMarket } from "../../../lib/market";
 import NavBar from "../../NavBar";
 
 type Act = "approve" | "defer" | "reject";
@@ -18,6 +19,7 @@ const OPINION_KO: Record<Act, string> = { approve: "동의", defer: "보류", re
 /** 결재 문서: one approval request (or report) laid out like a paper document. */
 export default function InboxDocument() {
   const { id } = useParams<{ id: string }>();
+  const { setMarket, refreshPending } = useMarket();
   const [item, setItem] = useState<InboxItem | null>(null);
   const [briefing, setBriefing] = useState<Briefing | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -30,16 +32,19 @@ export default function InboxDocument() {
   useEffect(() => {
     getInboxItem(id).then((it) => {
       setItem(it);
+      const m = marketOf(it.instrument_id);
+      if (m) setMarket(m);  // opened from a notification: the switch follows the document
       if (!it.read_at) void markRead(it.id);
       if (it.run_id) getBriefing(it.run_id).then((b) => setBriefing(b.briefing?.status === "OK" ? b.briefing : null)).catch(() => {});
     }).catch((e: Error) => setError(e.message));
-  }, [id]);
+  }, [id, setMarket]);
 
   const decide = async (act: Act) => {
     if (!item) return;
     setBusy(true);
     try {
       setItem(await decideInbox(item.id, act, comment, requestIds[act]));
+      refreshPending();
       setSheet(null);
     } catch (e) {
       setError(`처리하지 못했습니다: ${(e as Error).message}`);
@@ -66,6 +71,7 @@ export default function InboxDocument() {
         <article className={`m-3 rounded-xl border border-[var(--line)] bg-[#f6f3ea] text-[#1c1b17] shadow ${open ? "mb-28" : ""}`}>
           <header className="border-b border-[#d8d2c2] p-4">
             <div className="flex flex-wrap items-center gap-2 text-[11px] text-[#6b6455]">
+              {marketOf(item.instrument_id) && <span className="rounded bg-[#1c2a48] px-1.5 font-bold text-white">{MARKET_KO[marketOf(item.instrument_id)!]}</span>}
               <span>문서 #{item.id}</span><span>· 작성 {kstDateTime(item.created_at)}</span>
               {item.payload.demo && <span className="rounded bg-amber-400 px-1.5 font-bold text-black">DEMO · 연습 데이터</span>}
               {item.payload.trigger === "schedule" && <span className="rounded bg-[#e5efe6] px-1.5 text-[#2f6b3d]">정기 회의</span>}

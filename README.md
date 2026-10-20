@@ -28,12 +28,13 @@ runs the company as its **CEO** from a phone-friendly web app with three tabs:
 | Auto-approval (CEO opinion kept apart), paper orders settled on daily bars, KRW ledger, portfolio page (step D) | ✅ deployed 2026-10-20 (first real fills pending) |
 | Shared boardroom in the office scene: both debates and their chairs meet there, from real events | ✅ deployed 2026-10-20 |
 | Phone notifications (web push): meeting started, meeting ended, approval request; quiet hours | ✅ deployed 2026-10-20, received on iPhone |
+| Two desks, 국장 and 미장: a top switch scopes the inbox, records, portfolio and settings to one market; the office is one company with each meeting labelled | ✅ local, deploy next |
 | **Step K: Kiwoom 모의투자** — K1 read-only link to both mock accounts (domestic KRW, overseas USD) | ✅ deployed 2026-10-20 |
 | Step K2–K4: mock orders with the same risk gate, fills read back, then the paper book is switched over | next |
 | Intraday monitoring (C, also triggers K exits), research screener (B), investment policy statement | planned |
 | **Step E: one month of mock trading** on the Kiwoom mock accounts, criteria fixed in advance | planned |
 
-Tests: backend 184 passed (unit/contract/e2e, no network) · frontend 48 passed. Reports per step are in
+Tests: backend 184 passed (unit/contract/e2e, no network) · frontend 49 passed. Reports per step are in
 [docs/](docs/); the current overview and remaining work are in [IMPLEMENTATION_PLAN.md §0](IMPLEMENTATION_PLAN.md).
 
 ## Tech stack

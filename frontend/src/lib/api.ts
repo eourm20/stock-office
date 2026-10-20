@@ -319,7 +319,7 @@ export interface RecordRow {
 export interface OfficeNow {
   now: string;
   active: { run_id: string; instrument_id: string; name: string; status: string; demo: boolean } | null;
-  next: { instrument_id: string | null; name: string; at: string; kind: "committee" | "settle" | string }[];
+  next: { instrument_id: string | null; name: string; market: "KR" | "US"; at: string; kind: "committee" | "settle" | string }[];
   budget: { month: string; budget_usd: string; spent_usd: string; reserved_usd: string;
             remaining_usd: string; paid_runs: number } | null;
   pending_approvals: number;

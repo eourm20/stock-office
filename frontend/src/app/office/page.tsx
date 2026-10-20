@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { API_BASE, getOfficeNow, type OfficeNow } from "../../lib/api";
 import { kstDateTime, nextWorkLabel } from "../../inbox/model";
+import { MARKET_KO, marketOf } from "../../lib/market";
 import { DEPARTMENTS, departmentStatus } from "../../office/departments";
 import { ACTION_KO, narrate } from "../../office/explain";
 import { agentName, humanizeTickers, STATUS_KO, toolNames } from "../../office/names";
@@ -75,7 +76,10 @@ export default function OfficePage() {
       const n = await getOfficeNow();
       setNow(n);
       setError(null);
-      if (n.active) follow(n.active.run_id, n.active.name, n.active.demo);
+      if (n.active) {
+        const m = marketOf(n.active.instrument_id);
+        follow(n.active.run_id, m ? `[${MARKET_KO[m]}] ${n.active.name}` : n.active.name, n.active.demo);
+      }
     } catch (e) {
       setError(`서버에 연결할 수 없습니다: ${(e as Error).message}`);
     }
@@ -102,8 +106,10 @@ export default function OfficePage() {
     return f ? new Date(f.time).toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit", hour12: false }) : null;
   };
   const next = now?.next[0];
+  // Departments work in meetings; settlement is bookkeeping, not their next job.
+  const nextMeeting = now?.next.find((n) => n.kind !== "settle");
   const sel = selected ? state.characters[selected] : undefined;
-  const idleText = next ? `지금 진행 중인 업무 없음 · 다음: ${kstDateTime(next.at)} ${nextWorkLabel(next)}` : "지금 진행 중인 업무 없음";
+  const idleText = next ? `지금 진행 중인 업무 없음 · 다음: ${kstDateTime(next.at)} [${MARKET_KO[next.market]}] ${nextWorkLabel(next)}` : "지금 진행 중인 업무 없음";
 
   return (
     <main className="flex min-h-screen flex-col md:h-screen">
@@ -127,7 +133,7 @@ export default function OfficePage() {
               </div>
               <div className={`mt-1 text-[13px] leading-tight ${d.phase === "working" ? "text-sky-100" : "text-[var(--muted)]"}`}>
                 {d.phase === "idle"
-                  ? (next ? `다음 ${new Date(next.at).toLocaleTimeString("en-GB", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" })} ${nextWorkLabel(next)}` : "예정 없음")
+                  ? (nextMeeting ? `다음 ${new Date(nextMeeting.at).toLocaleTimeString("en-GB", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" })} ${MARKET_KO[nextMeeting.market]} ${nextMeeting.name}` : "예정 없음")
                   : d.task}
                 {d.total > 0 && d.phase !== "idle" && <span className="ml-1 text-[var(--muted)]">({d.done}/{d.total})</span>}
               </div>
@@ -166,7 +172,7 @@ export default function OfficePage() {
             <div className="rounded-lg border border-[var(--line)] bg-[var(--panel)] p-3">
               <h2 className="text-xs text-[var(--muted)]">오늘 일정</h2>
               <ul className="mt-1 space-y-1">
-                {(now?.next ?? []).map((n) => <li key={n.instrument_id + n.at}>{kstDateTime(n.at)} · {nextWorkLabel(n, "정기 회의")}</li>)}
+                {(now?.next ?? []).map((n) => <li key={n.instrument_id + n.at}>{kstDateTime(n.at)} · [{MARKET_KO[n.market]}] {nextWorkLabel(n, "정기 회의")}</li>)}
               </ul>
               <Link href="/records" className="mt-2 inline-block text-xs underline">지난 회의록 보기 →</Link>
             </div>

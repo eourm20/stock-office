@@ -4,13 +4,16 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getPortfolio, getPortfolioActivity, type Holding, type PaperOrder, type Portfolio } from "../../lib/api";
 import { FILL_RULE_KO, kstDateTime, money, ORDER_STATUS_KO, pnlTone, ROLE_KO, shares, signedPct, signedWon } from "../../inbox/model";
+import { MARKET_KO, marketOf, useMarket } from "../../lib/market";
 import KiwoomMockPanel from "../KiwoomMockPanel";
 import NavBar from "../NavBar";
 
-const MARKET_KO: Record<string, string> = { KR: "국내", US: "미국" };
+// Cost lines that apply to each desk (the rest belong to the other market).
+const COST_FOR = { KR: /국내|미끄러짐/, US: /미국|환전|미끄러짐/ } as const;
 
-/** Paper account details: everything here is simulated (no order leaves this app). */
+/** One desk's portfolio: its Kiwoom mock account first; the internal paper book (being replaced) below. */
 export default function PortfolioPage() {
+  const { market } = useMarket();
   const [book, setBook] = useState<Portfolio | null>(null);
   const [activity, setActivity] = useState<PaperOrder[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -20,51 +23,45 @@ export default function PortfolioPage() {
     getPortfolioActivity().then(setActivity).catch(() => setActivity([]));
   }, []);
 
-  const history = (activity ?? []).filter((o) => o.status !== "OPEN");
+  const holdings = (book?.holdings ?? []).filter((h) => marketOf(h.instrument_id) === market);
+  const pending = (book?.pending ?? []).filter((o) => o.market === market);
+  const history = (activity ?? []).filter((o) => o.status !== "OPEN" && o.market === market);
+  const settle = book?.last_settles.find((x) => x.market === market);
 
   return (
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col">
       <NavBar />
-      <div className="px-3 pt-3"><Link href="/" className="text-sm text-[var(--muted)]">← 결재함</Link></div>
-      {error && <p role="alert" className="mx-3 mt-2 rounded bg-rose-900/70 px-3 py-2 text-sm">{error}</p>}
-      {!book && !error && <p className="p-6 text-[var(--muted)]">불러오는 중…</p>}
+      <div className="flex items-center justify-between px-3 pt-3">
+        <Link href="/" className="text-sm text-[var(--muted)]">← 결재함</Link>
+        <span className="rounded bg-amber-400 px-1.5 text-[11px] font-bold text-black">모의투자 · 검증 전</span>
+      </div>
+      <h1 className="px-3 pt-2 text-lg font-bold">{MARKET_KO[market]} 포트폴리오</h1>
 
-      {book && (
-        <div className="flex flex-col gap-3 p-3">
-          <section className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4">
-            <div className="flex flex-wrap items-center gap-2 text-[11px]">
-              <span className="rounded bg-amber-400 px-1.5 font-bold text-black">모의투자 · 실제 돈 아님</span>
-              <span className="rounded border border-[var(--line)] px-1.5 text-[var(--muted)]">검증 전 성과</span>
-              <span className="text-[var(--muted)]">{book.auto_approve ? "자동 승인 켜짐" : "자동 승인 꺼짐"} · {book.policy_version}</span>
-            </div>
-            <h1 className="mt-2 text-sm text-[var(--muted)]">총자산</h1>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold">{money(book.nav_krw, "KRW")}</span>
-              <span className={`font-semibold ${pnlTone(book.return_pct)}`}>{signedPct(book.return_pct)}</span>
-            </div>
-            <dl className="mt-3 grid grid-cols-1 gap-x-4 gap-y-1 text-sm sm:grid-cols-4">
-              <Fact label="시작 금액" value={money(book.initial_krw, "KRW")} />
-              <Fact label="현금" value={`${money(book.cash_krw, "KRW")} (${Number(book.cash_weight_pct).toFixed(0)}%)`} />
-              <Fact label="예약금" value={money(book.reserved_krw, "KRW")} />
-              <Fact label="실현 손익" value={signedWon(book.realized_krw)} tone={pnlTone(book.realized_krw)} />
-            </dl>
-            <p className="mt-3 text-[11px] text-[var(--muted)]">
-              {book.started_at ? `거래 시작 ${kstDateTime(book.started_at)}` : "아직 거래 없음"}
-              {book.last_settles.map((s) => ` · ${MARKET_KO[s.market] ?? s.market} 정산 ${s.session}${s.status === "OK" ? "" : ` (${s.status}${s.note ? `: ${s.note}` : ""})`}`)}
-              . 평가는 마지막 정산 종가 기준, 달러 보유는 그날 환율로 원화 환산.
+      <div className="flex flex-col gap-3 p-3">
+        <Card title="키움 모의 계좌" sub={market === "KR" ? "국장 운용 자금(원화). 계좌 잔고가 곧 회사가 굴리는 돈입니다." : "미장 운용 자금(달러, 환전 없음). 계좌 잔고가 곧 회사가 굴리는 돈입니다."}>
+          <KiwoomMockPanel market={market} />
+        </Card>
+
+        {error && <p role="alert" className="rounded bg-rose-900/70 px-3 py-2 text-sm">{error}</p>}
+        {book && (
+          <details className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4">
+            <summary className="cursor-pointer font-semibold">
+              내부 모의 장부 <span className="text-xs font-normal text-[var(--muted)]">(전환 전 · 보유 {holdings.length} · 대기 {pending.length} · 기록 {history.length})</span>
+            </summary>
+            <p className="mt-1 text-xs text-[var(--muted)]">
+              키움 모의 주문을 연결하기 전까지 승인된 결재안을 기록하는 앱 내부 장부입니다. 연결 뒤에는 위 키움 계좌로 바뀌고, 이 기록은 성과에 섞지 않습니다.
+              {settle ? ` 마지막 정산 ${settle.session}${settle.status === "OK" ? "" : ` (${settle.status})`}.` : ""}
             </p>
-          </section>
 
-          <Card title={`보유 종목 ${book.holdings.length}`}>
-            {book.holdings.length === 0 ? <Empty text="보유 중인 종목이 없습니다." /> : (
-              <ul className="divide-y divide-[var(--line)]">{book.holdings.map((h) => <HoldingRow key={h.instrument_id} h={h} />)}</ul>
+            <h3 className="mt-3 text-sm font-semibold">보유 {holdings.length}</h3>
+            {holdings.length === 0 ? <Empty text="보유 중인 종목이 없습니다." /> : (
+              <ul className="divide-y divide-[var(--line)]">{holdings.map((h) => <HoldingRow key={h.instrument_id} h={h} />)}</ul>
             )}
-          </Card>
 
-          <Card title={`대기 중인 예약 ${book.pending.length}`} sub="장 마감 후 그날 일봉으로 체결 여부를 판정합니다.">
-            {book.pending.length === 0 ? <Empty text="대기 중인 예약이 없습니다." /> : (
+            <h3 className="mt-3 text-sm font-semibold">대기 중인 예약 {pending.length}</h3>
+            {pending.length === 0 ? <Empty text="대기 중인 예약이 없습니다." /> : (
               <ul className="divide-y divide-[var(--line)] text-sm">
-                {book.pending.map((o) => (
+                {pending.map((o) => (
                   <li key={o.id} className="py-2">
                     <div className="flex justify-between gap-2">
                       <span className="font-semibold">{o.name} · {ROLE_KO[o.role]} {shares(o.qty)}</span>
@@ -72,32 +69,27 @@ export default function PortfolioPage() {
                     </div>
                     <div className="text-xs text-[var(--muted)]">
                       {kstDateTime(o.active_from)}부터{o.valid_until ? ` ${kstDateTime(o.valid_until)}까지` : ""}
-                      {o.reserved_krw && Number(o.reserved_krw) > 0 ? ` · 예약금 ${money(o.reserved_krw, "KRW")}` : ""}
                       {o.item_id ? <> · <Link href={`/inbox/${o.item_id}`} className="underline">결재 문서</Link></> : null}
                     </div>
                   </li>
                 ))}
               </ul>
             )}
-          </Card>
 
-          <Card title="체결·청산 기록">
+            <h3 className="mt-3 text-sm font-semibold">체결·청산 기록</h3>
             {activity === null ? <Empty text="불러오는 중…" /> : history.length === 0 ? <Empty text="아직 기록이 없습니다." /> : (
               <ul className="divide-y divide-[var(--line)] text-sm">{history.map((o) => <ActivityRow key={o.id} o={o} />)}</ul>
             )}
-          </Card>
 
-          <Card title="키움 모의투자 계좌" sub="곧 위 내부 모의 장부를 대신할 키움 모의 계좌입니다(전환 전, 조회만).">
-            <KiwoomMockPanel />
-          </Card>
-
-          <Card title="비용 가정" sub="모의 체결에 적용하는 가정값입니다. 실제 증권사 수수료와 다를 수 있습니다.">
+            <h3 className="mt-3 text-sm font-semibold">비용 가정 (내부 장부)</h3>
             <ul className="space-y-1 text-sm">
-              {book.costs.map((c) => <li key={c.label} className="flex justify-between gap-2"><span>{c.label}</span><span className="text-[var(--muted)]">{c.value}</span></li>)}
+              {book.costs.filter((c) => COST_FOR[market].test(c.label)).map((c) => (
+                <li key={c.label} className="flex justify-between gap-2"><span>{c.label}</span><span className="text-[var(--muted)]">{c.value}</span></li>
+              ))}
             </ul>
-          </Card>
-        </div>
-      )}
+          </details>
+        )}
+      </div>
     </main>
   );
 }
