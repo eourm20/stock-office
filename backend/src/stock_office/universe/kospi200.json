@@ -1,0 +1,1003 @@
+{
+"index": "KOSPI200",
+"as_of": "2026-10-20",
+"source": "Kiwoom REST ka20002 (inds_cd 201) on the mock server; DART corp codes from OpenDART corpCode.xml",
+"note": "alphanumeric KRX codes not supported yet, left out: ['0126Z0', '0220W0']",
+"members": [
+{
+"code": "000080",
+"name": "하이트진로",
+"dart_corp_code": "00150244"
+},
+{
+"code": "000100",
+"name": "유한양행",
+"dart_corp_code": "00145109"
+},
+{
+"code": "000120",
+"name": "CJ대한통운",
+"dart_corp_code": "00113410"
+},
+{
+"code": "000150",
+"name": "두산",
+"dart_corp_code": "00117212"
+},
+{
+"code": "000210",
+"name": "DL",
+"dart_corp_code": "00109693"
+},
+{
+"code": "000240",
+"name": "한국앤컴퍼니",
+"dart_corp_code": "00160047"
+},
+{
+"code": "000270",
+"name": "기아",
+"dart_corp_code": "00106641"
+},
+{
+"code": "000660",
+"name": "SK하이닉스",
+"dart_corp_code": "00164779"
+},
+{
+"code": "000670",
+"name": "영풍",
+"dart_corp_code": "00141307"
+},
+{
+"code": "000720",
+"name": "현대건설",
+"dart_corp_code": "00164478"
+},
+{
+"code": "000810",
+"name": "삼성화재",
+"dart_corp_code": "00139214"
+},
+{
+"code": "000880",
+"name": "한화",
+"dart_corp_code": "00160588"
+},
+{
+"code": "000990",
+"name": "DB하이텍",
+"dart_corp_code": "00160843"
+},
+{
+"code": "001040",
+"name": "CJ",
+"dart_corp_code": "00148540"
+},
+{
+"code": "001430",
+"name": "세아베스틸지주",
+"dart_corp_code": "00106669"
+},
+{
+"code": "001440",
+"name": "대한전선",
+"dart_corp_code": "00113207"
+},
+{
+"code": "001450",
+"name": "현대해상",
+"dart_corp_code": "00164973"
+},
+{
+"code": "001680",
+"name": "대상",
+"dart_corp_code": "00121941"
+},
+{
+"code": "001800",
+"name": "오리온홀딩스",
+"dart_corp_code": "00117577"
+},
+{
+"code": "002030",
+"name": "아세아",
+"dart_corp_code": "00138701"
+},
+{
+"code": "002380",
+"name": "KCC",
+"dart_corp_code": "00105271"
+},
+{
+"code": "002790",
+"name": "아모레퍼시픽홀딩스",
+"dart_corp_code": "00154462"
+},
+{
+"code": "002840",
+"name": "미원상사",
+"dart_corp_code": "00121932"
+},
+{
+"code": "003030",
+"name": "세아제강지주",
+"dart_corp_code": "00124197"
+},
+{
+"code": "003090",
+"name": "대웅",
+"dart_corp_code": "00111810"
+},
+{
+"code": "003230",
+"name": "삼양식품",
+"dart_corp_code": "00126955"
+},
+{
+"code": "003240",
+"name": "태광산업",
+"dart_corp_code": "00153393"
+},
+{
+"code": "003490",
+"name": "대한항공",
+"dart_corp_code": "00113526"
+},
+{
+"code": "003550",
+"name": "LG",
+"dart_corp_code": "00120021"
+},
+{
+"code": "003670",
+"name": "포스코퓨처엠",
+"dart_corp_code": "00155276"
+},
+{
+"code": "004000",
+"name": "롯데정밀화학",
+"dart_corp_code": "00157681"
+},
+{
+"code": "004020",
+"name": "현대제철",
+"dart_corp_code": "00145880"
+},
+{
+"code": "004170",
+"name": "신세계",
+"dart_corp_code": "00136378"
+},
+{
+"code": "004370",
+"name": "농심",
+"dart_corp_code": "00108241"
+},
+{
+"code": "004990",
+"name": "롯데지주",
+"dart_corp_code": "00120562"
+},
+{
+"code": "005300",
+"name": "롯데칠성",
+"dart_corp_code": "00120571"
+},
+{
+"code": "005380",
+"name": "현대차",
+"dart_corp_code": "00164742"
+},
+{
+"code": "005420",
+"name": "코스모화학",
+"dart_corp_code": "00160302"
+},
+{
+"code": "005490",
+"name": "POSCO홀딩스",
+"dart_corp_code": "00155319"
+},
+{
+"code": "005830",
+"name": "DB손해보험",
+"dart_corp_code": "00159102"
+},
+{
+"code": "005850",
+"name": "에스엘",
+"dart_corp_code": "00125521"
+},
+{
+"code": "005930",
+"name": "삼성전자",
+"dart_corp_code": "00126380"
+},
+{
+"code": "005940",
+"name": "NH투자증권",
+"dart_corp_code": "00120182"
+},
+{
+"code": "006040",
+"name": "동원산업",
+"dart_corp_code": "00118026"
+},
+{
+"code": "006260",
+"name": "LS",
+"dart_corp_code": "00105952"
+},
+{
+"code": "006280",
+"name": "녹십자",
+"dart_corp_code": "00129679"
+},
+{
+"code": "006400",
+"name": "삼성SDI",
+"dart_corp_code": "00126362"
+},
+{
+"code": "006650",
+"name": "대한유화",
+"dart_corp_code": "00260383"
+},
+{
+"code": "006800",
+"name": "미래에셋증권",
+"dart_corp_code": "00111722"
+},
+{
+"code": "007070",
+"name": "GS리테일",
+"dart_corp_code": "00140177"
+},
+{
+"code": "007310",
+"name": "오뚜기",
+"dart_corp_code": "00141529"
+},
+{
+"code": "007340",
+"name": "DN오토모티브",
+"dart_corp_code": "00116949"
+},
+{
+"code": "007660",
+"name": "이수페타시스",
+"dart_corp_code": "00107613"
+},
+{
+"code": "008730",
+"name": "율촌화학",
+"dart_corp_code": "00145260"
+},
+{
+"code": "008770",
+"name": "호텔신라",
+"dart_corp_code": "00165680"
+},
+{
+"code": "008930",
+"name": "한미사이언스",
+"dart_corp_code": "00161426"
+},
+{
+"code": "009150",
+"name": "삼성전기",
+"dart_corp_code": "00126371"
+},
+{
+"code": "009240",
+"name": "한샘",
+"dart_corp_code": "00161693"
+},
+{
+"code": "009420",
+"name": "한올바이오파마",
+"dart_corp_code": "00162586"
+},
+{
+"code": "009540",
+"name": "HD한국조선해양",
+"dart_corp_code": "00164830"
+},
+{
+"code": "009830",
+"name": "한화솔루션",
+"dart_corp_code": "00162461"
+},
+{
+"code": "009970",
+"name": "영원무역홀딩스",
+"dart_corp_code": "00140964"
+},
+{
+"code": "010060",
+"name": "OCI홀딩스",
+"dart_corp_code": "00148896"
+},
+{
+"code": "010120",
+"name": "LS ELECTRIC",
+"dart_corp_code": "00105855"
+},
+{
+"code": "010130",
+"name": "고려아연",
+"dart_corp_code": "00102858"
+},
+{
+"code": "010140",
+"name": "삼성중공업",
+"dart_corp_code": "00126478"
+},
+{
+"code": "010950",
+"name": "S-Oil",
+"dart_corp_code": "00138279"
+},
+{
+"code": "011070",
+"name": "LG이노텍",
+"dart_corp_code": "00105961"
+},
+{
+"code": "011170",
+"name": "롯데케미칼",
+"dart_corp_code": "00165413"
+},
+{
+"code": "011200",
+"name": "HMM",
+"dart_corp_code": "00164645"
+},
+{
+"code": "011210",
+"name": "현대위아",
+"dart_corp_code": "00106623"
+},
+{
+"code": "011780",
+"name": "금호석유화학",
+"dart_corp_code": "00106368"
+},
+{
+"code": "011790",
+"name": "SKC",
+"dart_corp_code": "00139889"
+},
+{
+"code": "012330",
+"name": "현대모비스",
+"dart_corp_code": "00164788"
+},
+{
+"code": "012450",
+"name": "한화에어로스페이스",
+"dart_corp_code": "00126566"
+},
+{
+"code": "012750",
+"name": "에스원",
+"dart_corp_code": "00158501"
+},
+{
+"code": "014680",
+"name": "한솔케미칼",
+"dart_corp_code": "00140955"
+},
+{
+"code": "014820",
+"name": "동원시스템즈",
+"dart_corp_code": "00132637"
+},
+{
+"code": "015760",
+"name": "한국전력",
+"dart_corp_code": "00159193"
+},
+{
+"code": "016360",
+"name": "삼성증권",
+"dart_corp_code": "00104856"
+},
+{
+"code": "017670",
+"name": "SK텔레콤",
+"dart_corp_code": "00159023"
+},
+{
+"code": "017800",
+"name": "현대엘리베이터",
+"dart_corp_code": "00164724"
+},
+{
+"code": "017960",
+"name": "한국카본",
+"dart_corp_code": "00159795"
+},
+{
+"code": "018260",
+"name": "삼성에스디에스",
+"dart_corp_code": "00126186"
+},
+{
+"code": "018880",
+"name": "한온시스템",
+"dart_corp_code": "00161125"
+},
+{
+"code": "021240",
+"name": "코웨이",
+"dart_corp_code": "00170558"
+},
+{
+"code": "022100",
+"name": "포스코DX",
+"dart_corp_code": "00155212"
+},
+{
+"code": "023530",
+"name": "롯데쇼핑",
+"dart_corp_code": "00120526"
+},
+{
+"code": "024110",
+"name": "기업은행",
+"dart_corp_code": "00149646"
+},
+{
+"code": "026960",
+"name": "동서",
+"dart_corp_code": "00144395"
+},
+{
+"code": "028050",
+"name": "삼성E&A",
+"dart_corp_code": "00126308"
+},
+{
+"code": "028260",
+"name": "삼성물산",
+"dart_corp_code": "00149655"
+},
+{
+"code": "028670",
+"name": "팬오션",
+"dart_corp_code": "00122737"
+},
+{
+"code": "029780",
+"name": "삼성카드",
+"dart_corp_code": "00126292"
+},
+{
+"code": "030000",
+"name": "제일기획",
+"dart_corp_code": "00148276"
+},
+{
+"code": "030200",
+"name": "KT",
+"dart_corp_code": "00190321"
+},
+{
+"code": "032640",
+"name": "LG유플러스",
+"dart_corp_code": "00231363"
+},
+{
+"code": "032830",
+"name": "삼성생명",
+"dart_corp_code": "00126256"
+},
+{
+"code": "033780",
+"name": "KT&G",
+"dart_corp_code": "00244455"
+},
+{
+"code": "034020",
+"name": "두산에너빌리티",
+"dart_corp_code": "00159616"
+},
+{
+"code": "034220",
+"name": "LG디스플레이",
+"dart_corp_code": "00105873"
+},
+{
+"code": "034230",
+"name": "파라다이스",
+"dart_corp_code": "00171265"
+},
+{
+"code": "034730",
+"name": "SK",
+"dart_corp_code": "00181712"
+},
+{
+"code": "035250",
+"name": "강원랜드",
+"dart_corp_code": "00255619"
+},
+{
+"code": "035420",
+"name": "NAVER",
+"dart_corp_code": "00266961"
+},
+{
+"code": "035720",
+"name": "카카오",
+"dart_corp_code": "00258801"
+},
+{
+"code": "036460",
+"name": "한국가스공사",
+"dart_corp_code": "00261285"
+},
+{
+"code": "036570",
+"name": "NC",
+"dart_corp_code": "00261443"
+},
+{
+"code": "039490",
+"name": "키움증권",
+"dart_corp_code": "00296290"
+},
+{
+"code": "042660",
+"name": "한화오션",
+"dart_corp_code": "00111704"
+},
+{
+"code": "042700",
+"name": "한미반도체",
+"dart_corp_code": "00161383"
+},
+{
+"code": "047040",
+"name": "대우건설",
+"dart_corp_code": "00124540"
+},
+{
+"code": "047050",
+"name": "포스코인터내셔널",
+"dart_corp_code": "00124504"
+},
+{
+"code": "047810",
+"name": "한국항공우주",
+"dart_corp_code": "00309503"
+},
+{
+"code": "051600",
+"name": "한전KPS",
+"dart_corp_code": "00159218"
+},
+{
+"code": "051900",
+"name": "LG생활건강",
+"dart_corp_code": "00356370"
+},
+{
+"code": "051910",
+"name": "LG화학",
+"dart_corp_code": "00356361"
+},
+{
+"code": "052690",
+"name": "한전기술",
+"dart_corp_code": "00159209"
+},
+{
+"code": "055550",
+"name": "신한지주",
+"dart_corp_code": "00382199"
+},
+{
+"code": "062040",
+"name": "산일전기",
+"dart_corp_code": "00366438"
+},
+{
+"code": "064350",
+"name": "현대로템",
+"dart_corp_code": "00302926"
+},
+{
+"code": "064400",
+"name": "LG씨엔에스",
+"dart_corp_code": "00139834"
+},
+{
+"code": "066570",
+"name": "LG전자",
+"dart_corp_code": "00401731"
+},
+{
+"code": "066970",
+"name": "엘앤에프",
+"dart_corp_code": "00398701"
+},
+{
+"code": "068270",
+"name": "셀트리온",
+"dart_corp_code": "00413046"
+},
+{
+"code": "069260",
+"name": "TKG휴켐스",
+"dart_corp_code": "00426086"
+},
+{
+"code": "069620",
+"name": "대웅제약",
+"dart_corp_code": "00427483"
+},
+{
+"code": "069960",
+"name": "현대백화점",
+"dart_corp_code": "00428251"
+},
+{
+"code": "071050",
+"name": "한국금융지주",
+"dart_corp_code": "00432102"
+},
+{
+"code": "071320",
+"name": "지역난방공사",
+"dart_corp_code": "00159698"
+},
+{
+"code": "071970",
+"name": "HD현대마린엔진",
+"dart_corp_code": "00406046"
+},
+{
+"code": "073240",
+"name": "금호타이어",
+"dart_corp_code": "00481454"
+},
+{
+"code": "078930",
+"name": "GS",
+"dart_corp_code": "00500254"
+},
+{
+"code": "079550",
+"name": "LIG디펜스앤에어로스페이스",
+"dart_corp_code": "00503668"
+},
+{
+"code": "081660",
+"name": "미스토홀딩스",
+"dart_corp_code": "00195229"
+},
+{
+"code": "082740",
+"name": "한화엔진",
+"dart_corp_code": "00361008"
+},
+{
+"code": "086280",
+"name": "현대글로비스",
+"dart_corp_code": "00360595"
+},
+{
+"code": "086790",
+"name": "하나금융지주",
+"dart_corp_code": "00547583"
+},
+{
+"code": "088350",
+"name": "한화생명",
+"dart_corp_code": "00113058"
+},
+{
+"code": "090430",
+"name": "아모레퍼시픽",
+"dart_corp_code": "00583424"
+},
+{
+"code": "093370",
+"name": "후성",
+"dart_corp_code": "00595191"
+},
+{
+"code": "096770",
+"name": "SK이노베이션",
+"dart_corp_code": "00631518"
+},
+{
+"code": "097950",
+"name": "CJ제일제당",
+"dart_corp_code": "00635134"
+},
+{
+"code": "103140",
+"name": "풍산",
+"dart_corp_code": "00684714"
+},
+{
+"code": "105560",
+"name": "KB금융",
+"dart_corp_code": "00688996"
+},
+{
+"code": "111770",
+"name": "영원무역",
+"dart_corp_code": "00776820"
+},
+{
+"code": "112610",
+"name": "씨에스윈드",
+"dart_corp_code": "00670340"
+},
+{
+"code": "120110",
+"name": "코오롱인더",
+"dart_corp_code": "00795135"
+},
+{
+"code": "128940",
+"name": "한미약품",
+"dart_corp_code": "00828497"
+},
+{
+"code": "137310",
+"name": "에스디바이오센서",
+"dart_corp_code": "00854997"
+},
+{
+"code": "138040",
+"name": "메리츠금융지주",
+"dart_corp_code": "00860332"
+},
+{
+"code": "138930",
+"name": "BNK금융지주",
+"dart_corp_code": "00858364"
+},
+{
+"code": "139130",
+"name": "iM금융지주",
+"dart_corp_code": "00878915"
+},
+{
+"code": "139480",
+"name": "이마트",
+"dart_corp_code": "00872984"
+},
+{
+"code": "161390",
+"name": "한국타이어앤테크놀로지",
+"dart_corp_code": "00937324"
+},
+{
+"code": "161890",
+"name": "한국콜마",
+"dart_corp_code": "00939331"
+},
+{
+"code": "175330",
+"name": "JB금융지주",
+"dart_corp_code": "00980122"
+},
+{
+"code": "180640",
+"name": "한진칼",
+"dart_corp_code": "00983040"
+},
+{
+"code": "185750",
+"name": "종근당",
+"dart_corp_code": "00992871"
+},
+{
+"code": "192080",
+"name": "더블유게임즈",
+"dart_corp_code": "01010110"
+},
+{
+"code": "192820",
+"name": "코스맥스",
+"dart_corp_code": "01009789"
+},
+{
+"code": "204320",
+"name": "HL만도",
+"dart_corp_code": "01042775"
+},
+{
+"code": "207940",
+"name": "삼성바이오로직스",
+"dart_corp_code": "00877059"
+},
+{
+"code": "241560",
+"name": "두산밥캣",
+"dart_corp_code": "01032486"
+},
+{
+"code": "251270",
+"name": "넷마블",
+"dart_corp_code": "00904672"
+},
+{
+"code": "259960",
+"name": "크래프톤",
+"dart_corp_code": "00760971"
+},
+{
+"code": "267250",
+"name": "HD현대",
+"dart_corp_code": "01205709"
+},
+{
+"code": "267260",
+"name": "HD현대일렉트릭",
+"dart_corp_code": "01205851"
+},
+{
+"code": "267270",
+"name": "HD건설기계",
+"dart_corp_code": "01205842"
+},
+{
+"code": "268280",
+"name": "미원에스씨",
+"dart_corp_code": "01234297"
+},
+{
+"code": "271560",
+"name": "오리온",
+"dart_corp_code": "01238169"
+},
+{
+"code": "272210",
+"name": "한화시스템",
+"dart_corp_code": "00339391"
+},
+{
+"code": "278470",
+"name": "에이피알",
+"dart_corp_code": "01190568"
+},
+{
+"code": "280360",
+"name": "롯데웰푸드",
+"dart_corp_code": "01258507"
+},
+{
+"code": "282330",
+"name": "BGF리테일",
+"dart_corp_code": "01263022"
+},
+{
+"code": "285130",
+"name": "SK케미칼",
+"dart_corp_code": "01267170"
+},
+{
+"code": "298020",
+"name": "효성티앤씨",
+"dart_corp_code": "01316227"
+},
+{
+"code": "298040",
+"name": "효성중공업",
+"dart_corp_code": "01316245"
+},
+{
+"code": "298050",
+"name": "HS효성첨단소재",
+"dart_corp_code": "01316254"
+},
+{
+"code": "300720",
+"name": "한일시멘트",
+"dart_corp_code": "01319808"
+},
+{
+"code": "302440",
+"name": "SK바이오사이언스",
+"dart_corp_code": "01319899"
+},
+{
+"code": "307950",
+"name": "현대오토에버",
+"dart_corp_code": "00362441"
+},
+{
+"code": "316140",
+"name": "우리금융지주",
+"dart_corp_code": "01350869"
+},
+{
+"code": "323410",
+"name": "카카오뱅크",
+"dart_corp_code": "01133217"
+},
+{
+"code": "326030",
+"name": "SK바이오팜",
+"dart_corp_code": "00878696"
+},
+{
+"code": "329180",
+"name": "HD현대중공업",
+"dart_corp_code": "01390344"
+},
+{
+"code": "352820",
+"name": "하이브",
+"dart_corp_code": "01204056"
+},
+{
+"code": "361610",
+"name": "SK아이이테크놀로지",
+"dart_corp_code": "01386916"
+},
+{
+"code": "373220",
+"name": "LG에너지솔루션",
+"dart_corp_code": "01515323"
+},
+{
+"code": "375500",
+"name": "DL이앤씨",
+"dart_corp_code": "01524093"
+},
+{
+"code": "377300",
+"name": "카카오페이",
+"dart_corp_code": "01244601"
+},
+{
+"code": "383220",
+"name": "F&F",
+"dart_corp_code": "01568413"
+},
+{
+"code": "402340",
+"name": "SK스퀘어",
+"dart_corp_code": "01596425"
+},
+{
+"code": "443060",
+"name": "HD현대마린솔루션",
+"dart_corp_code": "01194689"
+},
+{
+"code": "450080",
+"name": "에코프로머티",
+"dart_corp_code": "01311408"
+},
+{
+"code": "454910",
+"name": "두산로보틱스",
+"dart_corp_code": "01105153"
+},
+{
+"code": "456040",
+"name": "OCI",
+"dart_corp_code": "01760738"
+},
+{
+"code": "457190",
+"name": "이수스페셜티케미컬",
+"dart_corp_code": "01762569"
+},
+{
+"code": "483650",
+"name": "달바글로벌",
+"dart_corp_code": "01649204"
+}
+]
+}

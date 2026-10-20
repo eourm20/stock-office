@@ -151,7 +151,7 @@ export function mockLine(orders: MockOrder[] | undefined): string | null {
 
 /** "엔비디아 회의" / "국내 장 마감 정산": the next scheduled job, by kind. */
 export function nextWorkLabel(n: OfficeNow["next"][number], meeting = "회의"): string {
-  return n.kind === "settle" ? n.name : `${n.name} ${meeting}`;
+  return n.kind === "settle" || n.kind === "research" ? n.name : `${n.name} ${meeting}`;
 }
 
 const OPINION_SHORT: Record<string, string> = { approve: "CEO 동의", reject: "CEO 반대", defer: "CEO 보류" };

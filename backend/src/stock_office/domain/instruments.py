@@ -1,8 +1,11 @@
-"""Instrument identifiers (`COUNTRY:EXCHANGE:SYMBOL`) and the Sprint 0 registry."""
+"""Instrument identifiers (`COUNTRY:EXCHANGE:SYMBOL`) and the registry: the two milestone
+instruments plus the research team's universe (KOSPI200, NASDAQ-100 snapshots in `universe/`)."""
 
 from __future__ import annotations
 
+import json
 import re
+from pathlib import Path
 
 from .models import Currency, Instrument, Market
 
@@ -39,6 +42,32 @@ _DISPLAY_KO = {
     "KR:KRX:005930": "삼성전자",
 }
 
+UNIVERSE_DIR = Path(__file__).resolve().parent.parent / "universe"
+
+
+def _load_universe() -> dict[str, list[str]]:
+    """Dated index snapshots → names and DART codes; returns the member ids per index."""
+    members: dict[str, list[str]] = {"KOSPI200": [], "NASDAQ100": []}
+    kr = json.loads((UNIVERSE_DIR / "kospi200.json").read_text(encoding="utf-8"))
+    for m in kr["members"]:
+        iid = f"KR:KRX:{m['code']}"
+        members["KOSPI200"].append(iid)
+        _NAMES.setdefault(iid, m["name"])
+        _DISPLAY_KO.setdefault(iid, m["name"])
+        if m.get("dart_corp_code"):
+            _DART_CORP_CODES.setdefault(m["code"], m["dart_corp_code"])
+    us = json.loads((UNIVERSE_DIR / "nasdaq100.json").read_text(encoding="utf-8"))
+    for m in us["members"]:
+        iid = f"US:NASDAQ:{m['symbol']}"
+        members["NASDAQ100"].append(iid)
+        _NAMES.setdefault(iid, m["name"])
+        if m.get("name_ko"):
+            _DISPLAY_KO.setdefault(iid, m["name_ko"])
+    return members
+
+
+UNIVERSE = _load_universe()
+
 
 def display_name(instrument_id: str) -> str:
     return _DISPLAY_KO.get(instrument_id) or _NAMES.get(instrument_id) or instrument_id
@@ -74,8 +103,9 @@ def parse_instrument_id(instrument_id: str) -> Instrument:
     )
 
 
-# Sprint 0 supports exactly the two milestone instruments.
-SUPPORTED_INSTRUMENT_IDS = ("US:NASDAQ:NVDA", "KR:KRX:005930")
+# The two milestone instruments plus the research team's universe (KOSPI200, NASDAQ-100).
+SUPPORTED_INSTRUMENT_IDS = tuple(dict.fromkeys(
+    ("US:NASDAQ:NVDA", "KR:KRX:005930", *UNIVERSE["KOSPI200"], *UNIVERSE["NASDAQ100"])))
 REGISTRY: dict[str, Instrument] = {i: parse_instrument_id(i) for i in SUPPORTED_INSTRUMENT_IDS}
 
 
@@ -84,7 +114,7 @@ def get_instrument(instrument_id: str) -> Instrument:
     try:
         return REGISTRY[canonical]
     except KeyError:
-        raise UnknownInstrumentError(f"{canonical} is not enabled in Sprint 0") from None
+        raise UnknownInstrumentError(f"{canonical} is not in the registry") from None
 
 
 def search_instruments(q: str = "", market: Market | None = None) -> list[Instrument]:

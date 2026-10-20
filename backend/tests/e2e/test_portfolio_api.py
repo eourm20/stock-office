@@ -59,4 +59,4 @@ def test_auto_approved_buy_is_filled_after_the_close_and_shows_in_the_portfolio(
     records = client.get("/api/v1/records").json()
     assert records[0]["approval_auto"] is True and records[0]["paper"] == "FILLED"
     upcoming = client.get("/api/v1/office/now").json()["next"]
-    assert {u["kind"] for u in upcoming} == {"committee", "settle"}
+    assert {u["kind"] for u in upcoming} == {"research", "settle"}  # fixed meetings are off

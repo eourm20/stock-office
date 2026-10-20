@@ -281,7 +281,7 @@ def test_tradingagents_without_key_fails_explicitly(
 
 @pytest.mark.parametrize("body,code", [
     ({"instrument_id": "NVDA"}, 422),
-    ({"instrument_id": "US:NASDAQ:AAPL"}, 404),
+    ({"instrument_id": "US:NASDAQ:ZZZZ"}, 404),
     ({"instrument_id": "US:NASDAQ:NVDA", "as_of": "2099-01-01T00:00:00Z"}, 422),
     ({"instrument_id": "US:NASDAQ:NVDA", "engine": "live-broker"}, 422),
 ])

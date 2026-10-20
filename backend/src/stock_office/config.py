@@ -49,7 +49,8 @@ class Settings(BaseSettings):
     # Daily automatic analysis (worker --schedule). Off unless explicitly enabled: it costs money.
     schedule_enabled: bool = False
     # Hard cap on real-engine runs (manual + scheduled) in any rolling 24 h.
-    max_paid_runs_per_day: int = 8
+    # 2026-10-20: research team, 3 국장 + 3 미장 meetings a day (+ manual) → 10 in any 24 h.
+    max_paid_runs_per_day: int = 10
     # Monthly LLM budget (Korea calendar month), a hard stop for every paid run. ≈ 10,000 KRW.
     monthly_budget_usd: Decimal = Decimal("7")
 

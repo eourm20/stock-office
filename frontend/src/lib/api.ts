@@ -399,6 +399,23 @@ export interface MockPerformance {
              benchmark: string | null; benchmark_close: string | null }[];
 }
 
+/** The research team's latest screening for one market. */
+export interface ResearchRun {
+  market: "KR" | "US";
+  session: string;
+  rules_version: string;
+  universe: string;
+  screened: number;
+  liquid: number;
+  candidates: { instrument_id: string; score: number; reasons: string[]; metrics: Record<string, number> }[];
+  watchlist: string[];
+  focus: { instrument_id: string; why: string }[];
+  created_at: string;
+  names: Record<string, string>;
+}
+
+export const getResearch = (market: "KR" | "US") => getJson<ResearchRun | null>(`/api/v1/research?market=${market}`);
+
 export const getMockActivity = (market: "KR" | "US") => getJson<MockOrder[]>(`/api/v1/kiwoom-mock/activity?market=${market}`);
 export const getMockPerformance = (market: "KR" | "US") => getJson<MockPerformance>(`/api/v1/kiwoom-mock/performance?market=${market}`);
 

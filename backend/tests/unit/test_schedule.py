@@ -2,7 +2,7 @@ from datetime import UTC, date, datetime
 
 import pytest
 
-from stock_office.schedule import due_slots, next_slots, slot_key
+from stock_office.schedule import DEFAULT_RULES, MILESTONE_RULES, due_slots, next_slots, slot_key
 
 
 def at(text: str) -> datetime:
@@ -10,7 +10,7 @@ def at(text: str) -> datetime:
 
 
 def keys(now: str, done: set[str] | None = None) -> list[str]:
-    return [s.key for s in due_slots(at(now), done or set())]
+    return [s.key for s in due_slots(at(now), done or set(), MILESTONE_RULES)]
 
 
 def test_us_runs_after_close_and_catches_up_until_next_open() -> None:
@@ -44,7 +44,9 @@ def test_a_slot_runs_once() -> None:
 
 def test_naive_time_rejected_and_next_slots_listed() -> None:
     with pytest.raises(ValueError):
-        due_slots(datetime(2026, 10, 16), set())
-    upcoming = {s.rule.instrument_id: s for s in next_slots(at("2026-10-16T10:00:00+09:00"))}
+        due_slots(datetime(2026, 10, 16), set(), MILESTONE_RULES)
+    upcoming = {s.rule.instrument_id: s
+                for s in next_slots(at("2026-10-16T10:00:00+09:00"), MILESTONE_RULES)}
+    assert DEFAULT_RULES == ()  # fixed test meetings are off: the research team picks
     assert upcoming["KR:KRX:005930"].session.isoformat() == "2026-10-19"   # next Monday
     assert upcoming["US:NASDAQ:NVDA"].session.isoformat() == "2026-10-16"  # tonight (ET)

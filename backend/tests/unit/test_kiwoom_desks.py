@@ -309,6 +309,12 @@ def test_sharp_moves_and_new_filings_are_reported_once(tmp_path: Path) -> None:
 
     desks, fake = setup(tmp_path)
     desks.filings = filings
+    with transaction(desks.conn):   # the research team put Samsung on today's focus
+        desks.conn.execute(
+            "INSERT INTO research_runs (market, session, rules_version, universe, screened, "
+            "liquid, candidates, watchlist, focus, created_at) VALUES ('KR', '2026-10-20', "
+            "'SCREEN_V1', 'KOSPI200', 1, 1, '[]', ?, ?, 'x')",
+            (json.dumps([KR]), json.dumps([{"instrument_id": KR, "why": "test"}])))
     fake.move = "-3.40"
     desks.tick(KR_OPEN)
     desks.tick(KR_OPEN + timedelta(minutes=1))       # same move, filings not due again

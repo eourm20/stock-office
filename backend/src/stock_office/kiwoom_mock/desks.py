@@ -33,7 +33,7 @@ from stock_office.domain.models import Market
 from stock_office.kiwoom_mock.accounts import MockAccount, kr_account, num, us_account
 from stock_office.kiwoom_mock.client import KiwoomMockClient, KiwoomMockError
 from stock_office.paper.allocator import POLICY_V3, Policy, allocate
-from stock_office.schedule import DEFAULT_RULES, closed_sessions, open_session
+from stock_office.schedule import closed_sessions, open_session
 
 KST = ZoneInfo("Asia/Seoul")
 
@@ -461,7 +461,9 @@ class Desks:
                 now: datetime) -> None:
         """Watched and held stocks: a report when the day's move crosses ±3/5/10%, and (국장)
         when a new DART filing appears. Inbox reports only (`watch:` keys, not order alerts)."""
-        watched = {r.instrument_id for r in DEFAULT_RULES if r.instrument_id.startswith(market)}
+        row = self.conn.execute("SELECT focus FROM research_runs WHERE market=? ORDER BY id "
+                                "DESC LIMIT 1", (market,)).fetchone()
+        watched = {f["instrument_id"] for f in json.loads(row["focus"])} if row else set()
         held = {r["instrument_id"] for r in self._rows(market, "FILLED") if r["role"] == "entry"}
         day = datetime.now(KST).date() if market == "KR" else now.date()
         for instrument_id in sorted(watched | held):

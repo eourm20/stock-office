@@ -49,5 +49,4 @@ def test_latest_real_decision_ignores_demo_and_failed(tmp_path: Path) -> None:
 def test_summary_endpoint(tmp_path: Path) -> None:
     client = TestClient(create_app(Settings(data_dir=tmp_path, _env_file=None)))  # type: ignore[call-arg]
     body = client.get("/api/v1/office/summary").json()
-    assert [i["instrument_id"] for i in body["instruments"]] == ["US:NASDAQ:NVDA", "KR:KRX:005930"]
-    assert all(i["latest"] is None for i in body["instruments"])
+    assert body["instruments"] == []  # only instruments the company has met about

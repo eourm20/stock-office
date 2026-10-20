@@ -32,10 +32,13 @@ class ScheduleRule:
     anchor: Literal["after_close", "before_open"]
 
 
-DEFAULT_RULES: tuple[ScheduleRule, ...] = (
+# The two test stocks met every day during development. Off since 2026-10-20 (owner decision):
+# the research team picks what the committee meets about (stock_office.research.team).
+MILESTONE_RULES: tuple[ScheduleRule, ...] = (
     ScheduleRule("US:NASDAQ:NVDA", "XNYS", "America/New_York", time(17, 0), "after_close"),
     ScheduleRule("KR:KRX:005930", "XKRX", "Asia/Seoul", time(7, 30), "before_open"),
 )
+DEFAULT_RULES: tuple[ScheduleRule, ...] = ()
 
 
 @dataclass(frozen=True)

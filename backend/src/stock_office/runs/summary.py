@@ -39,7 +39,9 @@ class OfficeSummary(BaseModel):
 def build_summary(repo: RunRepository) -> OfficeSummary:
     runs = repo.list_runs()  # newest first
     items = []
-    for inst in REGISTRY.values():
+    # Only instruments the company has met about (the registry is the whole research universe).
+    seen = list(dict.fromkeys(r.instrument_id for r in runs if r.instrument_id in REGISTRY))
+    for inst in (REGISTRY[i] for i in seen):
         mine = [r for r in runs if r.instrument_id == inst.id]
         active = next((r for r in mine if r.status in _ACTIVE), None)
         latest = None

@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 import { getCompanySettings, getOfficeNow, setAutoApprove, type CompanySettings, type OfficeNow } from "../../lib/api";
 import { kstDateTime } from "../../inbox/model";
-import { INSTRUMENT_KO } from "../../office/auto";
 import { disablePush, enablePush, getNotifyStatus, pushState, sendTestPush, type NotifyStatus,
          type PushState } from "../../lib/push";
-import { MARKET_KO, marketOf, useMarket } from "../../lib/market";
+import { MARKET_KO, useMarket } from "../../lib/market";
+import { getResearch, type ResearchRun } from "../../lib/api";
 import KiwoomMockPanel from "../KiwoomMockPanel";
 import NavBar from "../NavBar";
 
@@ -47,18 +47,8 @@ export default function SettingsPage() {
           <KiwoomMockPanel market={market} />
         </Card>
 
-        <Card title={`${MARKET_KO[market]} 관심 종목`} sub="매일 정기 회의하는 종목. 리서치팀이 고르는 관찰·집중 종목은 다음 단계에서 추가됩니다.">
-          <ul className="divide-y divide-[var(--line)] text-sm">
-            {Object.entries(INSTRUMENT_KO).filter(([id]) => marketOf(id) === market).map(([id, name]) => {
-              const next = now?.next.find((n) => n.instrument_id === id && n.kind !== "settle");
-              return (
-                <li key={id} className="flex items-center justify-between py-2">
-                  <span>{name} <span className="text-xs text-[var(--muted)]">{id}</span></span>
-                  <span className="text-xs text-[var(--muted)]">{next ? `다음 회의 ${kstDateTime(next.at)}` : ""}</span>
-                </li>
-              );
-            })}
-          </ul>
+        <Card title={`${MARKET_KO[market]} 리서치팀 · 관심 종목`} sub={market === "KR" ? "코스피200에서 규칙(추세·모멘텀·거래량·52주 고가, 과열·과변동 감점)으로 점수를 매겨 관찰 25종목을 고르고, 매일 07:00에 오늘 회의 3종목(보유 종목 먼저)을 정합니다." : "나스닥100에서 같은 규칙으로 관찰 25종목을 고르고, 미국 장 마감 90분 뒤(한국 06:30 무렵)에 오늘 회의 3종목(보유 종목 먼저)을 정합니다."}>
+          <ResearchCard market={market} />
         </Card>
 
         <h2 className="-mb-2 mt-2 text-sm font-semibold text-[var(--muted)]">공통</h2>
@@ -114,6 +104,39 @@ export default function SettingsPage() {
         </Card>
       </div>
     </main>
+  );
+}
+
+/** The research team's latest screening: today's focus with reasons, then the watchlist. */
+function ResearchCard({ market }: { market: "KR" | "US" }) {
+  const [run, setRun] = useState<ResearchRun | null | undefined>(undefined);
+  useEffect(() => { setRun(undefined); getResearch(market).then(setRun).catch(() => setRun(null)); }, [market]);
+  if (run === undefined) return <p className="text-sm text-[var(--muted)]">불러오는 중…</p>;
+  if (!run) return <p className="text-sm text-[var(--muted)]">아직 리서치 전입니다. 관심 종목도 보유 종목도 없이 시작하며, 첫 리서치 뒤 여기에 채워집니다.</p>;
+  const score = Object.fromEntries(run.candidates.map((c) => [c.instrument_id, c]));
+  return (
+    <div className="space-y-3 text-sm">
+      <p className="text-xs text-[var(--muted)]">{run.session} 장 기준 · {run.universe} {run.screened}종목 중 유동성 통과 {run.liquid} · {run.rules_version} · {kstDateTime(run.created_at)}</p>
+      <div>
+        <h3 className="mb-1 text-xs font-semibold text-[var(--accent)]">오늘 위원회 회의 {run.focus.length}</h3>
+        {run.focus.length === 0 ? <p className="text-xs text-[var(--muted)]">점수가 0보다 큰 종목이 없어 오늘은 회의하지 않습니다.</p> : (
+          <ul className="space-y-1">
+            {run.focus.map((f) => <li key={f.instrument_id}><b>{run.names[f.instrument_id] ?? f.instrument_id}</b> <span className="text-xs text-[var(--muted)]">{f.why}</span></li>)}
+          </ul>
+        )}
+      </div>
+      <details>
+        <summary className="cursor-pointer text-xs font-semibold text-[var(--muted)]">관찰 종목 {run.watchlist.length}</summary>
+        <ul className="mt-1 divide-y divide-[var(--line)]">
+          {run.watchlist.map((iid) => (
+            <li key={iid} className="flex justify-between gap-2 py-1">
+              <span>{run.names[iid] ?? iid}</span>
+              <span className="text-xs text-[var(--muted)]">{score[iid] ? `점수 ${score[iid].score}` : "보유"}</span>
+            </li>
+          ))}
+        </ul>
+      </details>
+    </div>
   );
 }
 

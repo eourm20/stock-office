@@ -38,9 +38,10 @@ def test_invalid_ids_rejected(bad: str) -> None:
 
 def test_valid_but_not_enabled() -> None:
     with pytest.raises(UnknownInstrumentError):
-        get_instrument("US:NASDAQ:AAPL")
+        get_instrument("US:NASDAQ:ZZZZ")
 
 
 def test_search() -> None:
     assert [i.id for i in search_instruments("samsung")] == ["KR:KRX:005930"]
-    assert [i.id for i in search_instruments(market=Market.US)] == ["US:NASDAQ:NVDA"]
+    us = [i.id for i in search_instruments(market=Market.US)]
+    assert "US:NASDAQ:NVDA" in us and "US:NASDAQ:AAPL" in us and len(us) == 101

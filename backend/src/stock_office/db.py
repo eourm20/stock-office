@@ -217,6 +217,23 @@ MIGRATIONS: list[str] = [
     DROP TABLE notifications;
     ALTER TABLE notifications_v6 RENAME TO notifications
     """,
+    # 7: the research team: one screening per market and target session (watchlist, focus, scores)
+    """
+    CREATE TABLE research_runs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        market TEXT NOT NULL CHECK (market IN ('KR', 'US')),
+        session TEXT NOT NULL,
+        rules_version TEXT NOT NULL,
+        universe TEXT NOT NULL,
+        screened INTEGER NOT NULL,
+        liquid INTEGER NOT NULL,
+        candidates TEXT NOT NULL,
+        watchlist TEXT NOT NULL,
+        focus TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE (market, session)
+    )
+    """,
 ]
 
 

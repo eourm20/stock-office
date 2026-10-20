@@ -15,6 +15,7 @@ import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
+from typing import Any
 
 from stock_office.config import Settings, get_settings
 from stock_office.db import connect
@@ -23,7 +24,7 @@ from stock_office.engine.adapter import EngineNotConfiguredError
 from stock_office.logging_setup import install_log_redaction
 from stock_office.notify import Notifier, build_notifier
 from stock_office.runs.service import BudgetExceededError, RunService
-from stock_office.schedule import due_slots, next_slots
+from stock_office.schedule import DEFAULT_RULES, ScheduleRule, due_slots, next_slots
 from stock_office.wiring import build_service, build_settler
 
 log = logging.getLogger("stock_office.worker")
@@ -52,13 +53,13 @@ def drain(service: RunService) -> int:
     return count
 
 
-def schedule_tick(service: RunService, now: datetime,
-                  notifier: Notifier | None = None) -> list[AnalysisRun]:
+def schedule_tick(service: RunService, now: datetime, notifier: Notifier | None = None,
+                  rules: tuple[ScheduleRule, ...] = DEFAULT_RULES) -> list[AnalysisRun]:
     """Start every due scheduled analysis once (real engine), then execute it."""
     done = {r.schedule_slot for r in service.repo.list_runs()
             if r.trigger == "schedule" and r.schedule_slot}
     started: list[AnalysisRun] = []
-    slots = due_slots(now, done)
+    slots = due_slots(now, done, rules)
     if not slots:
         return started
     try:
@@ -104,6 +105,11 @@ def main(clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> None:
     if notifier is not None:
         threading.Thread(target=notify_loop, args=(settings, service.repo, clock), daemon=True,
                          name="notify").start()
+    team = None
+    if scheduling and service.inbox is not None:
+        from stock_office.research.team import build_team
+
+        team = build_team(settings, service.inbox.conn, service.repo)
     if scheduling:
         threading.Thread(target=desk_loop, args=(settings, clock), daemon=True,
                          name="kiwoom-mock-desks").start()
@@ -115,6 +121,8 @@ def main(clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> None:
         if scheduling and time.monotonic() - last_tick >= 60:
             last_tick = time.monotonic()
             schedule_tick(service, clock(), notifier)
+            if team is not None:
+                research_tick(team, service, clock(), notifier)
             if settler is not None:
                 for result in settler.tick(clock()):
                     log.info("settle %s %s -> %s (%d fills) %s", result.market, result.session,
@@ -122,6 +130,36 @@ def main(clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> None:
         if args.once:
             return
         time.sleep(args.interval)
+
+
+def research_tick(team: Any, service: RunService, now: datetime,
+                  notifier: Notifier | None = None) -> None:
+    """Each market's research once per target session, then its focus meetings, in order."""
+    from stock_office.research.team import window
+
+    for market in ("KR", "US"):
+        try:
+            win = window(market, now)
+            if win is None or team.done(market, win[0]):
+                continue
+            day = win[0]
+            focus = team.research(market, day, now)
+        except Exception:
+            log.exception("research %s failed", market)
+            continue
+        for iid in focus:
+            slot = f"research:{iid}@{day}"
+            try:
+                run = service.create_run(
+                    CreateRunRequest(instrument_id=iid, engine="tradingagents"),
+                    trigger="schedule", schedule_slot=slot)
+            except BudgetExceededError as exc:
+                log.warning("research meeting %s skipped: %s", slot, exc)
+                if notifier is not None:
+                    notifier.budget_skipped(slot, iid, now)
+                continue
+            log.info("research %s -> run %s", slot, run.id)
+            service.execute(run.id)
 
 
 def desk_loop(settings: Settings, clock: Callable[[], datetime], every_s: float = 30.0) -> None:

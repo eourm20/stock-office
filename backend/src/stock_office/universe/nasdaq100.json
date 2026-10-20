@@ -1,0 +1,512 @@
+{
+"index": "NASDAQ-100",
+"as_of": "2026-10-20",
+"source": "Nasdaq.com nasdaq100 list; Korean names from Kiwoom REST usa20100 (mock server)",
+"members": [
+{
+"symbol": "AAPL",
+"name": "Apple Inc.",
+"name_ko": "애플"
+},
+{
+"symbol": "AMAT",
+"name": "Applied Materials, Inc.",
+"name_ko": "어플라이드 머티어리얼즈"
+},
+{
+"symbol": "AMGN",
+"name": "Amgen Inc.",
+"name_ko": "암젠"
+},
+{
+"symbol": "CMCSA",
+"name": "Comcast Corporation",
+"name_ko": "컴캐스트"
+},
+{
+"symbol": "INTC",
+"name": "Intel Corporation",
+"name_ko": "인텔"
+},
+{
+"symbol": "KLAC",
+"name": "KLA Corporation",
+"name_ko": "케이엘에이"
+},
+{
+"symbol": "PCAR",
+"name": "PACCAR Inc.",
+"name_ko": "파카"
+},
+{
+"symbol": "CTAS",
+"name": "Cintas Corporation",
+"name_ko": "신타스"
+},
+{
+"symbol": "PAYX",
+"name": "Paychex, Inc.",
+"name_ko": "페이첵스"
+},
+{
+"symbol": "LRCX",
+"name": "Lam Research Corporation",
+"name_ko": "램 리서치"
+},
+{
+"symbol": "ADSK",
+"name": "Autodesk, Inc.",
+"name_ko": "오토데스크"
+},
+{
+"symbol": "ROST",
+"name": "Ross Stores, Inc.",
+"name_ko": "로스 스토어스"
+},
+{
+"symbol": "MNST",
+"name": "Monster Beverage Corporation",
+"name_ko": "몬스터 베버리지"
+},
+{
+"symbol": "MSFT",
+"name": "Microsoft Corporation",
+"name_ko": "마이크로소프트"
+},
+{
+"symbol": "ADBE",
+"name": "Adobe Inc.",
+"name_ko": "어도비"
+},
+{
+"symbol": "FAST",
+"name": "Fastenal Company",
+"name_ko": "패스널"
+},
+{
+"symbol": "CSCO",
+"name": "Cisco Systems, Inc. Common Stock (DE)",
+"name_ko": "시스코 시스템즈"
+},
+{
+"symbol": "REGN",
+"name": "Regeneron Pharmaceuticals, Inc.",
+"name_ko": "리제네론 파머슈티컬스"
+},
+{
+"symbol": "IDXX",
+"name": "IDEXX Laboratories, Inc.",
+"name_ko": "아이덱스 래버러토리스"
+},
+{
+"symbol": "VRTX",
+"name": "Vertex Pharmaceuticals Incorporated",
+"name_ko": "버텍스 파머슈티컬"
+},
+{
+"symbol": "ODFL",
+"name": "Old Dominion Freight Line, Inc.",
+"name_ko": "올드 도미니언 프레이트 라인"
+},
+{
+"symbol": "QCOM",
+"name": "QUALCOMM Incorporated",
+"name_ko": "퀄컴"
+},
+{
+"symbol": "GILD",
+"name": "Gilead Sciences, Inc.",
+"name_ko": "길리어드 사이언스"
+},
+{
+"symbol": "SNPS",
+"name": "Synopsys, Inc.",
+"name_ko": "시놉시스"
+},
+{
+"symbol": "SBUX",
+"name": "Starbucks Corporation",
+"name_ko": "스타벅스"
+},
+{
+"symbol": "INTU",
+"name": "Intuit Inc.",
+"name_ko": "인튜이트"
+},
+{
+"symbol": "MCHP",
+"name": "Microchip Technology Incorporated",
+"name_ko": "마이크로칩 테크놀로지"
+},
+{
+"symbol": "ORLY",
+"name": "O'Reilly Automotive, Inc.",
+"name_ko": "오릴리 오토모티브"
+},
+{
+"symbol": "COST",
+"name": "Costco Wholesale Corporation",
+"name_ko": "코스트코 홀세일"
+},
+{
+"symbol": "CPRT",
+"name": "Copart, Inc. (DE)",
+"name_ko": "코파트"
+},
+{
+"symbol": "ASML",
+"name": "ASML Holding N.V. New York Registry Shares",
+"name_ko": "ASML 홀딩(ADR)"
+},
+{
+"symbol": "TTWO",
+"name": "Take-Two Interactive Software, Inc.",
+"name_ko": "테이크 투 인터랙티브 소프트웨어"
+},
+{
+"symbol": "AMZN",
+"name": "Amazon.com, Inc.",
+"name_ko": "아마존닷컴"
+},
+{
+"symbol": "MSTR",
+"name": "Strategy Inc Common Stock",
+"name_ko": "스트래티지"
+},
+{
+"symbol": "NVDA",
+"name": "NVIDIA Corporation",
+"name_ko": "엔비디아"
+},
+{
+"symbol": "BKNG",
+"name": "Booking Holdings Inc.",
+"name_ko": "부킹 홀딩스"
+},
+{
+"symbol": "ISRG",
+"name": "Intuitive Surgical, Inc.",
+"name_ko": "인튜이티브 서지컬"
+},
+{
+"symbol": "MRVL",
+"name": "Marvell Technology, Inc.",
+"name_ko": "마벨 테크놀로지 그룹"
+},
+{
+"symbol": "ADI",
+"name": "Analog Devices, Inc.",
+"name_ko": "아날로그 디바이시스"
+},
+{
+"symbol": "AEP",
+"name": "American Electric Power Company, Inc.",
+"name_ko": "아메리칸 일렉트릭 파워"
+},
+{
+"symbol": "AMD",
+"name": "Advanced Micro Devices, Inc.",
+"name_ko": "AMD"
+},
+{
+"symbol": "ADP",
+"name": "Automatic Data Processing, Inc.",
+"name_ko": "오토매틱 데이터 프로세싱"
+},
+{
+"symbol": "CDNS",
+"name": "Cadence Design Systems, Inc.",
+"name_ko": "케이던스 디자인 시스템즈"
+},
+{
+"symbol": "CSX",
+"name": "CSX Corporation",
+"name_ko": "CSX"
+},
+{
+"symbol": "HON",
+"name": "Honeywell International Inc.",
+"name_ko": "허니웰 인터내셔널"
+},
+{
+"symbol": "MAR",
+"name": "Marriott International",
+"name_ko": "메리어트 인터내셔널"
+},
+{
+"symbol": "MU",
+"name": "Micron Technology, Inc.",
+"name_ko": "마이크론 테크놀로지"
+},
+{
+"symbol": "XEL",
+"name": "Xcel Energy Inc.",
+"name_ko": "엑셀 에너지"
+},
+{
+"symbol": "EXC",
+"name": "Exelon Corporation",
+"name_ko": "엑셀론"
+},
+{
+"symbol": "PEP",
+"name": "PepsiCo, Inc.",
+"name_ko": "펩시코"
+},
+{
+"symbol": "ROP",
+"name": "Roper Technologies, Inc.",
+"name_ko": "로퍼 테크놀로지스"
+},
+{
+"symbol": "TER",
+"name": "Teradyne, Inc.",
+"name_ko": "테라다인"
+},
+{
+"symbol": "TXN",
+"name": "Texas Instruments Incorporated",
+"name_ko": "텍사스 인스트루먼츠"
+},
+{
+"symbol": "WDC",
+"name": "Western Digital Corporation",
+"name_ko": "웨스턴 디지털"
+},
+{
+"symbol": "WMT",
+"name": "Walmart Inc.",
+"name_ko": "월마트"
+},
+{
+"symbol": "AXON",
+"name": "Axon Enterprise, Inc.",
+"name_ko": "액손 엔터프라이즈"
+},
+{
+"symbol": "MDLZ",
+"name": "Mondelez International, Inc.",
+"name_ko": "몬덜리즈 인터내셔널"
+},
+{
+"symbol": "NFLX",
+"name": "Netflix, Inc.",
+"name_ko": "넷플릭스"
+},
+{
+"symbol": "STX",
+"name": "Seagate Technology Holdings PLC Ordinary Shares (Ireland)",
+"name_ko": "시게이트 테크놀로지 홀딩스"
+},
+{
+"symbol": "ALNY",
+"name": "Alnylam Pharmaceuticals, Inc.",
+"name_ko": "앨나일램 파머슈티컬스"
+},
+{
+"symbol": "GOOGL",
+"name": "Alphabet Inc.",
+"name_ko": "알파벳 A"
+},
+{
+"symbol": "MPWR",
+"name": "Monolithic Power Systems, Inc.",
+"name_ko": "모놀리식 파워 시스템"
+},
+{
+"symbol": "DXCM",
+"name": "DexCom, Inc.",
+"name_ko": "덱스컴"
+},
+{
+"symbol": "TMUS",
+"name": "T-Mobile US, Inc.",
+"name_ko": "T 모바일 US"
+},
+{
+"symbol": "MELI",
+"name": "MercadoLibre, Inc.",
+"name_ko": "메르카도리브레"
+},
+{
+"symbol": "KDP",
+"name": "Keurig Dr Pepper Inc.",
+"name_ko": "큐리그 닥터 페퍼"
+},
+{
+"symbol": "NBIS",
+"name": "Nebius Group N.V.",
+"name_ko": "네비우스 그룹"
+},
+{
+"symbol": "AVGO",
+"name": "Broadcom Inc.",
+"name_ko": "브로드컴"
+},
+{
+"symbol": "FTNT",
+"name": "Fortinet, Inc.",
+"name_ko": "포티넷"
+},
+{
+"symbol": "TSLA",
+"name": "Tesla, Inc.",
+"name_ko": "테슬라"
+},
+{
+"symbol": "NXPI",
+"name": "NXP Semiconductors N.V.",
+"name_ko": "NXP 세미컨덕터스"
+},
+{
+"symbol": "FANG",
+"name": "Diamondback Energy, Inc.",
+"name_ko": "다이아몬드백 에너지"
+},
+{
+"symbol": "META",
+"name": "Meta Platforms, Inc.",
+"name_ko": "메타 플랫폼스(페이스북)"
+},
+{
+"symbol": "PANW",
+"name": "Palo Alto Networks, Inc.",
+"name_ko": "팰로 앨토 네트웍스"
+},
+{
+"symbol": "WDAY",
+"name": "Workday, Inc.",
+"name_ko": "워크데이"
+},
+{
+"symbol": "GOOG",
+"name": "Alphabet Inc.",
+"name_ko": "알파벳 C"
+},
+{
+"symbol": "PYPL",
+"name": "PayPal Holdings, Inc.",
+"name_ko": "페이팔 홀딩스"
+},
+{
+"symbol": "SHOP",
+"name": "Shopify Inc.",
+"name_ko": "쇼피파이"
+},
+{
+"symbol": "LITE",
+"name": "Lumentum Holdings Inc.",
+"name_ko": "루멘텀 홀딩스"
+},
+{
+"symbol": "CCEP",
+"name": "Coca-Cola Europacific Partners plc",
+"name_ko": "코카콜라 유로퍼시픽 파트너스"
+},
+{
+"symbol": "BKR",
+"name": "Baker Hughes Company",
+"name_ko": "베이커 휴즈"
+},
+{
+"symbol": "PDD",
+"name": "PDD Holdings Inc.",
+"name_ko": "핀둬둬(ADR)"
+},
+{
+"symbol": "MRNA",
+"name": "Moderna, Inc.",
+"name_ko": "모더나"
+},
+{
+"symbol": "CRWD",
+"name": "CrowdStrike Holdings, Inc.",
+"name_ko": "크라우드스트라이크 홀딩스"
+},
+{
+"symbol": "DDOG",
+"name": "Datadog, Inc.",
+"name_ko": "데이터도그"
+},
+{
+"symbol": "RKLB",
+"name": "Rocket Lab Corporation",
+"name_ko": "로켓 랩"
+},
+{
+"symbol": "PLTR",
+"name": "Palantir Technologies Inc.",
+"name_ko": "팔란티어 테크"
+},
+{
+"symbol": "ABNB",
+"name": "Airbnb, Inc.",
+"name_ko": "에어비앤비"
+},
+{
+"symbol": "DASH",
+"name": "DoorDash, Inc.",
+"name_ko": "도어대시"
+},
+{
+"symbol": "APP",
+"name": "Applovin Corporation",
+"name_ko": "앱러빈"
+},
+{
+"symbol": "CEG",
+"name": "Constellation Energy Corporation Common Stock",
+"name_ko": "컨스털레이션 에너지"
+},
+{
+"symbol": "GEHC",
+"name": "GE HealthCare Technologies Inc. Common Stock",
+"name_ko": "GE 헬스케어 테크놀로지스"
+},
+{
+"symbol": "LIN",
+"name": "Linde plc",
+"name_ko": "린데"
+},
+{
+"symbol": "ARM",
+"name": "Arm Holdings plc",
+"name_ko": "에이알엠 홀딩스(ADR)"
+},
+{
+"symbol": "TRI",
+"name": "Thomson Reuters Corporation Common Shares",
+"name_ko": "톰슨 로이터"
+},
+{
+"symbol": "FER",
+"name": "Ferrovial N.V.",
+"name_ko": "페로비알"
+},
+{
+"symbol": "ALAB",
+"name": "Astera Labs, Inc.",
+"name_ko": "아스테라 랩스"
+},
+{
+"symbol": "SNDK",
+"name": "Sandisk Corporation",
+"name_ko": "샌디스크"
+},
+{
+"symbol": "CRWV",
+"name": "CoreWeave, Inc.",
+"name_ko": "코어위브"
+},
+{
+"symbol": "SPCX",
+"name": "Space Exploration Technologies Corp.",
+"name_ko": "스페이스X"
+},
+{
+"symbol": "HONA",
+"name": "Honeywell Aerospace Inc. Common Stock",
+"name_ko": "하니웰 에어로스페이스"
+}
+]
+}

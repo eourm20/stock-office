@@ -241,6 +241,21 @@ def create_app(
         return {"start": str(start) if start is not None else None,
                 "history": inbox.desks.nav_history(market)}
 
+    @app.get("/api/v1/research")
+    def research_latest(market: str = "KR") -> dict[str, object] | None:
+        """The research team's latest screening for a market: watchlist, today's focus, scores."""
+        if market not in ("KR", "US"):
+            return None
+        from stock_office.research.team import ResearchTeam
+
+        latest = ResearchTeam(inbox.conn, lambda ids, d: {}, lambda m: [],
+                              lambda m, n: set()).latest(market)
+        if latest is None:
+            return None
+        names = {i: display_name(i) for i in [*latest["watchlist"],
+                                               *(f["instrument_id"] for f in latest["focus"])]}
+        return {**latest, "names": names}
+
     @app.get("/api/v1/kiwoom-mock")
     def kiwoom_mock_status(refresh: bool = False) -> dict[str, object]:
         """Kiwoom 모의투자 accounts, read-only (step K1): deposits, holdings, today's fills.
@@ -304,6 +319,12 @@ def create_app(
             {"instrument_id": s.rule.instrument_id, "name": display_name(s.rule.instrument_id),
              "market": s.rule.instrument_id.split(":")[0], "at": s.scheduled_at,
              "kind": "committee"} for s in slots]
+        from stock_office.research.team import next_research
+
+        upcoming += [{"instrument_id": None, "name": f"{'국장' if m == 'KR' else '미장'} 리서치",
+                      "market": m, "at": next_research(m, now), "kind": "research"}
+                     for m in ("KR", "US")]
+        upcoming.sort(key=lambda u: u["at"])  # type: ignore[arg-type,return-value]
         if inbox.book.started_at() is not None:
             upcoming += [{"instrument_id": None,
                           "name": "국내 장 마감 정산" if m is Market.KR else "미국 장 마감 정산",
