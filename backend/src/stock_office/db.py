@@ -249,6 +249,24 @@ MIGRATIONS: list[str] = [
     );
     CREATE INDEX office_events_at ON office_events (created_at)
     """,
+    # 9: system alerts (owner's decision): a fifth outbox category, "system", sent by the API
+    """
+    CREATE TABLE notifications_v9 (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        dedupe_key TEXT NOT NULL UNIQUE,
+        category TEXT NOT NULL CHECK (category IN ('meeting_start', 'meeting_end', 'approval',
+                                                    'order', 'system')),
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        url TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        sent_at TEXT,
+        outcome TEXT
+    );
+    INSERT INTO notifications_v9 SELECT * FROM notifications;
+    DROP TABLE notifications;
+    ALTER TABLE notifications_v9 RENAME TO notifications
+    """,
 ]
 
 

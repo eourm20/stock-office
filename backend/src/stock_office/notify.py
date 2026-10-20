@@ -1,12 +1,14 @@
 """Phone notifications: only what the CEO should not miss, as Web Push to the installed web app.
 
-Four categories, nothing else (owner's choices, 2026-10-20):
+Five categories, nothing else (owner's choices, 2026-10-20):
 - meeting_start: a scheduled real meeting started (or could not start: budget hard stop).
 - meeting_end: a real meeting ended with its verdict, or failed.
 - approval: the meeting ended with an approval request (BUY/SELL), auto-approved or waiting;
   this replaces its "meeting_end" so one meeting never sends two end notifications.
 - order: what the Kiwoom mock desks did (order placed, filled, exit with P&L, unfilled and
   cancelled, refused by the risk policy or by Kiwoom).
+- system: the company stopped working (worker down, meeting stuck, no research, no account value);
+  checked and sent by the API process (`health.py`), so it still arrives when the worker is down.
 The internal paper book's settlement and DEMO meetings are inbox/portfolio only.
 
 The worker collects new events into an outbox (`notifications`, one row per event, idempotent)
@@ -44,6 +46,7 @@ KST = ZoneInfo("Asia/Seoul")
 PUSH_HOSTS = ("push.apple.com", "fcm.googleapis.com", "push.services.mozilla.com",
               "notify.windows.com")
 DIGEST_LINES = 6
+WORKER_CATEGORIES = ("meeting_start", "meeting_end", "approval", "order")
 
 
 class Sender(Protocol):
@@ -63,8 +66,10 @@ def _iso(dt: datetime) -> str:
 
 class Notifier:
     def __init__(self, conn: sqlite3.Connection, repo: Any, sender: Sender | None,
-                 quiet: tuple[int, int] = (23, 7)) -> None:
+                 quiet: tuple[int, int] = (23, 7),
+                 categories: tuple[str, ...] | None = None) -> None:
         self.conn, self.repo, self.sender, self.quiet = conn, repo, sender, quiet
+        self.categories = categories   # which outbox rows this notifier sends (None: all)
 
     # ---------------------------------------------------------------- subscriptions
     def subscribe(self, endpoint: str, p256dh: str, auth: str, now: datetime) -> None:
@@ -165,8 +170,9 @@ class Notifier:
         """Send waiting rows (one summary when several). Returns how many rows were handled."""
         if self.is_quiet(now):
             return 0
-        rows = list(self.conn.execute(
-            "SELECT * FROM notifications WHERE sent_at IS NULL ORDER BY id"))
+        rows = [r for r in self.conn.execute(
+            "SELECT * FROM notifications WHERE sent_at IS NULL ORDER BY id")
+            if self.categories is None or r["category"] in self.categories]
         if not rows:
             return 0
         message = compose(current(rows))
@@ -251,7 +257,8 @@ def web_push_sender(private_key: str, subject: str) -> Sender:
     return send
 
 
-def build_notifier(settings: Any, conn: sqlite3.Connection, repo: Any) -> Notifier:
+def build_notifier(settings: Any, conn: sqlite3.Connection, repo: Any,
+                   categories: tuple[str, ...] | None = None) -> Notifier:
     sender: Sender | None = None
     if settings.vapid_public_key and settings.vapid_private_key:
         try:
@@ -259,7 +266,8 @@ def build_notifier(settings: Any, conn: sqlite3.Connection, repo: Any) -> Notifi
                                      settings.vapid_subject)
         except ImportError:
             log.warning("pywebpush missing (install the 'live' extra): notifications not sent")
-    return Notifier(conn, repo, sender, (settings.notify_quiet_start, settings.notify_quiet_end))
+    return Notifier(conn, repo, sender, (settings.notify_quiet_start, settings.notify_quiet_end),
+                    categories)
 
 
 def generate_keys() -> tuple[str, str]:

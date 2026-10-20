@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 from stock_office import __version__
 from stock_office.config import TRADINGAGENTS_COMMIT, TRADINGAGENTS_VERSION, Settings, get_settings
-from stock_office.db import transaction
+from stock_office.db import connect, transaction
 from stock_office.domain.instruments import (
     InvalidInstrumentIdError,
     UnknownInstrumentError,
@@ -34,6 +34,7 @@ from stock_office.domain.models import (
     MarketSnapshot,
 )
 from stock_office.events.sse import format_sse, resume_after
+from stock_office.health import Watchdog, start_watchdog
 from stock_office.inbox import DecisionError, Inbox, InboxItem
 from stock_office.kiwoom_mock.link import build_link
 from stock_office.logging_setup import install_log_redaction
@@ -229,6 +230,14 @@ def create_app(
 
     notifier = build_notifier(settings, inbox.conn, service.repo)
     mock_link = build_link(settings)
+    # System alerts run here, not in the worker, so a stopped worker is still reported.
+    watchdog = None
+    if settings.schedule_enabled:
+        dog_conn = connect(settings.data_dir)
+        watchdog = Watchdog(dog_conn, service.repo,
+                            build_notifier(settings, dog_conn, service.repo, ("system",)),
+                            started=service.clock(), kiwoom=any(mock_link.configured.values()))
+        start_watchdog(watchdog, service.clock)
 
     @app.get("/api/v1/kiwoom-mock/activity")
     def kiwoom_mock_activity(market: str | None = None) -> list[dict[str, object]]:
@@ -285,7 +294,10 @@ def create_app(
                 "quiet": f"{settings.notify_quiet_start:02d}:00–{settings.notify_quiet_end:02d}:00",
                 "categories": ["회의 시작 (정기 회의, 예산 한도로 못 열면 그 사실)",
                                "회의 끝 (결론 또는 실패)", "결재 요청 (회의 끝 알림 대신)",
-                               "주문 (키움 모의: 주문 접수·체결·청산·미체결·거절)"]}
+                               "주문 (키움 모의: 주문 접수·체결·청산·미체결·거절)",
+                               "시스템 이상 (작업 서버 멈춤, 회의 30분 초과, 리서치 안 열림, "
+                               "계좌 평가액 기록 안 됨)"],
+                "watchdog": watchdog is not None}
 
     @app.post("/api/v1/notify/subscribe")
     def notify_subscribe(body: PushSubscriptionBody) -> dict[str, object]:

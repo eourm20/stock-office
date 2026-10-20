@@ -22,8 +22,9 @@ from stock_office.config import Settings, get_settings
 from stock_office.db import connect
 from stock_office.domain.models import AnalysisRun, CreateRunRequest
 from stock_office.engine.adapter import EngineNotConfiguredError
+from stock_office.health import beat
 from stock_office.logging_setup import install_log_redaction
-from stock_office.notify import Notifier, build_notifier
+from stock_office.notify import WORKER_CATEGORIES, Notifier, build_notifier
 from stock_office.runs.service import BudgetExceededError, RunService
 from stock_office.schedule import DEFAULT_RULES, ScheduleRule, due_slots, next_slots
 from stock_office.wiring import build_service, build_settler
@@ -183,9 +184,14 @@ def desk_loop(settings: Settings, clock: Callable[[], datetime], every_s: float 
     each closed session's account value. Meetings never wait for it, nor it for them."""
     from stock_office.kiwoom_mock.desks import build_desks
 
-    desks = build_desks(settings, connect(settings.data_dir))
+    conn = connect(settings.data_dir)
+    desks = build_desks(settings, conn)
     while True:
         now = clock()
+        try:
+            beat(conn, now)   # the API's watchdog alerts the CEO when this stops
+        except Exception:
+            log.exception("heartbeat failed")
         desks.tick(now)
         desks.record_nav(now)
         time.sleep(every_s)
@@ -195,7 +201,7 @@ def notify_loop(settings: Settings, repo: object, clock: Callable[[], datetime],
                 every_s: float = 20.0) -> None:
     """Phone notifications on their own thread and connection: a meeting runs for minutes inside
     the main loop, and "meeting started" must not wait for it to end."""
-    notifier = build_notifier(settings, connect(settings.data_dir), repo)
+    notifier = build_notifier(settings, connect(settings.data_dir), repo, WORKER_CATEGORIES)
     while True:
         notifier.tick(clock())
         time.sleep(every_s)

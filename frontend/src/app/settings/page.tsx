@@ -173,7 +173,7 @@ function NotifyCard() {
   };
   const ready = status?.enabled && status.public_key;
   return (
-    <Card title="휴대폰 알림 (공통)" sub="회의 시작·끝, 결재 요청, 키움 모의 주문(접수·체결·청산·미체결·거절)만 보냅니다.">
+    <Card title="휴대폰 알림 (공통)" sub="회의 시작·끝, 결재 요청, 키움 모의 주문(접수·체결·청산·미체결·거절), 시스템 이상만 보냅니다.">
       {status && (
         <ul className="mb-3 space-y-0.5 text-sm">
           {status.categories.map((c) => <li key={c}>· {c}</li>)}
