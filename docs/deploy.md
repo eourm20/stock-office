@@ -97,6 +97,10 @@ ARM instance (up to 4 OCPU / 24 GB, free tier).
    `/api/v1/office/summary`, `/api/v1/budget`, manifest. Budget and run history identical to the old server.
 
 ## Deploy log
+- 2026-10-20 22:47 KST — research window fix and interrupted-run recovery (no migration). On start the worker closed
+  the ADP meeting cut off by the restart as FAILED/INTERRUPTED. With the owner's approval the premature 10/21 US
+  research was deleted (research_runs 2, inbox item 16, office_events 2; no backup, owner's call) so it reruns at
+  06:30 KST. Inbox and office desk APIs 200. Avoid deploying 06:30–08:00 KST (morning research and meetings).
 - 2026-10-20 13:20 KST — step D (paper book) and the office boardroom. `office.db` backed up first with SQLite's
   backup API (`office.db.bak-20261020-v1`); migrations 2 and 3 applied on start (`user_version` 3); health, portfolio,
   settings and office APIs, pages `/`, `/portfolio`, `/office`, `/settings` → 200; three services active.
