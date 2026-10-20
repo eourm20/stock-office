@@ -90,9 +90,18 @@ export default function InboxDocument() {
             )}
           </header>
 
+          {p && a && !a.blocked && <BuySummary p={p} a={a} acct={acct} expires={item.expires_at} />}
+          {sp && (
+            <section className="border-b border-[#d8d2c2] bg-[#fbf9f3] p-4">
+              <div className="text-[11px] font-semibold text-[#6b6455]">핵심 요약 · 매도</div>
+              <div className="mt-1 text-lg font-bold">전량 매도 {shares(sp.qty)}</div>
+              <div className="text-sm text-[#6b6455]">평가 {money(sp.value_krw, sp.account_currency ?? "KRW")} · 평균 매수가 {money(sp.avg_price, sp.currency)} · {sp.venue === "kiwoom_mock" ? "장중 키움 모의 매도" : "다음 장 시가"}</div>
+            </section>
+          )}
+
           <section className="space-y-3 p-4">
             {(item.summary || briefing?.headline) && (
-              <p className="text-[15px] font-semibold leading-snug">{humanizeTickers(briefing?.headline || item.summary)}</p>
+              <p className="border-l-4 border-[#c9bfa6] pl-3 text-[15px] font-semibold leading-snug">{humanizeTickers(briefing?.headline || item.summary)}</p>
             )}
             {item.payload.note && <p className="rounded bg-[#ece7da] p-2 text-sm">{item.payload.note}</p>}
             {item.payload.review_reasons && item.payload.review_reasons.length > 0 && (
@@ -102,67 +111,55 @@ export default function InboxDocument() {
               </div>
             )}
             {briefing && (
-              <div className="grid gap-3 sm:grid-cols-3">
-                <Points title="이유" items={briefing.key_reasons} tone="text-[#2f6b3d]" />
-                <Points title="위험" items={briefing.risks} tone="text-[#9b2f3a]" />
-                <Points title="확인할 것" items={briefing.watch_next} tone="text-[#2b5c8a]" />
-              </div>
+              <>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Points title="이유" items={briefing.key_reasons} tone="text-[#2f6b3d]" />
+                  <Points title="위험" items={briefing.risks} tone="text-[#9b2f3a]" />
+                </div>
+                {briefing.watch_next.length > 0 && (
+                  <Fold title={`확인할 것 ${briefing.watch_next.length}`}>
+                    <ul className="space-y-1 text-[13px] leading-snug">{briefing.watch_next.map((x) => <li key={x}>· {humanizeTickers(x)}</li>)}</ul>
+                  </Fold>
+                )}
+              </>
             )}
           </section>
 
           {p && a && (
-            <section className="border-t border-[#d8d2c2] p-4">
-              <h2 className="mb-2 text-sm font-bold">매매 조건 <span className="font-normal text-[#6b6455]">(모의투자 · 매수)</span></h2>
-              <table className="w-full text-sm">
-                <tbody className="[&_td]:py-1.5 [&_tr]:border-b [&_tr]:border-[#e4dfd1]">
-                  <Row label="진입 (지정가)" value={money(p.limit, p.currency)} source={p.sources.limit} />
-                  <Row label="목표가" value={money(p.target, p.currency)} source={p.sources.target}
-                       note={`+${(((Number(p.target) / Number(p.limit)) - 1) * 100).toFixed(1)}%`} />
-                  <Row label="손절가" value={money(p.stop, p.currency)} source={p.sources.stop}
-                       note={`−${(Number(p.stop_distance) * 100).toFixed(1)}%`} />
-                  {a.blocked ? (
-                    <Row label="수량·금액" value="매수 불가" note={a.blocked} />
-                  ) : (
-                    <>
-                      <Row label="수량" value={shares(a.qty)} note={Number.isInteger(Number(a.qty)) ? undefined : "소수점 수량"} />
-                      <Row label="금액" value={money(a.notional_krw, acct)}
-                           note={p.currency === "USD" && acct === "KRW" ? `${money(a.notional, "USD")} · 환율 ${Number(p.fx_krw_per_unit).toLocaleString("ko-KR")}원` : undefined} />
-                      <Row label="손절 시 최대 손실" value={money(a.max_loss_krw, acct)} />
-                    </>
-                  )}
-                  <Row label="유효기간" value={item.expires_at ? kstDateTime(item.expires_at) + "까지" : "—"} />
-                </tbody>
-              </table>
-              <p className="mt-1 text-[11px] text-[#6b6455]">기준가 {money(p.ref_price, p.currency)} ({kstDateTime(p.ref_at)}, 회의에 쓰인 시세)
-                {p.rating ? ` · AI 등급 ${RATING_KO[p.rating] ?? p.rating}` : ""}{p.horizon ? ` · 기간 ${p.horizon}` : ""}</p>
-
-              <h3 className="mb-1 mt-4 text-sm font-bold">자산운용 담당 · 비중 근거 <span className="font-normal text-[#6b6455]">({p.policy_version})</span></h3>
-              <ul className="space-y-1 text-[13px]">
-                {a.lines.map(([label, value]) => (
-                  <li key={label} className={`flex justify-between gap-2 rounded px-2 py-1 ${label === a.binding ? "bg-[#fff3c4] font-semibold" : ""}`}>
-                    <span>{label}{label === a.binding ? " ← 적용" : ""}</span><span>{money(value, acct)} 이하</span>
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-1 text-[11px] text-[#6b6455]">AI 제시 비중: {p.sizing_text ?? "없음"} → 배수 {p.multiplier} ({p.multiplier_source === "ai" ? "AI 제시" : "규정 기본값"}). {p.account_basis}</p>
-            </section>
-          )}
-
-          {sp && (
-            <section className="border-t border-[#d8d2c2] p-4">
-              <h2 className="mb-2 text-sm font-bold">매도 조건 <span className="font-normal text-[#6b6455]">(모의투자 · 보유분 전량)</span></h2>
-              <table className="w-full text-sm">
-                <tbody className="[&_td]:py-1.5 [&_tr]:border-b [&_tr]:border-[#e4dfd1]">
-                  <Row label="수량" value={shares(sp.qty)} />
-                  <Row label="평균 매수가" value={money(sp.avg_price, sp.currency)} />
-                  <Row label="최근 종가" value={money(sp.last_price, sp.currency)} note={`${sp.marked_session} 기준`} />
-                  <Row label="평가 금액" value={money(sp.value_krw, sp.account_currency ?? "KRW")} />
-                  {sp.cost_krw !== null && sp.cost_krw !== undefined && (
-                    <Row label="평가 손익" value={signedWon(Number(sp.value_krw) - Number(sp.cost_krw))} note="비용 포함 매수 금액 대비" />
-                  )}
-                  <Row label="처리 방식" value={sp.venue === "kiwoom_mock" ? "장중 키움 모의 매도" : "다음 장 시가"} note={sp.execution} />
-                </tbody>
-              </table>
+            <section className="space-y-2 border-t border-[#d8d2c2] p-4">
+              {a.blocked && <p className="rounded bg-[#ece7da] p-2 text-sm"><b>매수 불가</b> · {a.blocked}</p>}
+              <Fold title="매매 조건 상세" hint={`${p.rating ? `${RATING_KO[p.rating] ?? p.rating} · ` : ""}AI 제시와 규정 기본값 구분`}>
+                <table className="w-full text-sm">
+                  <tbody className="[&_td]:py-1.5 [&_tr]:border-b [&_tr]:border-[#e4dfd1]">
+                    <Row label="진입 (지정가)" value={money(p.limit, p.currency)} source={p.sources.limit} />
+                    <Row label="목표가" value={money(p.target, p.currency)} source={p.sources.target}
+                         note={`+${(((Number(p.target) / Number(p.limit)) - 1) * 100).toFixed(1)}%`} />
+                    <Row label="손절가" value={money(p.stop, p.currency)} source={p.sources.stop}
+                         note={`−${(Number(p.stop_distance) * 100).toFixed(1)}%`} />
+                    {!a.blocked && (
+                      <>
+                        <Row label="수량" value={shares(a.qty)} note={Number.isInteger(Number(a.qty)) ? undefined : "소수점 수량"} />
+                        <Row label="금액" value={money(a.notional_krw, acct)}
+                             note={p.currency === "USD" && acct === "KRW" ? `${money(a.notional, "USD")} · 환율 ${Number(p.fx_krw_per_unit).toLocaleString("ko-KR")}원` : undefined} />
+                        <Row label="최대 손실" value={money(a.max_loss_krw, acct)} note="손절 시" />
+                      </>
+                    )}
+                    <Row label="유효기간" value={item.expires_at ? kstDateTime(item.expires_at) + "까지" : "—"} />
+                  </tbody>
+                </table>
+                <p className="mt-1 text-[11px] text-[#6b6455]">기준가 {money(p.ref_price, p.currency)} ({kstDateTime(p.ref_at)}, 회의에 쓰인 시세)
+                  {p.horizon ? ` · 기간 ${p.horizon}` : ""}</p>
+              </Fold>
+              <Fold title="비중 계산" hint={`${a.binding} 적용 · ${p.policy_version}`}>
+                <ul className="space-y-1 text-[13px]">
+                  {a.lines.map(([label, value]) => (
+                    <li key={label} className={`flex justify-between gap-2 rounded px-2 py-1 ${label === a.binding ? "bg-[#fff3c4] font-semibold" : ""}`}>
+                      <span>{label}{label === a.binding ? " ← 적용" : ""}</span><span className="whitespace-nowrap">{money(value, acct)} 이하</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1 text-[11px] text-[#6b6455]">AI 제시 비중: {p.sizing_text ?? "없음"} → 배수 {p.multiplier} ({p.multiplier_source === "ai" ? "AI 제시" : "규정 기본값"}). {p.account_basis}</p>
+              </Fold>
             </section>
           )}
 
@@ -206,8 +203,9 @@ export default function InboxDocument() {
 
           {item.payload.risk_flags && item.payload.risk_flags.length > 0 && (
             <section className="border-t border-[#d8d2c2] p-4 text-[13px]">
-              <h2 className="mb-1 text-sm font-bold">데이터 주의</h2>
-              <ul className="list-disc pl-5 text-[#6b6455]">{item.payload.risk_flags.map((f) => <li key={f}>{FLAG_KO[f] ?? f}</li>)}</ul>
+              <Fold title={`데이터 주의 ${item.payload.risk_flags.length}`}>
+                <ul className="list-disc pl-5 text-[#6b6455]">{item.payload.risk_flags.map((f) => <li key={f}>{FLAG_KO[f] ?? f}</li>)}</ul>
+              </Fold>
             </section>
           )}
 
@@ -300,10 +298,58 @@ function Points({ title, items, tone }: { title: string; items: string[]; tone: 
   );
 }
 
+/** The decision in a glance: what, how much, upside, downside, worst case, deadline. */
+function BuySummary({ p, a, acct, expires }: { p: NonNullable<ReturnType<typeof buyPlan>>; a: NonNullable<ReturnType<typeof buyPlan>>["allocation"];
+                                               acct: "KRW" | "USD"; expires: string | null }) {
+  const up = ((Number(p.target) / Number(p.limit)) - 1) * 100;
+  const down = Number(p.stop_distance) * 100;
+  return (
+    <section className="border-b border-[#d8d2c2] bg-[#fbf9f3] p-4">
+      <div className="text-[11px] font-semibold text-[#6b6455]">핵심 요약 · 매수</div>
+      <div className="mt-1 flex flex-wrap items-baseline gap-x-2">
+        <span className="text-lg font-bold">{shares(a.qty)} × {money(p.limit, p.currency)}</span>
+        <span className="text-sm text-[#6b6455]">지정가 · 총 {money(a.notional_krw, acct)}</span>
+      </div>
+      <dl className="mt-2 grid grid-cols-3 gap-2 text-center">
+        <Tile label="목표가" value={money(p.target, p.currency)} sub={`+${up.toFixed(1)}%`} tone="text-[#2f6b3d]" />
+        <Tile label="손절가" value={money(p.stop, p.currency)} sub={`−${down.toFixed(1)}%`} tone="text-[#9b2f3a]" />
+        <Tile label="최대 손실" value={money(a.max_loss_krw, acct)} sub="손절 시" tone="text-[#9b2f3a]" />
+      </dl>
+      <p className="mt-2 text-[12px] text-[#6b6455]">
+        {p.rating ? `AI 등급 ${RATING_KO[p.rating] ?? p.rating}` : ""}{p.horizon ? ` · 기간 ${p.horizon}` : ""}{expires ? ` · ${kstDateTime(expires)}까지 유효` : ""}
+      </p>
+    </section>
+  );
+}
+
+function Tile({ label, value, sub, tone }: { label: string; value: string; sub: string; tone: string }) {
+  return (
+    <div className="rounded-lg bg-[#efe9da] px-1 py-1.5">
+      <dt className="text-[10px] text-[#6b6455]">{label}</dt>
+      <dd className="text-[13px] font-bold leading-tight">{value}</dd>
+      <dd className={`text-[11px] font-semibold ${tone}`}>{sub}</dd>
+    </div>
+  );
+}
+
+/** A folded section: the title (and a one-line hint) shows; the details open on tap. */
+function Fold({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <details className="group rounded-lg border border-[#e1dac9] bg-[#faf7ef] px-3 py-2">
+      <summary className="flex cursor-pointer list-none items-baseline justify-between gap-2">
+        <span className="shrink-0 whitespace-nowrap text-sm font-bold">{title}</span>
+        <span className="min-w-0 flex-1 truncate text-right text-[11px] text-[#6b6455]">{hint}</span>
+        <span aria-hidden="true" className="text-[#6b6455] transition-transform group-open:rotate-90">›</span>
+      </summary>
+      <div className="mt-2">{children}</div>
+    </details>
+  );
+}
+
 function Row({ label, value, source, note }: { label: string; value: string; source?: "ai" | "policy"; note?: string }) {
   return (
     <tr>
-      <td className="w-24 text-[#6b6455] sm:w-36">{label}</td>
+      <td className="whitespace-nowrap pr-3 text-[#6b6455]">{label}</td>
       <td className="font-semibold">{value}{note && <span className="ml-1 text-xs font-normal text-[#6b6455]">{note}</span>}</td>
       <td className="whitespace-nowrap text-right">
         {source && <span className={`whitespace-nowrap rounded px-1 py-0.5 text-[10px] ${source === "ai" ? "bg-[#dde8f3] text-[#2b5c8a]" : "bg-[#efe6cf] text-[#7a5a17]"}`}>

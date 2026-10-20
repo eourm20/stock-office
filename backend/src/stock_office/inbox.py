@@ -169,7 +169,9 @@ class Inbox:
         }
         plan_body: dict[str, Any] | None = None
         kind, status, expires = "daily", "INFO", None
-        title = f"[일일 보고] {name} {ACTION_KO.get(decision.action.value, decision.action.value)}"
+        # A meeting's result: what the committee concluded, and plainly whether anything happens.
+        title = (f"[회의 결과] {name} · "
+                 f"{ACTION_KO.get(decision.action.value, decision.action.value)} 의견")
         kiwoom = self._kiwoom(inst.market, run.demo)
         position = None
         if kiwoom:
@@ -215,8 +217,10 @@ class Inbox:
             title = f"[결재] {name} 전량 매도 {format_qty(position['qty'])}주"
         elif decision.action is DecisionAction.SELL:
             payload["note"] = (
-                "보유 종목이 없어 참고 보고로 올렸습니다 (모의 계좌는 매수만, 보유분만 매도)."
+                "리서치팀이 고른 회의 종목이지만 보유하지 않아 매도할 것이 없습니다. 회의 결과만 "
+                "보고합니다 (공매도는 하지 않음)."
             )
+            title += " · 미보유라 주문 없음"
         if decision.action is DecisionAction.BUY:
             plan_body, reasons = self._buy_plan(run, inst.market, decision.engine_rating, kiwoom)
             if plan_body is not None:

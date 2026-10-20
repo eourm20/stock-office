@@ -67,7 +67,7 @@ def test_hold_meeting_files_a_daily_report_only(make_client: Callable[..., TestC
     items = client.get("/api/v1/inbox").json()
     assert [i["kind"] for i in items] == ["daily", "daily"]
     assert items[0]["status"] == "INFO" and items[0]["plan"] is None
-    assert items[0]["title"] == "[일일 보고] 삼성전자 보유"
+    assert items[0]["title"] == "[회의 결과] 삼성전자 · 보유 의견"
     assert client.post(f"/api/v1/inbox/{items[0]['id']}/decision",
                        json={"action": "approve", "client_request_id": "x"}).status_code == 409
     assert client.post(f"/api/v1/inbox/{items[0]['id']}/read").json() == {"ok": True}

@@ -87,10 +87,10 @@ def test_meeting_start_end_and_approval_only(tmp_path: Path) -> None:
         run("old", started=-90, done=-60),           # before notifications started
     ]
     repo.decisions = {"hold": "HOLD", "manual": "HOLD", "late": "BUY"}
-    doc(n, "hold", "daily", "[일일 보고] 삼성전자 보유")
+    doc(n, "hold", "daily", "[회의 결과] 삼성전자 · 보유 의견")
     doc(n, "buy", "approval", "[결재] 삼성전자 매수 9주", "APPROVED")
     doc(n, "late", "approval", "[결재] 삼성전자 매수 1주", "EXPIRED")
-    doc(n, "manual", "daily", "[일일 보고] 삼성전자 보유 2")
+    doc(n, "manual", "daily", "[회의 결과] 삼성전자 · 보유 의견 2")
     n.collect(T0 + timedelta(minutes=5))
     n.collect(T0 + timedelta(minutes=6))  # idempotent
     assert [k for k, *_ in queued(n)] == [
