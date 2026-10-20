@@ -20,7 +20,7 @@ runs the company as its **CEO** from a phone-friendly web app with three tabs:
 ## Status (2026-10-20)
 | Area | State |
 |---|---|
-| Daily committee meetings on exchange calendars (NVDA, Samsung 005930), Korean reports, 2 debate rounds | ✅ running on the server |
+| Research team: KOSPI200 / NASDAQ-100 rule-based screener, 25-stock watchlist, 3 committee meetings per market a day (held first), Korean reports, 2 debate rounds | ✅ running since 2026-10-20 (fixed test meetings off) |
 | Data: Yahoo prices, OpenDART filings, Naver news headlines (KR), point-in-time guard, AI tool results stored | ✅ |
 | CEO inbox, approval documents, POLICY_V2 allocator (fractional US shares), expiry, one-page AI briefing | ✅ |
 | Office as CCTV, records of minutes, company settings, installable phone app (Tailscale only) | ✅ |
@@ -34,7 +34,7 @@ runs the company as its **CEO** from a phone-friendly web app with three tabs:
 | Intraday monitoring (C, also triggers K exits), research screener (B), investment policy statement | planned |
 | **Step E: one month of mock trading** on the Kiwoom mock accounts; criteria draft in [docs/evaluation-plan.md](docs/evaluation-plan.md) | criteria to confirm |
 
-Tests: backend 197 passed (unit/contract/e2e, no network) · frontend 49 passed. Reports per step are in
+Tests: backend 202 passed (unit/contract/e2e, no network) · frontend 49 passed. Reports per step are in
 [docs/](docs/); the current overview and remaining work are in [IMPLEMENTATION_PLAN.md §0](IMPLEMENTATION_PLAN.md).
 
 ## Tech stack
