@@ -94,10 +94,14 @@ class Desks:
                  clients: Callable[[str], KiwoomMockClient | None],
                  policy: Policy = POLICY_V3,
                  benchmark: Callable[[str, Any], Decimal | None] | None = None,
-                 filings: Callable[[str, Any], list[tuple[str, str]]] | None = None) -> None:
+                 filings: Callable[[str, Any], list[tuple[str, str]]] | None = None,
+                 us_filings: Callable[[str, Any], list[tuple[str, str, str]]] | None = None
+                 ) -> None:
         self.conn, self.clients, self.policy, self.benchmark = conn, clients, policy, benchmark
         # KR filings (DART): instrument → [(receipt no, title)] filed that KST day
         self.filings = filings
+        # US filings (SEC EDGAR): instrument → [(accession no, title, link)] of the last few days
+        self.us_filings = us_filings
         self._filings_at: dict[str, datetime] = {}
 
     # ================================================================ queue (no network)
@@ -531,8 +535,9 @@ class Desks:
     # ---------------------------------------------------------------- C: intraday reports
     def _alerts(self, market: str, client: KiwoomMockClient, acc: MockAccount,
                 now: datetime) -> None:
-        """Watched and held stocks: a report when the day's move crosses ±3/5/10%, and (국장)
-        when a new DART filing appears. Inbox reports only (`watch:` keys, not order alerts)."""
+        """Watched and held stocks: a report when the day's move crosses ±3/5/10%, and when a new
+        filing appears (국장 DART, 미장 SEC EDGAR). Inbox reports only (`watch:` keys, not order
+        alerts)."""
         row = self.conn.execute("SELECT focus FROM research_runs WHERE market=? ORDER BY id "
                                 "DESC LIMIT 1", (market,)).fetchone()
         watched = {f["instrument_id"] for f in json.loads(row["focus"])} if row else set()
@@ -566,7 +571,7 @@ class Desks:
                              f"현재가 {now_price}",
                              f"move:{instrument_id}:{day}:{'up' if move > 0 else 'down'}{step}",
                              now, prefix="watch")
-        if market != "KR" or self.filings is None:
+        if (self.filings if market == "KR" else self.us_filings) is None:
             return
         for instrument_id in sorted(watched | held):
             last = self._filings_at.get(instrument_id)
@@ -574,18 +579,27 @@ class Desks:
                 continue
             self._filings_at[instrument_id] = now
             try:
-                found = self.filings(instrument_id, day)
+                found = self._new_filings(market, instrument_id, day)
             except Exception as exc:
                 log.warning("filings %s: %s", instrument_id, exc)
                 continue
             ref = {"instrument_id": instrument_id, "id": None, "item_id": None}
             with transaction(self.conn):
-                for rcept_no, title in found:
+                for key, title, body, url in found:
                     self._notice(ref, "adhoc", f"[공시] {display_name(instrument_id)} · {title}",
-                                 f"DART 접수번호 {rcept_no} · dart.fss.or.kr에서 원문 확인",
-                                 f"dart:{rcept_no}", now,
-                                 {"url": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcept_no}"},
-                                 prefix="watch")
+                                 body, key, now, {"url": url}, prefix="watch")
+
+    def _new_filings(self, market: str, instrument_id: str, day: Any
+                     ) -> list[tuple[str, str, str, str]]:
+        """[(dedupe key, title, body, link)] from DART (국장) or SEC EDGAR (미장)."""
+        if market == "KR":
+            assert self.filings is not None
+            return [(f"dart:{no}", title, f"DART 접수번호 {no} · dart.fss.or.kr에서 원문 확인",
+                     f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={no}")
+                    for no, title in self.filings(instrument_id, day)]
+        assert self.us_filings is not None
+        return [(f"sec:{acc}", title, f"SEC EDGAR 접수번호 {acc} · sec.gov에서 원문 확인", url)
+                for acc, title, url in self.us_filings(instrument_id, day)]
 
     # ================================================================ evaluation (E)
     def record_nav(self, now: datetime) -> None:
@@ -649,4 +663,15 @@ def build_desks(settings: Any, conn: sqlite3.Connection) -> Desks:
         result = DartDisclosureProvider(api_key=key).fetch_range(inst(instrument_id), day, day)
         return [(str(s.payload["rcept_no"]), str(s.payload["report_nm"])) for s in result.snapshots]
 
-    return Desks(conn, clients, benchmark=benchmark, filings=filings)
+    sec = None
+    if settings.sec_user_agent:
+        from stock_office.providers.sec import SecFilings
+
+        sec = SecFilings(settings.sec_user_agent)
+
+    def us_filings(instrument_id: str, day: Any) -> list[tuple[str, str, str]]:
+        assert sec is not None
+        return sec.recent(_code(instrument_id)[0], day)
+
+    return Desks(conn, clients, benchmark=benchmark, filings=filings,
+                 us_filings=us_filings if sec else None)

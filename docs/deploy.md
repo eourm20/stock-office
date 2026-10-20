@@ -97,6 +97,9 @@ ARM instance (up to 4 OCPU / 24 GB, free tier).
    `/api/v1/office/summary`, `/api/v1/budget`, manifest. Budget and run history identical to the old server.
 
 ## Deploy log
+- 2026-10-20 23:3x KST — system alerts (migration 9, backup `office.db.bak-20261020-v8`): `notify/status` reports
+  `watchdog: true`, worker heartbeat written, no false alerts. Then US SEC filing reports and the IPS doc (no
+  migration); SEC reports stay off until the owner adds `STOCK_OFFICE_SEC_USER_AGENT` to the server `.env`.
 - 2026-10-20 22:47 KST — research window fix and interrupted-run recovery (no migration). On start the worker closed
   the ADP meeting cut off by the restart as FAILED/INTERRUPTED. With the owner's approval the premature 10/21 US
   research was deleted (research_runs 2, inbox item 16, office_events 2; no backup, owner's call) so it reruns at

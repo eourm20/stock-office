@@ -332,6 +332,24 @@ def test_sharp_moves_and_new_filings_are_reported_once(tmp_path: Path) -> None:
     assert all(k.startswith("watch:") for k in keys)  # reports, not order notifications
 
 
+def test_us_filings_from_sec_are_reported_once(tmp_path: Path) -> None:
+    def us_filings(instrument_id: str, day: Any) -> list[tuple[str, str, str]]:
+        return [("0001045810-26-000101", "8-K 수시 공시 · 실적 발표",
+                 "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000101/x.htm")]
+
+    desks, _ = setup(tmp_path, "US")
+    desks.us_filings = us_filings
+    with transaction(desks.conn):
+        desks.conn.execute(
+            "INSERT INTO research_runs (market, session, rules_version, universe, screened, "
+            "liquid, candidates, watchlist, focus, created_at) VALUES ('US', '2026-10-20', "
+            "'SCREEN_V1', 'NASDAQ100', 1, 1, '[]', ?, ?, 'x')",
+            (json.dumps([US]), json.dumps([{"instrument_id": US, "why": "test"}])))
+    desks.tick(US_OPEN)
+    desks.tick(US_OPEN + timedelta(minutes=12))
+    assert titles(desks) == ["[공시] 엔비디아 · 8-K 수시 공시 · 실적 발표"]
+
+
 def test_an_add_on_buy_joins_the_position_and_the_stop_sells_it_all(tmp_path: Path) -> None:
     desks, fake = setup(tmp_path)
     approve(desks)                                              # first tranche: 19 @ 50,000

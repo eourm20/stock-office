@@ -79,6 +79,8 @@ class Settings(BaseSettings):
     kiwoom_mock_us_app_secret: SecretStr | None = None
 
     dart_api_key: SecretStr | None = None
+    # SEC EDGAR (미장 공시 보고), keyless; SEC asks for "operator name contact@address" here.
+    sec_user_agent: str | None = None
     # Official Naver Search API (Korean press headlines), read-only.
     naver_client_id: SecretStr | None = None
     naver_client_secret: SecretStr | None = None
