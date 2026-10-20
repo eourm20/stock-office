@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getPortfolio, getPortfolioActivity, type Holding, type PaperOrder, type Portfolio } from "../../lib/api";
 import { FILL_RULE_KO, kstDateTime, money, ORDER_STATUS_KO, pnlTone, ROLE_KO, shares, signedPct, signedWon } from "../../inbox/model";
+import KiwoomMockPanel from "../KiwoomMockPanel";
 import NavBar from "../NavBar";
 
 const MARKET_KO: Record<string, string> = { KR: "국내", US: "미국" };
@@ -84,6 +85,10 @@ export default function PortfolioPage() {
             {activity === null ? <Empty text="불러오는 중…" /> : history.length === 0 ? <Empty text="아직 기록이 없습니다." /> : (
               <ul className="divide-y divide-[var(--line)] text-sm">{history.map((o) => <ActivityRow key={o.id} o={o} />)}</ul>
             )}
+          </Card>
+
+          <Card title="키움 모의투자 계좌" sub="곧 위 내부 모의 장부를 대신할 키움 모의 계좌입니다(전환 전, 조회만).">
+            <KiwoomMockPanel />
           </Card>
 
           <Card title="비용 가정" sub="모의 체결에 적용하는 가정값입니다. 실제 증권사 수수료와 다를 수 있습니다.">

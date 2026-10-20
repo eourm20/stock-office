@@ -6,6 +6,7 @@ import { kstDateTime } from "../../inbox/model";
 import { INSTRUMENT_KO } from "../../office/auto";
 import { disablePush, enablePush, getNotifyStatus, pushState, sendTestPush, type NotifyStatus,
          type PushState } from "../../lib/push";
+import KiwoomMockPanel from "../KiwoomMockPanel";
 import NavBar from "../NavBar";
 
 /** ⚙ 회사 운영: budget, paper-trading switch, watched stocks, the asset-allocation policy. */
@@ -76,6 +77,10 @@ export default function SettingsPage() {
               </ul>
             </>
           ) : <p className="text-sm text-[var(--muted)]">불러오는 중…</p>}
+        </Card>
+
+        <Card title="키움 모의투자 연결" sub="회사가 쓸 키움 모의투자 계좌(국내·해외). 지금은 조회만 합니다. 다음 단계에서 승인된 결재안을 이 계좌로 모의 주문합니다.">
+          <KiwoomMockPanel />
         </Card>
 
         <NotifyCard />

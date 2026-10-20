@@ -333,6 +333,33 @@ export const getPortfolio = () => getJson<Portfolio>("/api/v1/portfolio");
 export const getPortfolioActivity = () => getJson<PaperOrder[]>("/api/v1/portfolio/activity");
 export const getCompanySettings = () => getJson<CompanySettings>("/api/v1/company/settings");
 
+/** One Kiwoom 모의투자 account, read-only (step K1). Amounts in the account currency. */
+export interface MockAccount {
+  market: "KR" | "US";
+  currency: "KRW" | "USD";
+  ok: boolean;
+  error: string | null;
+  cash: string | null;
+  orderable: string | null;
+  total_value: string | null;
+  holdings: { code: string; name: string; qty: string | null; avg_price: string | null; price: string | null;
+              value: string | null; pnl: string | null; pnl_pct: string | null }[];
+  fills_today: number | null;
+  checked_at: string;
+  notes: string[];
+}
+
+export interface KiwoomMockStatus {
+  server: string;
+  mode: "MOCK";
+  read_only: boolean;
+  configured: { KR: boolean; US: boolean };
+  accounts: { KR: MockAccount | null; US: MockAccount | null };
+}
+
+export const getKiwoomMock = (refresh = false) =>
+  getJson<KiwoomMockStatus>(`/api/v1/kiwoom-mock${refresh ? "?refresh=true" : ""}`);
+
 /** Paper-trading switch: approve every request as it is filed. Local setting only. */
 export async function setAutoApprove(enabled: boolean): Promise<boolean> {
   const resp = await fetch(`${API_BASE}/api/v1/company/auto-approve`, {
