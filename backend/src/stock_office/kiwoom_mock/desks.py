@@ -220,11 +220,18 @@ class Desks:
                 prefix: str = "km") -> None:
         payload = {"name": display_name(row["instrument_id"]), "venue": "kiwoom_mock",
                    "order_id": row["id"], "item_id": row["item_id"], **(extra or {})}
-        self.conn.execute(
+        cur = self.conn.execute(
             "INSERT OR IGNORE INTO inbox_items (kind, run_id, instrument_id, title, summary, "
             "payload, status, dedupe_key, created_at) VALUES (?,?,?,?,?,?, 'INFO', ?, ?)",
             (kind, None, row["instrument_id"], title, summary,
              json.dumps(payload, ensure_ascii=False), f"{prefix}:{key}", iso(now)))
+        if cur.rowcount:   # the office shows what the desk did (once per report)
+            label = title.split("]")[0].lstrip("[")
+            self.conn.execute(
+                "INSERT INTO office_events (market, desk, kind, title, detail, created_at) "
+                "VALUES (?, 'trading', ?, ?, ?, ?)",
+                (get_instrument(row["instrument_id"]).market.value, label, title, summary[:300],
+                 iso(now)))
 
     def _expire_waiting(self, market: str, now: datetime) -> None:
         with transaction(self.conn):

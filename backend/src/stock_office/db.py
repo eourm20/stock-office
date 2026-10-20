@@ -236,6 +236,19 @@ MIGRATIONS: list[str] = [
         UNIQUE (market, session)
     )
     """,
+    # 8: what the operating desks did (research team, Kiwoom mock desks) for the office screen
+    """
+    CREATE TABLE office_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        market TEXT NOT NULL CHECK (market IN ('KR', 'US')),
+        desk TEXT NOT NULL CHECK (desk IN ('research', 'trading')),
+        kind TEXT NOT NULL,
+        title TEXT NOT NULL,
+        detail TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL
+    );
+    CREATE INDEX office_events_at ON office_events (created_at)
+    """,
 ]
 
 

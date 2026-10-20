@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import { API_BASE, getOfficeNow, type OfficeNow } from "../../lib/api";
+import { API_BASE, getDeskEvents, getOfficeNow, type DeskEvent, type OfficeNow } from "../../lib/api";
 import { kstDateTime, nextWorkLabel } from "../../inbox/model";
 import { MARKET_KO, marketOf } from "../../lib/market";
 import { DEPARTMENTS, departmentStatus } from "../../office/departments";
@@ -71,10 +71,12 @@ export default function OfficePage() {
     for (const t of EVENT_TYPES) es.addEventListener(t, onEvent as EventListener);
   }, []);
 
+  const [desks, setDesks] = useState<DeskEvent[]>([]);
   const refresh = useCallback(async () => {
     try {
       const n = await getOfficeNow();
       setNow(n);
+      getDeskEvents().then(setDesks).catch(() => {});
       setError(null);
       if (n.active) {
         const m = marketOf(n.active.instrument_id);
@@ -148,6 +150,27 @@ export default function OfficePage() {
         })}
       </section>
 
+      {/* Operating desks: the research team and the Kiwoom mock desks, from their stored events. */}
+      <section aria-label="운영 데스크" className="grid grid-cols-2 gap-2 border-b border-[var(--line)] bg-[#0d1426] px-2 pb-2">
+        {(["KR", "US"] as const).map((m) => {
+          const research = desks.find((e) => e.market === m && e.desk === "research");
+          const trading = desks.find((e) => e.market === m && e.desk === "trading");
+          const busy = research?.kind === "started";
+          return (
+            <div key={m} className="rounded-lg border border-[var(--line)] bg-[var(--panel)] p-2 text-[11px]">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-[var(--ink)]">{MARKET_KO[m]} 데스크</span>
+                <span className={busy ? "text-sky-300" : "text-[var(--muted)]"}>{busy ? "● 종목 선정 중" : "리서치·주문"}</span>
+              </div>
+              <div className="mt-1 truncate text-[12px] text-sky-100">{research ? research.title : "리서치 기록 없음"}</div>
+              <div className="truncate text-[10px] text-[var(--muted)]">{research ? `${deskTime(research.created_at)} · ${research.detail}` : ""}</div>
+              <div className="mt-1 truncate text-[12px]">{trading ? trading.title : "주문 기록 없음"}</div>
+              <div className="truncate text-[10px] text-[var(--muted)]">{trading ? deskTime(trading.created_at) : ""}</div>
+            </div>
+          );
+        })}
+      </section>
+
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         <section className="relative h-[50vh] min-w-0 md:h-auto md:flex-1" aria-label="사무실 CCTV">
           <OfficeCanvas state={state} animate={animate} speed={1} reducedMotion={reducedMotion}
@@ -203,7 +226,18 @@ export default function OfficePage() {
           )}
           <div className="min-h-0 flex-1 rounded-lg border border-[var(--line)] bg-[var(--panel)] p-3">
             <h2 className="mb-1 text-xs text-[var(--muted)]">활동 기록 {live ? "· 실시간" : ""}</h2>
-            {state.feed.length === 0 ? <p className="text-xs text-[var(--muted)]">{idleText}</p> : (
+            {state.feed.length === 0 ? (
+              desks.length === 0 ? <p className="text-xs text-[var(--muted)]">{idleText}</p> : (
+                <ol className="space-y-1 text-xs">
+                  <li className="pb-1 text-[var(--muted)]">{idleText}</li>
+                  {desks.slice(0, 20).map((e) => (
+                    <li key={e.id} className="border-b border-[var(--line)]/50 pb-1">
+                      <span className="text-[var(--muted)]">{deskTime(e.created_at)}</span> [{MARKET_KO[e.market]}·{e.desk === "research" ? "리서치" : "주문"}] {e.title}
+                    </li>
+                  ))}
+                </ol>
+              )
+            ) : (
               <ol aria-live="polite" className="space-y-1 text-xs">
                 {state.feed.slice().reverse().map((f) => (
                   <li key={f.seq} className="border-b border-[var(--line)]/50 pb-1">
@@ -217,4 +251,10 @@ export default function OfficePage() {
       </div>
     </main>
   );
+}
+
+/** "10. 21. 06:31" in Korea time, for desk events. */
+function deskTime(iso: string): string {
+  return new Date(iso).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric",
+                                                 hour: "2-digit", minute: "2-digit", hour12: false });
 }

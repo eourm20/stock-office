@@ -417,6 +417,19 @@ export interface ResearchRun {
   names: Record<string, string>;
 }
 
+/** What the research team or a Kiwoom mock desk did (stored when it happened). */
+export interface DeskEvent {
+  id: number;
+  market: "KR" | "US";
+  desk: "research" | "trading";
+  kind: string;
+  title: string;
+  detail: string;
+  created_at: string;
+}
+
+export const getDeskEvents = () => getJson<DeskEvent[]>("/api/v1/office/desks?limit=40");
+
 export const getResearch = (market: "KR" | "US") => getJson<ResearchRun | null>(`/api/v1/research?market=${market}`);
 
 export const getMockActivity = (market: "KR" | "US") => getJson<MockOrder[]>(`/api/v1/kiwoom-mock/activity?market=${market}`);

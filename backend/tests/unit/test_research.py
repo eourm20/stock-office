@@ -74,3 +74,7 @@ def test_one_research_per_market_and_session_with_an_inbox_report(tmp_path: Path
         "SELECT title, payload FROM inbox_items WHERE kind='research'").fetchone()
     assert title == "[리서치] 미장 2026-10-20 · 오늘 회의 2건: 엔비디아, 애플"
     assert json.loads(payload)["rules"] == "SCREEN_V1"
+    events = [(r[0], r[1]) for r in conn.execute(
+        "SELECT kind, title FROM office_events WHERE desk='research' ORDER BY id")]
+    assert events == [("started", "미장 리서치 시작"),
+                      ("completed", "미장 리서치 완료 · 오늘 회의 2건")]   # once

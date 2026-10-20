@@ -247,6 +247,14 @@ def create_app(
         return {"start": str(start) if start is not None else None,
                 "history": inbox.desks.nav_history(market)}
 
+    @app.get("/api/v1/office/desks")
+    def office_desks(limit: int = 40) -> list[dict[str, object]]:
+        """What the research team and the Kiwoom mock desks did, newest first (office screen)."""
+        start = inbox.ops_start() or ""
+        return [dict(r) for r in inbox.conn.execute(
+            "SELECT * FROM office_events WHERE created_at >= ? ORDER BY id DESC LIMIT ?",
+            (start, min(max(limit, 1), 200)))]
+
     @app.get("/api/v1/research")
     def research_latest(market: str = "KR") -> dict[str, object] | None:
         """The research team's latest screening for a market: watchlist, today's focus, scores."""

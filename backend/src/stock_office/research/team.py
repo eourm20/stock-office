@@ -95,9 +95,19 @@ class ResearchTeam:
             out[k] = json.loads(out[k])
         return out
 
+    def _event(self, market: str, kind: str, title: str, detail: str, now: datetime) -> None:
+        with transaction(self.conn):
+            self.conn.execute(
+                "INSERT INTO office_events (market, desk, kind, title, detail, created_at) "
+                "VALUES (?, 'research', ?, ?, ?, ?)", (market, kind, title, detail[:300], iso(now)))
+
     def research(self, market: str, day: date, now: datetime) -> list[str]:
         """Screen, store, report. Returns the focus instruments for the committee (in order)."""
+        if self.done(market, day):
+            return []
         ids = UNIVERSE[INDEX[market]]
+        self._event(market, "started", f"{MARKET_KO[market]} 리서치 시작",
+                    f"{INDEX[market]} {len(ids)}종목 점수 계산", now)
         bars = self.bars(ids, now.date())
         candidates: list[Candidate] = screen(market, bars)
         known = set(ids) | {"KR:KRX:005930", "US:NASDAQ:NVDA"}
@@ -131,6 +141,8 @@ class ResearchTeam:
                                             "watchlist": watch, "rules": RULES_VERSION},
                                            ensure_ascii=False),
                  f"research:{market}:{day.isoformat()}", iso(now)))
+        self._event(market, "completed",
+                    f"{MARKET_KO[market]} 리서치 완료 · 오늘 회의 {len(focus)}건", names, now)
         log.info("research %s %s: %d screened, %d liquid, focus %s", market, day, len(bars),
                  len(by_id), [i for i, _ in focus])
         return [i for i, _ in focus]

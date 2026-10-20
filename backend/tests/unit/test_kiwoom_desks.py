@@ -150,6 +150,8 @@ def test_entry_is_sized_on_the_live_account_and_sent_once_during_the_session(
     assert (o["status"], o["qty"], o["ext_order_no"]) == ("SENT", "19", "0000001")
     assert desks.start_equity("KR") == D(10_000_000)
     assert titles(desks) == ["[주문] 삼성전자 매수 19주 · 지정가 50,000원"]
+    assert [tuple(r) for r in desks.conn.execute(
+        "SELECT market, desk, kind FROM office_events")] == [("KR", "trading", "주문")]
 
 
 def test_fill_then_stop_sells_at_a_marketable_limit_and_reports_the_loss(tmp_path: Path) -> None:
