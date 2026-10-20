@@ -163,6 +163,26 @@ class RunService:
         return self.repo.events.append(run.id, type, agent_id=agent_id, payload=body,
                                        dedupe_key=dedupe_key)
 
+    def fail_interrupted(self, alive: Callable[[int], bool]) -> list[str]:
+        """Runs left RUNNING by a worker that is gone (restart mid-meeting) end FAILED, so the
+        office and inbox never wait for a meeting that will not finish. Call at worker start."""
+        failed = []
+        for run in self.repo.list_runs():
+            if run.status is not RunStatus.RUNNING:
+                continue
+            owner = self.repo.claim_owner(run.id)
+            if owner is not None and alive(owner):
+                continue
+            run.status, run.completed_at = RunStatus.FAILED, self.clock()
+            run.error_code = "INTERRUPTED"
+            run.error_message = "worker stopped during the meeting (restart); not resumed"
+            self.repo.save_run(run)
+            self._emit(run, EventType.RUN_FAILED, payload={
+                "status": RunStatus.FAILED.value, "error_code": "INTERRUPTED", "latency_ms": None,
+            }, dedupe_key="run.end")
+            failed.append(run.id)
+        return failed
+
     def execute(self, run_id: str) -> AnalysisRun:
         run = self.repo.get_run(run_id)
         if run is None:

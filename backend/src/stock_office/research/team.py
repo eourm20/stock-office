@@ -33,7 +33,7 @@ from stock_office.research.screener import (
     screen,
     to_json,
 )
-from stock_office.schedule import closed_sessions, first_session_opening_after
+from stock_office.schedule import closed_sessions, first_session_opening_after, open_session
 
 log = logging.getLogger("stock_office.research")
 INDEX = {"KR": "KOSPI200", "US": "NASDAQ100"}
@@ -49,7 +49,10 @@ def iso(dt: datetime) -> str:
 
 
 def window(market: str, now: datetime) -> tuple[date, datetime, datetime] | None:
-    """(target session day, research may start, must finish by) if `now` is in the window."""
+    """(target session day, research may start, must finish by) if `now` is in the window.
+    Never while a session is trading: its close is not in yet, so the bars would be stale."""
+    if open_session(Market(market), now) is not None:
+        return None
     nxt = first_session_opening_after(Market(market), now)
     if market == "KR":
         start = nxt.open - KR_LEAD

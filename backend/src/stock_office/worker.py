@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import threading
 import time
 from collections.abc import Callable
@@ -83,6 +84,18 @@ def schedule_tick(service: RunService, now: datetime, notifier: Notifier | None 
     return started
 
 
+def _pid_alive(pid: int) -> bool:
+    if pid == os.getpid():
+        return True
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
 def main(clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--once", action="store_true")
@@ -93,6 +106,8 @@ def main(clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> None:
     install_log_redaction()
     settings = get_settings()
     service = build_service(settings)
+    for run_id in service.fail_interrupted(_pid_alive):
+        log.warning("run %s was interrupted by a restart -> FAILED", run_id)
     scheduling = args.schedule and settings.schedule_enabled
     if args.schedule and not settings.schedule_enabled:
         log.warning("--schedule given but STOCK_OFFICE_SCHEDULE_ENABLED is false: queue only")

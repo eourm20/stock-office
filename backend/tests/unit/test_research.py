@@ -56,6 +56,8 @@ def test_research_windows_follow_each_exchange() -> None:
     day, start, _ = window("US", kst("2026-10-21T06:30"))  # type: ignore[misc]
     assert day == date(2026, 10, 21) and start == kst("2026-10-21T06:30")
     assert window("US", kst("2026-10-20T17:00")) is not None      # evening before the US open
+    assert window("US", kst("2026-10-20T22:31")) is None          # US session trading: stale bars
+    assert window("US", kst("2026-10-21T04:59")) is None
     assert next_research("KR", kst("2026-10-20T17:00")) == kst("2026-10-21T07:00")
 
 

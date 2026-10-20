@@ -70,3 +70,21 @@ def test_engine_not_ready_does_not_burn_the_slot(tmp_path: Path) -> None:
     assert svc.repo.list_runs() == []                                 # nothing recorded
     svc.engines = lambda _: PaidLikeEngine()  # type: ignore[method-assign,assignment]
     assert len(schedule_tick(svc, now, rules=MILESTONE_RULES)) == 2  # runs once fixed
+
+
+def test_a_meeting_cut_off_by_a_restart_ends_failed_once(tmp_path: Path) -> None:
+    from stock_office.domain.models import CreateRunRequest
+
+    svc = service(tmp_path)
+    run = svc.create_run(CreateRunRequest(instrument_id="US:NASDAQ:NVDA", engine="tradingagents"),
+                         trigger="schedule", schedule_slot="research:US:NASDAQ:NVDA@2026-10-21")
+    assert svc.repo.claim(run.id)
+    run.status = RunStatus.RUNNING
+    svc.repo.save_run(run)                                  # the worker died here
+
+    assert svc.fail_interrupted(alive=lambda pid: True) == []          # owner still running
+    assert svc.fail_interrupted(alive=lambda pid: False) == [run.id]
+    after = svc.repo.get_run(run.id)
+    assert after is not None and after.status is RunStatus.FAILED
+    assert after.error_code == "INTERRUPTED"
+    assert svc.fail_interrupted(alive=lambda pid: False) == []

@@ -70,6 +70,13 @@ class RunRepository:
         os.close(fd)
         return True
 
+    def claim_owner(self, run_id: str) -> int | None:
+        """The pid that claimed a run, if recorded."""
+        try:
+            return int((self._dir(run_id) / ".claim").read_text())
+        except (OSError, ValueError):
+            return None
+
     def save_decision(self, decision: InvestmentDecision) -> None:
         _atomic_write(self._dir(decision.run_id) / "decision.json", _dump(decision))
 
