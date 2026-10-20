@@ -45,8 +45,9 @@ keeps them out, which is why the document still prints the DEMO note.
 `ceo-d-records.png` in [screenshots/](screenshots/).
 
 ## Not done / limits
-- Not deployed yet at the time of writing; the first real check is the first BUY meeting after deployment
-  (auto-approval → entry → settlement that evening).
+- Deployed 2026-10-20 13:20 KST (server DB backed up first; migrations 2 and 3 applied, `user_version` 3; APIs,
+  pages and the three services checked). Still to see: the first real BUY meeting going through auto-approval →
+  entry → settlement that evening.
 - Daily bars only: the order of intraday touches is unknown, hence "both touched → stop" and "entry day
   stop only". Hourly bars come with step C.
 - No partial buys, short selling, rebalancing or benchmark chart (evaluation, step E).

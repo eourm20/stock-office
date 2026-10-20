@@ -85,6 +85,11 @@ ARM instance (up to 4 OCPU / 24 GB, free tier).
    the new one to `stock-office` in the Tailscale admin; `tailscale serve` re-created; HTTPS checks 200 for `/`, `/office`,
    `/api/v1/office/summary`, `/api/v1/budget`, manifest. Budget and run history identical to the old server.
 
+## Deploy log
+- 2026-10-20 13:20 KST — step D (paper book) and the office boardroom. `office.db` backed up first with SQLite's
+  backup API (`office.db.bak-20261020-v1`); migrations 2 and 3 applied on start (`user_version` 3); health, portfolio,
+  settings and office APIs, pages `/`, `/portfolio`, `/office`, `/settings` → 200; three services active.
+
 ## Data on the server (`~/stock-office/backend/data`)
 | Path | Contents |
 |---|---|

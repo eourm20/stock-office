@@ -14,7 +14,7 @@ the paper book (step D) is new, with assumed costs and no evaluation yet.
 | Evidence: full redacted reports, AI tool results per run, one-page AI briefing (quick model, ≈ $0.002) | [adapter.py](../backend/src/stock_office/engine/adapter.py), [briefing.py](../backend/src/stock_office/briefing.py) | unit + e2e; real briefing checked |
 | Daily schedule on exchange calendars; monthly LLM budget hard stop; paid-run cap | [schedule.py](../backend/src/stock_office/schedule.py), [budget.py](../backend/src/stock_office/budget.py) | unit; production since 2026-10-17 |
 | CEO inbox: approval plans from labelled engine lines, POLICY_V2 allocator, expiry, decisions | [plan_extract.py](../backend/src/stock_office/plan_extract.py), [paper/allocator.py](../backend/src/stock_office/paper/allocator.py), [inbox.py](../backend/src/stock_office/inbox.py) | unit + e2e (127 → 133 backend tests) |
-| Paper book: auto-approval (CEO opinion recorded apart), POLICY_V2 re-check at approval, limit entries from the next session, fills decided on the day's bar after the close (both touched → stop), target/stop pair, KRW cash ledger, USD at that day's rate, idempotent orders and settlements | [paper/fills.py](../backend/src/stock_office/paper/fills.py), [paper/book.py](../backend/src/stock_office/paper/book.py), [paper/settle.py](../backend/src/stock_office/paper/settle.py), [paper/costs.py](../backend/src/stock_office/paper/costs.py) | unit + e2e (133 → 162 backend tests); screens with DEMO seed data (`docs/screenshots/ceo-d-*.png`); not yet deployed |
+| Paper book: auto-approval (CEO opinion recorded apart), POLICY_V2 re-check at approval, limit entries from the next session, fills decided on the day's bar after the close (both touched → stop), target/stop pair, KRW cash ledger, USD at that day's rate, idempotent orders and settlements | [paper/fills.py](../backend/src/stock_office/paper/fills.py), [paper/book.py](../backend/src/stock_office/paper/book.py), [paper/settle.py](../backend/src/stock_office/paper/settle.py), [paper/costs.py](../backend/src/stock_office/paper/costs.py) | unit + e2e (133 → 162 backend tests); screens with DEMO seed data (`docs/screenshots/ceo-d-*.png`); deployed 2026-10-20, no real fills yet |
 | PAPER ONLY guard | [test_no_live_orders.py](../backend/tests/unit/test_no_live_orders.py) | named state-changing routes, no network imports in `paper/`, banned order/securities-firm words |
 | Web app: inbox, approval document, office CCTV (Phaser, event-driven, deterministic state machine), records, settings, installable on iOS | [frontend/src/app/](../frontend/src/app/), [office/](../frontend/src/office/), [game/](../frontend/src/game/) | vitest 47 (incl. boardroom seating and meeting break-up from events); iPhone-size browser checks (screenshots in `docs/screenshots/`) |
 
@@ -27,7 +27,7 @@ the paper book (step D) is new, with assumed costs and no evaluation yet.
 | Spend so far (October) | ≈ $0.3 of a $7 budget | `/api/v1/budget` |
 
 ## Not yet achieved (do not present as results)
-- Paper results from real meetings (step D is implemented; the first real fills come after deployment); hourly-bar fills and intraday monitoring (C); screener (B).
+- Paper results from real meetings (step D runs since 2026-10-20; no real fills yet); hourly-bar fills and intraday monitoring (C); screener (B).
 - Any statement about investment returns. The first evaluation will use criteria fixed before the paper month.
 
 ## Reports
