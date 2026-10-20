@@ -35,6 +35,7 @@ from stock_office.domain.models import (
 )
 from stock_office.events.sse import format_sse, resume_after
 from stock_office.inbox import DecisionError, Inbox, InboxItem
+from stock_office.kiwoom_mock.link import build_link
 from stock_office.logging_setup import install_log_redaction
 from stock_office.notify import build_notifier
 from stock_office.paper.settle import next_settle_times as settle_times
@@ -221,6 +222,13 @@ def create_app(
                 "initial_krw": str(inbox.book.policy.initial_equity_krw)}
 
     notifier = build_notifier(settings, inbox.conn, service.repo)
+    mock_link = build_link(settings)
+
+    @app.get("/api/v1/kiwoom-mock")
+    def kiwoom_mock_status(refresh: bool = False) -> dict[str, object]:
+        """Kiwoom 모의투자 accounts, read-only (step K1): deposits, holdings, today's fills.
+        Cached; `refresh` is throttled. Keys and tokens never leave the server."""
+        return mock_link.status(refresh=refresh)
 
     @app.get("/api/v1/notify/status")
     def notify_status() -> dict[str, object]:

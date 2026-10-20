@@ -1,4 +1,8 @@
-"""PAPER ONLY guard: the codebase must not contain broker/order execution paths."""
+"""MOCK ONLY guard (was PAPER ONLY until 2026-10-20): no real-account order path can exist.
+
+Orders may only ever reach the internal paper book or Kiwoom's mock-trading server. In step K1 the
+Kiwoom link is read-only: no order API id or order path appears anywhere in the source.
+"""
 
 import re
 from pathlib import Path
@@ -11,7 +15,7 @@ from stock_office.config import Settings
 SRC = Path(__file__).resolve().parents[2] / "src" / "stock_office"
 
 FORBIDDEN = [
-    r"_auto_execute", r"kiwoom", r"KiwoomClient", r"place_order", r"send_order",
+    r"_auto_execute", r"KiwoomClient", r"place_order", r"send_order",
     r"submit_order", r"order_cash", r"create_order", r"broker", r"account_no",
     r"/uapi/domestic-stock/v1/trading",  # KIS order endpoint family
 ]
@@ -70,6 +74,32 @@ def test_paper_package_has_no_network_access() -> None:
                  for path in paper.rglob("*.py")
                  for m in NETWORK_IMPORTS.finditer(path.read_text(encoding="utf-8"))]
     assert offenders == []
+
+
+def _source() -> list[tuple[Path, str]]:
+    return [(p, p.read_text(encoding="utf-8")) for p in SRC.rglob("*.py")]
+
+
+def test_kiwoom_is_reached_only_through_the_mock_server() -> None:
+    """The real trading domain (api.kiwoom.com) appears nowhere; only mockapi.kiwoom.com does."""
+    real = re.compile(r"(?<!mock)api\.kiwoom\.com", re.IGNORECASE)
+    assert [str(p.relative_to(SRC)) for p, text in _source() if real.search(text)] == []
+    users = {str(p.relative_to(SRC)) for p, text in _source() if "mockapi.kiwoom.com" in text}
+    assert users == {str(Path("kiwoom_mock") / "client.py")}
+
+    from stock_office.kiwoom_mock.client import MOCK_BASE_URL, KiwoomMockClient, KiwoomMockError
+    assert MOCK_BASE_URL == "https://mockapi.kiwoom.com"
+    import pytest
+    with pytest.raises(KiwoomMockError):
+        KiwoomMockClient("k", "s", base_url="https://api.kiwoom.com")
+
+
+def test_no_kiwoom_order_api_in_step_k1() -> None:
+    """K1 is read-only: no order endpoint or order API id (domestic kt1000x, US ust2000x)."""
+    order = re.compile(r"/api/(?:dostk|us)/ordr|\bkt1000[0-9]\b|\bust2000[0-9]\b")
+    assert [str(p.relative_to(SRC)) for p, text in _source() if order.search(text)] == []
+    from stock_office.kiwoom_mock.client import ALLOWED_PATHS
+    assert {"/api/dostk/acnt", "/api/us/acnt"} == ALLOWED_PATHS
 
 
 def test_health_declares_paper_only(tmp_path: Path) -> None:

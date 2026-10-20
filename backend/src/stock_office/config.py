@@ -70,6 +70,13 @@ class Settings(BaseSettings):
     notify_quiet_start: int = 23
     notify_quiet_end: int = 7
 
+    # Kiwoom 모의투자 (mock trading) app keys, issued for the owner's mock accounts only. The
+    # overseas pair is optional (falls back to the domestic one). Server .env only.
+    kiwoom_mock_app_key: SecretStr | None = None
+    kiwoom_mock_app_secret: SecretStr | None = None
+    kiwoom_mock_us_app_key: SecretStr | None = None
+    kiwoom_mock_us_app_secret: SecretStr | None = None
+
     dart_api_key: SecretStr | None = None
     # Official Naver Search API (Korean press headlines), read-only.
     naver_client_id: SecretStr | None = None
