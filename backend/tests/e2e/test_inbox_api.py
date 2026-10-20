@@ -74,3 +74,4 @@ def test_hold_meeting_files_a_daily_report_only(make_client: Callable[..., TestC
     assert client.get(f"/api/v1/inbox/{items[0]['id']}").json()["read_at"] is not None
     assert {r["run_id"] for r in client.get("/api/v1/records").json()} >= {run_id}
     assert client.get("/api/v1/inbox/999").status_code == 404
+

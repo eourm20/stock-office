@@ -23,10 +23,11 @@ export default function RecordsPage() {
   const [stock, setStock] = useState("all");
   const [action, setAction] = useState("all");
   const [demo, setDemo] = useState(false);
+  const [testPeriod, setTestPeriod] = useState(false);
 
   useEffect(() => {
-    getRecords().then(setRows).catch((e: Error) => setError(`서버에 연결할 수 없습니다: ${e.message}`));
-  }, []);
+    getRecords(testPeriod).then(setRows).catch((e: Error) => setError(`서버에 연결할 수 없습니다: ${e.message}`));
+  }, [testPeriod]);
 
   const mine = useMemo(() => (rows ?? []).filter((r) => marketOf(r.instrument_id) === market), [rows, market]);
   const stocks = useMemo(() => [...new Map(mine.map((r) => [r.instrument_id, r.name])).entries()], [mine]);
@@ -51,6 +52,9 @@ export default function RecordsPage() {
         <label className="flex items-center gap-1 text-xs text-[var(--muted)]">
           <input type="checkbox" checked={demo} onChange={(e) => setDemo(e.target.checked)} /> 연습(DEMO) 포함
         </label>
+        <label className="flex items-center gap-1 text-xs text-[var(--muted)]">
+          <input type="checkbox" checked={testPeriod} onChange={(e) => setTestPeriod(e.target.checked)} /> 테스트 기간 기록 보기
+        </label>
       </div>
       {error && <p role="alert" className="mx-3 rounded bg-rose-900/70 px-3 py-2 text-sm">{error}</p>}
       {!rows && !error && <p className="p-6 text-[var(--muted)]">불러오는 중…</p>}
@@ -72,6 +76,7 @@ export default function RecordsPage() {
                           : <span className="rounded px-1.5 text-xs text-[var(--muted)]">{PHASE_KO[r.status] ?? r.status}</span>}
                         {r.trigger === "schedule" && <span className="text-[11px] text-[var(--muted)]">정기</span>}
                         {r.demo && <span className="rounded bg-amber-400 px-1 text-[10px] font-bold text-black">DEMO</span>}
+                        {r.test_period && <span className="rounded border border-[var(--line)] px-1 text-[10px] text-[var(--muted)]">테스트 기간</span>}
                       </span>
                       {r.headline && <span className="mt-0.5 block line-clamp-2 text-[12px] leading-snug text-[#c7d7ee]">{humanizeTickers(r.headline)}</span>}
                     </span>

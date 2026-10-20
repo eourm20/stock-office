@@ -321,6 +321,8 @@ export interface RecordRow {
   approval_auto?: boolean;
   paper?: OrderStatus | null;
   ceo_opinion?: "approve" | "reject" | "defer" | null;
+  /** Before operations started (development tests): hidden unless asked for. */
+  test_period?: boolean;
 }
 
 export interface OfficeNow {
@@ -334,7 +336,8 @@ export interface OfficeNow {
 
 export const getInbox = () => getJson<InboxItem[]>("/api/v1/inbox");
 export const getInboxItem = (id: number | string) => getJson<InboxItem>(`/api/v1/inbox/${id}`);
-export const getRecords = () => getJson<RecordRow[]>("/api/v1/records");
+export const getRecords = (includeTest = false) =>
+  getJson<RecordRow[]>(`/api/v1/records${includeTest ? "?include_test=true" : ""}`);
 export const getOfficeNow = () => getJson<OfficeNow>("/api/v1/office/now");
 export const getPortfolio = () => getJson<Portfolio>("/api/v1/portfolio");
 export const getPortfolioActivity = () => getJson<PaperOrder[]>("/api/v1/portfolio/activity");

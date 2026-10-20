@@ -421,9 +421,18 @@ class Inbox:
                 item.mock_orders = self.desks.orders(item_id=item.id)
         return item
 
-    def list(self, limit: int = 100) -> list[InboxItem]:
+    def ops_start(self) -> str | None:
+        """When the company started operating (research team live). Earlier documents are the
+        development/test period: kept, but not shown in the inbox (records can show them)."""
+        row = self.conn.execute(
+            "SELECT value FROM company_settings WHERE key='ops_start'").fetchone()
+        return str(row["value"]) if row else None
+
+    def list(self, limit: int = 100, include_test: bool = False) -> list[InboxItem]:
+        start = None if include_test else self.ops_start()
         rows = self.conn.execute(
-            "SELECT * FROM inbox_items ORDER BY created_at DESC, id DESC LIMIT ?", (limit,)
+            "SELECT * FROM inbox_items WHERE created_at >= ? "
+            "ORDER BY created_at DESC, id DESC LIMIT ?", (start or "", limit)
         )
         return [self._row(r) for r in rows]
 

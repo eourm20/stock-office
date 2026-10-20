@@ -181,12 +181,17 @@ def create_app(
         return {"ok": True}
 
     @app.get("/api/v1/records")
-    def records() -> list[dict[str, object]]:
-        """Meeting minutes list: every run with its decision, headline and approval outcome."""
+    def records(include_test: bool = False) -> list[dict[str, object]]:
+        """Meeting minutes list: every run with its decision, headline and approval outcome.
+        Runs from before operations started (development tests) only with `include_test`."""
         outcome = inbox.by_run()
         none: dict[str, object] = {}
         rows: list[dict[str, object]] = []
+        start = inbox.ops_start()
         for run in service.repo.list_runs():
+            test = bool(start) and run.requested_at.isoformat() < str(start)
+            if test and not include_test:
+                continue
             decision = service.repo.get_decision(run.id)
             briefing = service.repo.get_briefing(run.id) or {}
             rows.append({
@@ -200,6 +205,7 @@ def create_app(
                 "approval_auto": outcome.get(run.id, none).get("auto", False),
                 "paper": outcome.get(run.id, none).get("paper"),
                 "ceo_opinion": outcome.get(run.id, none).get("opinion"),
+                "test_period": test,
             })
         return rows
 

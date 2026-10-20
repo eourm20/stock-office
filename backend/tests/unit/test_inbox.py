@@ -73,3 +73,16 @@ def test_bad_action_and_reused_request_id(make_service: Callable[..., RunService
     with pytest.raises(DecisionError) as err:
         service.inbox.decide(item_id + 1000, "approve", "", "r1", service.clock())
     assert err.value.status == 409
+
+
+def test_documents_before_operations_started_are_kept_but_not_listed(
+        make_service: Callable[..., RunService]) -> None:
+    service, item_id = _buy_run(make_service)
+    inbox = service.inbox
+    assert [i.id for i in inbox.list()] == [item_id]
+    with transaction(inbox.conn):
+        inbox.conn.execute("INSERT INTO company_settings (key, value) VALUES ('ops_start', ?)",
+                           ((datetime.now(UTC) + timedelta(minutes=1)).isoformat(),))
+    assert inbox.list() == []                                    # the test period is hidden
+    assert [i.id for i in inbox.list(include_test=True)] == [item_id]
+    assert inbox.get(item_id) is not None                         # and still there
