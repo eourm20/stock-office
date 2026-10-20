@@ -197,3 +197,22 @@ def test_default_contact_is_a_form_push_services_accept() -> None:
 
     subject = Settings(_env_file=None).vapid_subject  # type: ignore[call-arg]
     assert re.fullmatch(r"mailto:.+@.+|https://[\w.-]+", subject), subject
+
+
+def test_kiwoom_desk_reports_become_order_notifications(tmp_path: Path) -> None:
+    n, _ = setup(tmp_path)
+    at = (T0 + timedelta(minutes=1)).isoformat(timespec="microseconds")
+    for i, (title, item) in enumerate([("[주문] 삼성전자 매수 19주 · 지정가 50,000원", 7),
+                                       ("[청산] 삼성전자 손절 19주 @ 46,000원 · −76,000원", None)]):
+        n.conn.execute(
+            "INSERT INTO inbox_items (kind, instrument_id, title, summary, payload, status, "
+            "dedupe_key, created_at) VALUES ('execution', ?, ?, '키움 모의', ?, 'INFO', ?, ?)",
+            ("KR:KRX:005930", title, json.dumps({"item_id": item}), f"km:x{i}", at))
+    n.conn.execute(  # the internal paper book's report: not an order notification
+        "INSERT INTO inbox_items (kind, title, payload, status, dedupe_key, created_at) "
+        "VALUES ('execution', '[체결] 내부 장부', '{}', 'INFO', 'fill:1', ?)", (at,))
+    n.collect(T0 + timedelta(minutes=2))
+    rows = list(n.conn.execute("SELECT category, title, url FROM notifications ORDER BY id"))
+    assert [tuple(r) for r in rows] == [
+        ("order", "[주문] 삼성전자 매수 19주 · 지정가 50,000원", "/inbox/7"),
+        ("order", "[청산] 삼성전자 손절 19주 @ 46,000원 · −76,000원", "/portfolio")]

@@ -255,7 +255,8 @@ def create_app(
                 "subscriptions": notifier.subscriptions(),
                 "quiet": f"{settings.notify_quiet_start:02d}:00–{settings.notify_quiet_end:02d}:00",
                 "categories": ["회의 시작 (정기 회의, 예산 한도로 못 열면 그 사실)",
-                               "회의 끝 (결론 또는 실패)", "결재 요청 (회의 끝 알림 대신)"]}
+                               "회의 끝 (결론 또는 실패)", "결재 요청 (회의 끝 알림 대신)",
+                               "주문 (키움 모의: 주문 접수·체결·청산·미체결·거절)"]}
 
     @app.post("/api/v1/notify/subscribe")
     def notify_subscribe(body: PushSubscriptionBody) -> dict[str, object]:
@@ -280,7 +281,8 @@ def create_app(
             raise HTTPException(409, "push keys are not configured on the server")
         with transaction(inbox.conn):
             sent = notifier.send({"title": "Stock Office 알림 테스트",
-                                  "body": "이 휴대폰으로 회의 시작·끝, 결재 요청 알림을 받습니다.",
+                                  "body": ("이 휴대폰으로 회의 시작·끝, 결재 요청, "
+                                           "주문 알림을 받습니다."),
                                   "url": "/settings", "tag": "test"}, service.clock())
         return {"sent": sent}
 

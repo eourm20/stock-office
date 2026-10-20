@@ -468,6 +468,7 @@ class Desks:
                     continue
                 bench = self.benchmark(BENCHMARK[market], sessions[-1].day) if self.benchmark \
                     else None
+                self._ensure_start(market, acc, now)
                 nav = D(acc.cash) + D(acc.total_value or 0)
                 with transaction(self.conn):
                     self.conn.execute(

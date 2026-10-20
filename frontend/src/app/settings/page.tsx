@@ -150,7 +150,7 @@ function NotifyCard() {
   };
   const ready = status?.enabled && status.public_key;
   return (
-    <Card title="휴대폰 알림 (공통)" sub="회의 시작·끝과 결재 요청만 보냅니다. 체결·청산·정산 같은 나머지는 결재함과 포트폴리오에서 확인합니다.">
+    <Card title="휴대폰 알림 (공통)" sub="회의 시작·끝, 결재 요청, 키움 모의 주문(접수·체결·청산·미체결·거절)만 보냅니다.">
       {status && (
         <ul className="mb-3 space-y-0.5 text-sm">
           {status.categories.map((c) => <li key={c}>· {c}</li>)}

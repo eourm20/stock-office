@@ -199,6 +199,24 @@ MIGRATIONS: list[str] = [
         PRIMARY KEY (market, session)
     )
     """,
+    # 6: order notifications (owner's request): a fourth outbox category, "order"
+    """
+    CREATE TABLE notifications_v6 (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        dedupe_key TEXT NOT NULL UNIQUE,
+        category TEXT NOT NULL CHECK (category IN ('meeting_start', 'meeting_end', 'approval',
+                                                    'order')),
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        url TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        sent_at TEXT,
+        outcome TEXT
+    );
+    INSERT INTO notifications_v6 SELECT * FROM notifications;
+    DROP TABLE notifications;
+    ALTER TABLE notifications_v6 RENAME TO notifications
+    """,
 ]
 
 

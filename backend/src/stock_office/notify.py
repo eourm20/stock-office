@@ -1,11 +1,13 @@
 """Phone notifications: only what the CEO should not miss, as Web Push to the installed web app.
 
-Three categories, nothing else (owner's choice, 2026-10-20):
+Four categories, nothing else (owner's choices, 2026-10-20):
 - meeting_start: a scheduled real meeting started (or could not start: budget hard stop).
 - meeting_end: a real meeting ended with its verdict, or failed.
 - approval: the meeting ended with an approval request (BUY/SELL), auto-approved or waiting;
   this replaces its "meeting_end" so one meeting never sends two end notifications.
-Fills, exits, risk refusals, settlement and DEMO meetings are inbox/portfolio only.
+- order: what the Kiwoom mock desks did (order placed, filled, exit with P&L, unfilled and
+  cancelled, refused by the risk policy or by Kiwoom).
+The internal paper book's settlement and DEMO meetings are inbox/portfolio only.
 
 The worker collects new events into an outbox (`notifications`, one row per event, idempotent)
 and sends them outside quiet hours. Several waiting rows go out as one summary, and a "started"
@@ -101,6 +103,7 @@ class Notifier:
         """Turn meetings that started or ended since the last look into outbox rows."""
         with transaction(self.conn):
             since = self._since(now)
+            self._orders(since, now)
             for run in self.repo.list_runs():
                 if run.demo:
                     continue
@@ -134,6 +137,15 @@ class Notifier:
                 self.enqueue(f"end:{run.id}", "meeting_end", f"[회의 끝] {name} · {verdict}",
                              doc["summary"] if doc and doc["summary"] else "결재함에서 보고 확인",
                              f"/inbox/{doc['id']}" if doc else f"/records/{run.id}", now)
+
+    def _orders(self, since: str, now: datetime) -> None:
+        """Reports the Kiwoom mock desks filed (dedupe `km:...`): one notification each."""
+        for r in self.conn.execute(
+                "SELECT id, title, summary, payload FROM inbox_items WHERE created_at > ? "
+                "AND dedupe_key LIKE 'km:%' ORDER BY id", (since,)):
+            item = json.loads(r["payload"]).get("item_id")
+            self.enqueue(f"inbox:{r['id']}", "order", r["title"], r["summary"] or "",
+                         f"/inbox/{item}" if item else "/portfolio", now)
 
     def budget_skipped(self, slot_key: str, instrument_id: str, now: datetime) -> None:
         with transaction(self.conn):
