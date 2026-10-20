@@ -79,3 +79,26 @@ export function departmentStatus(state: OfficeState): DeptStatus[] {
              room: meeting ? "boardroom" : d.zone };
   });
 }
+
+/** One thing an operating desk (research team, Kiwoom mock desk) did, as stored. */
+export interface TopicDeskEvent {
+  market: "KR" | "US";
+  title: string;
+  created_at: string;
+}
+
+const DAY_START_KST_HOUR = 6;   // the company day runs 06:00–06:00 KST, so a US night session is one day
+
+/** Start of the company day containing `now` (06:00 KST). */
+export function companyDayStart(now: Date): Date {
+  const kst = new Date(now.getTime() + 9 * 3600_000);
+  const start = Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate(), DAY_START_KST_HOUR) - 9 * 3600_000;
+  return new Date(start > now.getTime() ? start - 24 * 3600_000 : start);
+}
+
+/** What one market's desk did today, topics only, oldest first. */
+export function deskToday<T extends TopicDeskEvent>(market: "KR" | "US", events: T[], now: Date): T[] {
+  const since = companyDayStart(now).getTime();
+  return events.filter((e) => e.market === market && new Date(e.created_at).getTime() >= since)
+    .sort((a, b) => a.created_at.localeCompare(b.created_at));
+}

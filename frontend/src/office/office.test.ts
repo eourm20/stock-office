@@ -13,6 +13,7 @@ import { characterFor, frameRange, resolveAnimation, type Registry, type SpriteM
 import { ROSTER as OFFICE_ROSTER, STATION_AGENTS } from "./roster";
 import { DEBATE_DWELL_MS, LIVE_CATCH_UP_BACKLOG, playbackDelayMs, ReplayPlayer } from "./replay";
 import { bubbleText, foldEvents, initialOfficeState, reduceEvent } from "./stateMachine";
+import { companyDayStart, deskToday } from "./departments";
 
 const PUBLIC = join(__dirname, "..", "..", "public");
 const map = JSON.parse(readFileSync(join(PUBLIC, "office", "office.tmj"), "utf8")) as TiledMap;
@@ -440,5 +441,23 @@ describe("department status board", () => {
     const board = departmentStatus(s);
     expect(board[0]).toMatchObject({ phase: "done", task: "완료", done: 3, total: 3 });
     expect(board[1]).toMatchObject({ phase: "working", task: "강세·약세 토론 중", done: 0, total: 1 });
+  });
+});
+
+describe("an operating desk's day", () => {
+  const events = [
+    { market: "US" as const, title: "[체결] 마이크로소프트 매수 1주 @ $531.30", created_at: "2026-10-20T13:35:41Z" },
+    { market: "US" as const, title: "[주문] 쇼피파이 매수 17주", created_at: "2026-10-20T13:30:00Z" },
+    { market: "US" as const, title: "미장 리서치 완료 · 오늘 회의 3건", created_at: "2026-10-19T20:59:00Z" },
+    { market: "KR" as const, title: "[주문] 삼성전자 매수 3주", created_at: "2026-10-20T00:00:00Z" },
+  ];
+
+  it("runs 06:00–06:00 KST so a US night session is one day, oldest first", () => {
+    const now = new Date("2026-10-20T19:30:00Z");   // 04:30 KST 10/21: still the 10/20 company day
+    expect(companyDayStart(now).toISOString()).toBe("2026-10-19T21:00:00.000Z");
+    expect(deskToday("US", events, now).map((e) => e.title)).toEqual([
+      "[주문] 쇼피파이 매수 17주", "[체결] 마이크로소프트 매수 1주 @ $531.30"]);
+    expect(deskToday("KR", events, now)).toHaveLength(1);
+    expect(deskToday("US", events, new Date("2026-10-20T21:00:00Z"))).toEqual([]);   // 06:00 KST: new day
   });
 });

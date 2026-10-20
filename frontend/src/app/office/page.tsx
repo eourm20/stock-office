@@ -6,7 +6,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { API_BASE, getDeskEvents, getOfficeNow, type DeskEvent, type OfficeNow } from "../../lib/api";
 import { kstDateTime, nextWorkLabel } from "../../inbox/model";
 import { MARKET_KO, marketOf } from "../../lib/market";
-import { DEPARTMENTS, departmentStatus } from "../../office/departments";
+import { DEPARTMENTS, departmentStatus, deskToday } from "../../office/departments";
 import { ACTION_KO, narrate } from "../../office/explain";
 import { agentName, humanizeTickers, STATUS_KO, toolNames } from "../../office/names";
 import { ReplayPlayer } from "../../office/replay";
@@ -72,6 +72,7 @@ export default function OfficePage() {
   }, []);
 
   const [desks, setDesks] = useState<DeskEvent[]>([]);
+  const [deskOpen, setDeskOpen] = useState<"KR" | "US" | null>(null);
   const refresh = useCallback(async () => {
     try {
       const n = await getOfficeNow();
@@ -157,7 +158,9 @@ export default function OfficePage() {
           const trading = desks.find((e) => e.market === m && e.desk === "trading");
           const busy = research?.kind === "started";
           return (
-            <div key={m} className="rounded-lg border border-[var(--line)] bg-[var(--panel)] p-2 text-[11px]">
+            <button key={m} onClick={() => setDeskOpen(deskOpen === m ? null : m)} aria-pressed={deskOpen === m}
+                    aria-label={`${MARKET_KO[m]} 데스크: 오늘 한 일 보기`}
+                    className={`rounded-lg border p-2 text-left text-[11px] ${deskOpen === m ? "border-[#ffd98a] bg-[#1d2944]" : "border-[var(--line)] bg-[var(--panel)]"}`}>
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-[var(--ink)]">{MARKET_KO[m]} 데스크</span>
                 <span className={busy ? "text-sky-300" : "text-[var(--muted)]"}>{busy ? "● 종목 선정 중" : "리서치·주문"}</span>
@@ -166,9 +169,29 @@ export default function OfficePage() {
               <div className="truncate text-[10px] text-[var(--muted)]">{research ? `${deskTime(research.created_at)} · ${research.detail}` : ""}</div>
               <div className="mt-1 truncate text-[12px]">{trading ? trading.title : "주문 기록 없음"}</div>
               <div className="truncate text-[10px] text-[var(--muted)]">{trading ? deskTime(trading.created_at) : ""}</div>
-            </div>
+            </button>
           );
         })}
+        {deskOpen && (() => {
+          const day = clock ? deskToday(deskOpen, desks, clock) : [];
+          return (
+            <div className="col-span-2 rounded-lg border border-[var(--line)] bg-[var(--panel)] p-2 text-[11px]" aria-live="polite">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="font-semibold text-[var(--ink)]">{MARKET_KO[deskOpen]} 데스크 · 오늘 한 일 ({day.length})</span>
+                <span className="text-[10px] text-[var(--muted)]">오전 6시 기준</span>
+              </div>
+              {day.length === 0 ? <p className="text-[var(--muted)]">오늘은 아직 한 일이 없습니다.</p> : (
+                <ol className="max-h-40 space-y-0.5 overflow-y-auto">
+                  {day.map((e) => (
+                    <li key={e.id} className="truncate">
+                      <span className="text-[var(--muted)]">{deskClock(e.created_at)}</span> {e.desk === "research" ? "[리서치] " : ""}{e.title}
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+          );
+        })()}
       </section>
 
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
@@ -257,4 +280,9 @@ export default function OfficePage() {
 function deskTime(iso: string): string {
   return new Date(iso).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric",
                                                  hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+/** "06:31" in Korea time, for a desk's day list. */
+function deskClock(iso: string): string {
+  return new Date(iso).toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit", hour12: false });
 }
