@@ -228,7 +228,14 @@ class Inbox:
                 if expires <= now:
                     status = "EXPIRED"
                     payload["filed_late"] = True
-                title = f"[결재] {name} 매수 {format_qty(plan_body['allocation']['qty'])}주"
+                qty_text = format_qty(plan_body['allocation']['qty'])
+                if kiwoom and position is not None:   # a held stock's re-check: add a tranche
+                    plan_body["add_on"] = True
+                    plan_body["held_qty"] = position.get("qty")
+                    title = (f"[결재] {name} 추가 매수 {qty_text}주 "
+                             f"(보유 {format_qty(position.get('qty') or '0')}주)")
+                else:
+                    title = f"[결재] {name} 매수 {qty_text}주"
                 plan_body["valid_until"] = _iso(expires)
             else:
                 title = f"[검토 필요] {name} 매수 제안"
@@ -360,6 +367,8 @@ class Inbox:
             nav = cash = start or (Decimal(100_000) if cur == "USD" else Decimal(10_000_000))
             held = Decimal(0)
             basis = "키움 모의 계좌 조회 실패: 시작 자산 기준으로 표시 (주문 직전에 다시 계산)"
+        if self.desks is not None and self.desks.open_buy(run.instrument_id):
+            reasons.append("같은 종목의 매수 주문이 아직 체결 전이라 추가 매수를 올리지 않음")
         alloc = allocate(POLICY_V3, nav_krw=nav, cash_krw=cash, held_krw=held,
                          rating=rating or draft.rating, multiplier=draft.multiplier,
                          limit=draft.limit, stop=draft.stop, fx_krw=Decimal(1), currency=cur,

@@ -142,6 +142,12 @@ class Desks:
             out.append(d)
         return out
 
+    def open_buy(self, instrument_id: str) -> bool:
+        """A buy for this stock not filled yet (approved, waiting or sent)."""
+        return self.conn.execute(
+            "SELECT 1 FROM km_orders WHERE instrument_id=? AND side='BUY' AND status IN "
+            "('WAITING','SENDING','SENT')", (instrument_id,)).fetchone() is not None
+
     def nav_history(self, market: str) -> list[dict[str, Any]]:
         return [dict(r) for r in self.conn.execute(
             "SELECT * FROM km_nav WHERE market=? ORDER BY session", (market,))]
@@ -271,21 +277,50 @@ class Desks:
                 self._set(row["id"], filled_qty=filled, fill_price=price)
                 if D(filled) >= D(row["qty"]):
                     self._set(row["id"], status="FILLED", closed_at=iso(now))
+                    if row["role"] == "entry":
+                        self._merge(row, D(filled), price)
                     self._report_fill(row, D(filled), price, now)
+
+    def _merge(self, row: sqlite3.Row, qty: Decimal, price: str | None) -> None:
+        """An add-on buy filled: earlier open tranches of the stock fold into this one, which now
+        carries the whole position (latest approved stop/target, weighted average price)."""
+        older = [r for r in self.conn.execute(
+            "SELECT * FROM km_orders WHERE instrument_id=? AND role='entry' AND status='FILLED' "
+            "AND id<>? ORDER BY id", (row["instrument_id"], row["id"]))
+            if not json.loads(r["detail"] or "{}").get("closed")]
+        if not older or price is None:
+            return
+        total, cost = qty, qty * D(price)
+        for r in older:
+            d = json.loads(r["detail"] or "{}")
+            q = D(d.get("position_qty") or r["filled_qty"])
+            total += q
+            cost += q * D(d.get("avg_price") or r["fill_price"] or 0)
+            self._set(r["id"], detail=json.dumps({**d, "closed": True, "merged_into": row["id"]}))
+        mine = json.loads(row["detail"] or "{}")
+        avg = (cost / total).quantize(D("0.0001"))
+        self._set(row["id"], detail=json.dumps(
+            {**mine, "position_qty": str(total), "avg_price": str(avg)}))
 
     def _report_fill(self, row: sqlite3.Row, qty: Decimal, price: str | None,
                      now: datetime) -> None:
         name, cur = display_name(row["instrument_id"]), row["currency"]
         if row["role"] == "entry":
-            self._notice(row, "execution", f"[체결] {name} 매수 {qty:f}주 @ {money(price, cur)}",
+            earlier = self.conn.execute(
+                "SELECT 1 FROM km_orders WHERE instrument_id=? AND role='entry' "
+                "AND status='FILLED' AND id<>?", (row["instrument_id"], row["id"])).fetchone()
+            what = "추가 매수" if earlier else "매수"
+            self._notice(row, "execution", f"[체결] {name} {what} {qty:f}주 @ {money(price, cur)}",
                          f"키움 모의 계좌 · 목표가 {money(row['target'], cur)} · "
                          f"손절가 {money(row['stop'], cur)}", f"fill:{row['id']}", now)
             return
         entry = self.conn.execute("SELECT * FROM km_orders WHERE id=?",
                                   (row["parent_id"],)).fetchone() if row["parent_id"] else None
         pnl = None
-        if entry is not None and entry["fill_price"] and price:
-            pnl = (D(price) - D(entry["fill_price"])) * qty
+        basis = (json.loads(entry["detail"] or "{}").get("avg_price") or entry["fill_price"]
+                 if entry is not None else None)
+        if entry is not None and basis and price:
+            pnl = (D(price) - D(basis)) * qty
             self._set(entry["id"], detail=json.dumps(
                 {**json.loads(entry["detail"] or "{}"), "closed": True, "pnl": str(pnl)}))
         self._notice(row, "closing",
@@ -441,7 +476,7 @@ class Desks:
                     else "take_profit" if price >= D(entry["target"]) else None)
             if role is None:
                 continue
-            qty = min(held, D(entry["filled_qty"]))
+            qty = held   # the newest open tranche carries the whole position
             n = self.conn.execute("SELECT COUNT(*) FROM km_orders WHERE parent_id=?",
                                   (entry["id"],)).fetchone()[0]
             with transaction(self.conn):

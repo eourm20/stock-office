@@ -328,3 +328,34 @@ def test_sharp_moves_and_new_filings_are_reported_once(tmp_path: Path) -> None:
     assert calls == [KR, KR]
     keys = [r[0] for r in desks.conn.execute("SELECT dedupe_key FROM inbox_items")]
     assert all(k.startswith("watch:") for k in keys)  # reports, not order notifications
+
+
+def test_an_add_on_buy_joins_the_position_and_the_stop_sells_it_all(tmp_path: Path) -> None:
+    desks, fake = setup(tmp_path)
+    approve(desks)                                              # first tranche: 19 @ 50,000
+    desks.tick(KR_OPEN)
+    fake.fill("0000001")
+    desks.tick(KR_OPEN + timedelta(minutes=1))
+    assert desks.open_buy(KR) is False
+    approve(desks, item=200, limit="52000", stop="49000", target="60000")   # re-check: add on
+    assert desks.open_buy(KR) is True                           # no third approval meanwhile
+    fake.price = D(52_000)
+    desks.tick(KR_OPEN + timedelta(minutes=2))
+    fake.fill("0000002")
+    desks.tick(KR_OPEN + timedelta(minutes=3))
+    first, second = sorted((o for o in desks.orders() if o["role"] == "entry"),
+                           key=lambda o: o["id"])
+    assert first["detail"].get("merged_into") == second["id"]
+    added = D(second["filled_qty"])
+    assert D(second["detail"]["position_qty"]) == 19 + added
+    avg = D(second["detail"]["avg_price"])
+    assert D(50_000) < avg < D(52_000)
+    assert titles(desks)[-1].startswith("[체결] 삼성전자 추가 매수")
+    fake.price = D(48_500)                                     # below the latest stop (49,000)
+    desks.tick(KR_OPEN + timedelta(minutes=4))
+    api, body = fake.sent[-1]
+    assert api == "kt10001" and body["ord_qty"] == f"{19 + added:.0f}"   # the whole position
+    fake.fill(f"{fake.n:07d}", D(48_000))
+    desks.tick(KR_OPEN + timedelta(minutes=5))
+    loss = (D(48_000) - avg) * (19 + added)
+    assert titles(desks)[-1].endswith(f"−{abs(loss).quantize(D(1)):,}원")
