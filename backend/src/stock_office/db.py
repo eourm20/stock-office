@@ -8,9 +8,11 @@ transactions and queries across runs. Migrations are append-only and tracked by 
 from __future__ import annotations
 
 import sqlite3
+import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
 
 MIGRATIONS: list[str] = [
     # 1: inbox (reports and approval requests), approval plans, CEO decisions
@@ -241,11 +243,57 @@ def db_path(data_dir: Path) -> Path:
     return Path(data_dir) / "office.db"
 
 
+class _Result:
+    """A finished statement's rows (read under the lock), with the cursor attributes we use."""
+
+    def __init__(self, cur: sqlite3.Cursor) -> None:
+        self._rows = cur.fetchall() if cur.description else []
+        self._next = 0
+        self.rowcount, self.lastrowid = cur.rowcount, cur.lastrowid
+
+    def fetchone(self) -> Any:
+        if self._next >= len(self._rows):
+            return None
+        self._next += 1
+        return self._rows[self._next - 1]
+
+    def fetchall(self) -> list[Any]:
+        rest, self._next = self._rows[self._next:], len(self._rows)
+        return rest
+
+    def __iter__(self) -> Iterator[Any]:
+        return iter(self.fetchall())
+
+
+class SafeConnection(sqlite3.Connection):
+    """One connection shared by the API's request threads (and a worker's threads).
+
+    sqlite3 objects must not be used by two threads at once: two simultaneous requests broke the
+    connection on 2026-10-20 ("bad parameter or other API misuse", then "database is locked" on
+    every call). Every statement runs under one re-entrant lock and its rows are read before the
+    lock is released; `transaction()` holds the same lock for the whole transaction.
+    """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.lock = threading.RLock()
+
+    def execute(self, sql: str, parameters: Any = (), /) -> Any:
+        with self.lock:
+            return _Result(super().execute(sql, parameters))
+
+    def executemany(self, sql: str, parameters: Any, /) -> Any:
+        with self.lock:
+            return _Result(super().executemany(sql, parameters))
+
+
 def connect(data_dir: Path) -> sqlite3.Connection:
-    """Open (and migrate) the office database. Callers own the connection."""
+    """Open (and migrate) the office database. Callers own the connection; it is safe to share
+    across threads (see SafeConnection)."""
     Path(data_dir).mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(
-        db_path(data_dir), timeout=5, isolation_level=None, check_same_thread=False
+        db_path(data_dir), timeout=5, isolation_level=None, check_same_thread=False,
+        factory=SafeConnection,
     )
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
@@ -269,10 +317,17 @@ def migrate(conn: sqlite3.Connection) -> int:
 
 @contextmanager
 def transaction(conn: sqlite3.Connection) -> Iterator[sqlite3.Connection]:
-    conn.execute("BEGIN IMMEDIATE")
+    lock = getattr(conn, "lock", None)
+    if lock is not None:
+        lock.acquire()   # other threads wait until this transaction ends
     try:
-        yield conn
-    except BaseException:
-        conn.execute("ROLLBACK")
-        raise
-    conn.execute("COMMIT")
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            yield conn
+        except BaseException:
+            conn.execute("ROLLBACK")
+            raise
+        conn.execute("COMMIT")
+    finally:
+        if lock is not None:
+            lock.release()
