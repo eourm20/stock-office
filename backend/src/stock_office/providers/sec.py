@@ -21,7 +21,7 @@ ARCHIVE_URL = "https://www.sec.gov/Archives/edgar/data/{cik}/{acc}/{doc}"
 # Forms worth a report to the CEO: periodic results, and 8-Ks only for the items below. 6-Ks
 # (foreign issuers' frequent notices), amendments and other forms are checked but not reported.
 FORM_KO = {"8-K": "8-K 수시 공시", "10-Q": "10-Q 분기 보고서", "10-K": "10-K 연간 보고서",
-           "20-F": "20-F 연간 보고서(해외 기업)"}
+           "20-F": "20-F 연간 보고서(해외 기업)", "40-F": "40-F 연간 보고서(캐나다 기업)"}
 # 8-K items that matter (Reg FD notices, shareholder votes and "other events" do not).
 ITEM_KO = {"1.01": "중요 계약", "1.02": "계약 종료", "2.01": "인수·매각 완료", "2.02": "실적 발표",
            "2.05": "구조조정", "2.06": "자산 손상", "3.01": "상장 유지 문제",
