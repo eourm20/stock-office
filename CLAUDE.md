@@ -30,7 +30,7 @@ Build **Stock Office**, a personal AI investment-office simulator that analyzes 
 - Until the user supplies their own sprite sheets, characters are **placeholders** from licensed (CC0 or compatible) game assets, listed with source and license in the registry. Do not rush a character editor or upload UI; it is Sprint 2C.
 - FastAPI + isolated background worker + PostgreSQL backend; SSE with replayable ordered events.
 - TradingAgents orchestrator behind `TradingAgentsAdapter`, with pinned version and normalized output contract.
-- Execution venue behind one interface: `internal` (paper book, daily-bar fills) and `kiwoom_mock` (orders to Kiwoom's mock server, fills read back from it). The internal book keeps running as a shadow on the same approvals so the two can be compared (fills, fees, taxes, FX).
+- Execution venue behind one interface: `internal` (paper book, daily-bar fills) and `kiwoom_mock` (orders to Kiwoom's mock server, fills read back from it). The internal book is being **converted** into Kiwoom mock trading, not run beside it (user decision 2026-10-20): once step K2 is live, production approvals go to `kiwoom_mock` only and the internal book remains for DEMO meetings and tests.
 - US/KR `MarketDataProvider` with standardized symbol, timezone, currency and provider-specific data freshness. Distinguish `observed_at`, `available_at`, `ingested_at`.
 - Strategy registry supports A=legacy deterministic rules, B=legacy agent baseline (optional), C=TradingAgents, D=hybrid (future). Comparisons require matched windows and costs.
 - Keep model reasoning/tool internals private; publish only sanitised report, rationale, structured evidence and execution/status events.

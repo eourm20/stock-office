@@ -28,7 +28,7 @@ runs the company as its **CEO** from a phone-friendly web app with three tabs:
 | Auto-approval (CEO opinion kept apart), paper orders settled on daily bars, KRW ledger, portfolio page (step D) | ✅ deployed 2026-10-20 (first real fills pending) |
 | Shared boardroom in the office scene: both debates and their chairs meet there, from real events | ✅ deployed 2026-10-20 |
 | Phone notifications (web push): meeting started, meeting ended, approval request; quiet hours | ✅ local, deploy + server key next |
-| **Step K: Kiwoom 모의투자** (mock accounts, domestic + overseas): read-only link, mock orders with the same risk gate, fills read back, comparison with the paper book | next |
+| **Step K: Kiwoom 모의투자** (mock accounts, domestic + overseas): read-only link, mock orders with the same risk gate, fills read back; then the paper book is switched over to it | next |
 | Intraday monitoring (C, also triggers K exits), research screener (B), investment policy statement | planned |
 | **Step E: one month of mock trading** on the Kiwoom mock accounts, criteria fixed in advance | planned |
 
