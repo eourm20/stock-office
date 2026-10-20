@@ -30,11 +30,11 @@ runs the company as its **CEO** from a phone-friendly web app with three tabs:
 | Phone notifications (web push): meeting started, meeting ended, approval request; quiet hours | ✅ deployed 2026-10-20, received on iPhone |
 | Two desks, 국장 and 미장: a top switch scopes the inbox, records, portfolio and settings to one market; the office is one company with each meeting labelled | ✅ deployed 2026-10-20 |
 | **Step K: Kiwoom 모의투자** — K1 read-only link to both mock accounts (domestic KRW, overseas USD) | ✅ deployed 2026-10-20 |
-| Step K2–K4: mock orders with the same risk gate, fills read back, then the paper book is switched over | next |
+| Step K2–K4 + C exits: approved plans become Kiwoom mock orders in regular hours (POLICY_V3, whole shares), fills read back, deadline cancels, stop/target exits, −10% loss limit, session values with KOSPI / NASDAQ-100; order notifications | ✅ deployed 2026-10-20 (first real orders 2026-10-21) |
 | Intraday monitoring (C, also triggers K exits), research screener (B), investment policy statement | planned |
-| **Step E: one month of mock trading** on the Kiwoom mock accounts, criteria fixed in advance | planned |
+| **Step E: one month of mock trading** on the Kiwoom mock accounts; criteria draft in [docs/evaluation-plan.md](docs/evaluation-plan.md) | criteria to confirm |
 
-Tests: backend 184 passed (unit/contract/e2e, no network) · frontend 49 passed. Reports per step are in
+Tests: backend 197 passed (unit/contract/e2e, no network) · frontend 49 passed. Reports per step are in
 [docs/](docs/); the current overview and remaining work are in [IMPLEMENTATION_PLAN.md §0](IMPLEMENTATION_PLAN.md).
 
 ## Tech stack

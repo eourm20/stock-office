@@ -100,6 +100,9 @@ ARM instance (up to 4 OCPU / 24 GB, free tier).
 - 2026-10-20 13:20 KST — step D (paper book) and the office boardroom. `office.db` backed up first with SQLite's
   backup API (`office.db.bak-20261020-v1`); migrations 2 and 3 applied on start (`user_version` 3); health, portfolio,
   settings and office APIs, pages `/`, `/portfolio`, `/office`, `/settings` → 200; three services active.
+- 2026-10-20 15:20–15:25 KST — K2–K4 desks (migration 5, backup `office.db.bak-20261020-v4`) and order notifications
+  (migration 6, backup `-v5`). The worker runs a `kiwoom-mock-desks` thread: orders only in each market's regular
+  session, account value after each close.
 - 2026-10-20 14:52 KST — two desks (국장/미장 switch, per-market screens, office labels). Pages 200; `office/now`
   `next` carries `market`.
 - 2026-10-20 14:40 KST — K1, read-only Kiwoom mock link. Owner put the mock app keys (domestic and overseas pairs)
