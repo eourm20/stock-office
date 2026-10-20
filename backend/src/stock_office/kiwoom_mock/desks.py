@@ -33,7 +33,7 @@ from stock_office.domain.models import Market
 from stock_office.kiwoom_mock.accounts import MockAccount, kr_account, num, us_account
 from stock_office.kiwoom_mock.client import KiwoomMockClient, KiwoomMockError
 from stock_office.paper.allocator import POLICY_V3, Policy, allocate
-from stock_office.schedule import closed_sessions, open_session
+from stock_office.schedule import DEFAULT_RULES, closed_sessions, open_session
 
 KST = ZoneInfo("Asia/Seoul")
 
@@ -49,6 +49,8 @@ EXIT_RETRY = timedelta(minutes=3)   # an unfilled exit is re-placed at the new p
 MAX_DRAWDOWN = D("0.10")            # IPS: no new buys once the account is 10% below its start
 BENCHMARK = {"KR": "^KS11", "US": "^NDX"}  # KOSPI, NASDAQ-100
 ROLE_KO = {"entry": "매수", "take_profit": "익절", "stop": "손절", "exit": "매도"}
+MOVE_STEPS = (D(3), D(5), D(10))      # C: report a watched stock's day move at ±3%, ±5%, ±10%
+FILINGS_EVERY = timedelta(minutes=10)
 
 
 def iso(dt: datetime) -> str:
@@ -90,8 +92,12 @@ class Desks:
     def __init__(self, conn: sqlite3.Connection,
                  clients: Callable[[str], KiwoomMockClient | None],
                  policy: Policy = POLICY_V3,
-                 benchmark: Callable[[str, Any], Decimal | None] | None = None) -> None:
+                 benchmark: Callable[[str, Any], Decimal | None] | None = None,
+                 filings: Callable[[str, Any], list[tuple[str, str]]] | None = None) -> None:
         self.conn, self.clients, self.policy, self.benchmark = conn, clients, policy, benchmark
+        # KR filings (DART): instrument → [(receipt no, title)] filed that KST day
+        self.filings = filings
+        self._filings_at: dict[str, datetime] = {}
 
     # ================================================================ queue (no network)
     def queue_entry(self, item_id: int, instrument_id: str, plan: dict[str, Any],
@@ -174,6 +180,7 @@ class Desks:
             else:
                 self._send_exit(market, client, acc, row, now)
         self._watch(market, client, acc, now)
+        self._alerts(market, client, acc, now)
 
     # ---------------------------------------------------------------- pieces
     def _rows(self, market: str, *status: str) -> list[sqlite3.Row]:
@@ -201,14 +208,15 @@ class Desks:
         self.conn.execute(f"UPDATE km_orders SET {cols} WHERE id=?", (*fields.values(), order_id))
 
     def _notice(self, row: sqlite3.Row | dict[str, Any], kind: str, title: str, summary: str,
-                key: str, now: datetime, extra: dict[str, Any] | None = None) -> None:
+                key: str, now: datetime, extra: dict[str, Any] | None = None,
+                prefix: str = "km") -> None:
         payload = {"name": display_name(row["instrument_id"]), "venue": "kiwoom_mock",
                    "order_id": row["id"], "item_id": row["item_id"], **(extra or {})}
         self.conn.execute(
             "INSERT OR IGNORE INTO inbox_items (kind, run_id, instrument_id, title, summary, "
             "payload, status, dedupe_key, created_at) VALUES (?,?,?,?,?,?, 'INFO', ?, ?)",
             (kind, None, row["instrument_id"], title, summary,
-             json.dumps(payload, ensure_ascii=False), f"km:{key}", iso(now)))
+             json.dumps(payload, ensure_ascii=False), f"{prefix}:{key}", iso(now)))
 
     def _expire_waiting(self, market: str, now: datetime) -> None:
         with transaction(self.conn):
@@ -448,6 +456,63 @@ class Desks:
                                         (cur.lastrowid,)).fetchone()
             self._place(market, client, row, "SELL", qty, marketable_sell(market, price), now)
 
+    # ---------------------------------------------------------------- C: intraday reports
+    def _alerts(self, market: str, client: KiwoomMockClient, acc: MockAccount,
+                now: datetime) -> None:
+        """Watched and held stocks: a report when the day's move crosses ±3/5/10%, and (국장)
+        when a new DART filing appears. Inbox reports only (`watch:` keys, not order alerts)."""
+        watched = {r.instrument_id for r in DEFAULT_RULES if r.instrument_id.startswith(market)}
+        held = {r["instrument_id"] for r in self._rows(market, "FILLED") if r["role"] == "entry"}
+        day = datetime.now(KST).date() if market == "KR" else now.date()
+        for instrument_id in sorted(watched | held):
+            code, exch = _code(instrument_id)
+            try:
+                page = (client.query("/api/dostk/stkinfo", "ka10001", {"stk_cd": code})[0]
+                        if market == "KR" else
+                        client.query("/api/us/mrkcond", "usa20100",
+                                     {"stex_tp": exch, "stk_cd": code})[0])
+            except KiwoomMockError as exc:
+                log.warning("move %s: %s", instrument_id, exc)
+                continue
+            rate, price = num(page.get("flu_rt")), num(page.get("cur_prc"))
+            if rate is None:
+                continue
+            move = D(rate)
+            crossed = [step for step in MOVE_STEPS if abs(move) >= step]
+            if not crossed:
+                continue
+            step = crossed[-1]
+            name = display_name(instrument_id)
+            ref = {"instrument_id": instrument_id, "id": None, "item_id": None}
+            with transaction(self.conn):
+                sign, cur = ("+" if move > 0 else "−"), ("USD" if market == "US" else "KRW")
+                now_price = money(abs(D(price)) if price else None, cur)
+                self._notice(ref, "adhoc", f"[급변] {name} {sign}{abs(move)}%",
+                             f"전일 대비 {'상승' if move > 0 else '하락'} {step}% 이상 · "
+                             f"현재가 {now_price}",
+                             f"move:{instrument_id}:{day}:{'up' if move > 0 else 'down'}{step}",
+                             now, prefix="watch")
+        if market != "KR" or self.filings is None:
+            return
+        for instrument_id in sorted(watched | held):
+            last = self._filings_at.get(instrument_id)
+            if last and now - last < FILINGS_EVERY:
+                continue
+            self._filings_at[instrument_id] = now
+            try:
+                found = self.filings(instrument_id, day)
+            except Exception as exc:
+                log.warning("filings %s: %s", instrument_id, exc)
+                continue
+            ref = {"instrument_id": instrument_id, "id": None, "item_id": None}
+            with transaction(self.conn):
+                for rcept_no, title in found:
+                    self._notice(ref, "adhoc", f"[공시] {display_name(instrument_id)} · {title}",
+                                 f"DART 접수번호 {rcept_no} · dart.fss.or.kr에서 원문 확인",
+                                 f"dart:{rcept_no}", now,
+                                 {"url": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcept_no}"},
+                                 prefix="watch")
+
     # ================================================================ evaluation (E)
     def record_nav(self, now: datetime) -> None:
         """One account snapshot per closed session (after the close), with the benchmark close."""
@@ -500,4 +565,14 @@ def build_desks(settings: Any, conn: sqlite3.Connection) -> Desks:
         result: Decimal | None = index_close(symbol, day)
         return result
 
-    return Desks(conn, clients, benchmark=benchmark)
+    def filings(instrument_id: str, day: Any) -> list[tuple[str, str]]:
+        from stock_office.domain.instruments import get_instrument as inst
+        from stock_office.providers.dart import DartDisclosureProvider
+
+        key = settings.dart_api_key.get_secret_value() if settings.dart_api_key else None
+        if not key:
+            return []
+        result = DartDisclosureProvider(api_key=key).fetch_range(inst(instrument_id), day, day)
+        return [(str(s.payload["rcept_no"]), str(s.payload["report_nm"])) for s in result.snapshots]
+
+    return Desks(conn, clients, benchmark=benchmark, filings=filings)

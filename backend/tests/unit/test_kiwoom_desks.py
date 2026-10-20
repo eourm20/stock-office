@@ -33,6 +33,7 @@ class FakeMock:
         self.orders: dict[str, dict[str, Any]] = {}  # ord_no -> order
         self.sent: list[tuple[str, dict[str, Any]]] = []
         self.fail_next: str | None = None
+        self.move: str | None = None   # day change (%) the quote reports
         self.n = 0
 
     def fill(self, no: str, price: D | None = None) -> None:
@@ -83,7 +84,8 @@ class FakeMock:
                 {"ord_no": no, "cntr_qty": str(o["filled"]), "cntr_uv": str(o["price"] or 0)}
                 for no, o in self.orders.items()]})
         if api == "ka10001":
-            return httpx.Response(200, json={**ok, "cur_prc": f"-{self.price}"})
+            return httpx.Response(200, json={**ok, "cur_prc": f"-{self.price}",
+                                             **({"flu_rt": self.move} if self.move else {})})
         if api == "ust21110":
             return httpx.Response(200, json={**ok, "result_list": [
                 {"crnc_code": "USD", "fc_entra": str(self.cash), "fc_ord_alowa": str(self.cash)}]})
@@ -296,3 +298,27 @@ def test_approving_a_kiwoom_plan_queues_it_without_any_network(tmp_path: Path) -
     assert item.paper == []                                   # not in the internal book
     inbox.decide(7, "approve", "", "ceo-1", KR_OPEN)          # repeated tap: still one
     assert len(desks.orders()) == 1
+
+
+def test_sharp_moves_and_new_filings_are_reported_once(tmp_path: Path) -> None:
+    calls: list[str] = []
+
+    def filings(instrument_id: str, day: Any) -> list[tuple[str, str]]:
+        calls.append(instrument_id)
+        return [("20261020000123", "주요사항보고서(자기주식취득결정)")]
+
+    desks, fake = setup(tmp_path)
+    desks.filings = filings
+    fake.move = "-3.40"
+    desks.tick(KR_OPEN)
+    desks.tick(KR_OPEN + timedelta(minutes=1))       # same move, filings not due again
+    fake.move = "-5.10"
+    desks.tick(KR_OPEN + timedelta(minutes=2))
+    fake.move = "-4.00"                               # back above −5%: nothing new
+    desks.tick(KR_OPEN + timedelta(minutes=12))      # filings checked again: same receipt
+    assert titles(desks) == ["[급변] 삼성전자 −3.4%",
+                             "[공시] 삼성전자 · 주요사항보고서(자기주식취득결정)",
+                             "[급변] 삼성전자 −5.1%"]
+    assert calls == [KR, KR]
+    keys = [r[0] for r in desks.conn.execute("SELECT dedupe_key FROM inbox_items")]
+    assert all(k.startswith("watch:") for k in keys)  # reports, not order notifications
