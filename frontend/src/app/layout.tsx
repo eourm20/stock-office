@@ -4,7 +4,7 @@ import { MarketProvider } from "../lib/market";
 
 export const metadata: Metadata = {
   title: "Stock Office",
-  description: "AI investment office simulator — mock trading only (국장·미장)",
+  description: "AI investment office simulator — mock trading only (국내장·해외장)",
   // iOS "홈 화면에 추가": full-screen app with its own icon and name.
   appleWebApp: { capable: true, title: "Stock Office", statusBarStyle: "black-translucent" },
   icons: { apple: "/icons/apple-touch-icon.png" },

@@ -13,7 +13,7 @@ const ACTION_COLOR: Record<string, string> = {
   BUY: "text-emerald-300", SELL: "text-rose-300", HOLD: "text-sky-200", REVIEW: "text-amber-300",
 };
 
-/** 결재함: the CEO's desk for one market (국장 or 미장). Decisions first, then reports, then handled. */
+/** 결재함: the CEO's desk for one market (국내장 or 해외장). Decisions first, then reports, then handled. */
 export default function InboxPage() {
   const { market, refreshPending } = useMarket();
   const [items, setItems] = useState<InboxItem[] | null>(null);

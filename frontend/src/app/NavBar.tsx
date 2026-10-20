@@ -12,7 +12,7 @@ const LINKS = [
 
 /**
  * The CEO's three places: inbox (decide), office (watch, like CCTV), records (minutes), for one of
- * two desks at a time: 국장 or 미장 (switch on top). The office is one company and shows both.
+ * two desks at a time: 국내장 or 해외장 (switch on top). The office is one company and shows both.
  * Phones get an app-style bottom tab bar; company settings sit behind ⚙.
  */
 export default function NavBar({ children }: { children?: React.ReactNode }) {
@@ -33,7 +33,7 @@ export default function NavBar({ children }: { children?: React.ReactNode }) {
               title="모의투자 전용. 실계좌 주문을 내지 않습니다">모의투자 전용</span>
         <div className="ml-auto flex items-center gap-2">
           {path.startsWith("/office")
-            ? <span className="text-[12px] text-[var(--muted)]">회사 전체 · 국장·미장</span>
+            ? <span className="text-[12px] text-[var(--muted)]">회사 전체 · 국내장·해외장</span>
             : <MarketSwitch />}
           {children}
           <Link href="/settings" aria-label="회사 운영" aria-current={path.startsWith("/settings") ? "page" : undefined}

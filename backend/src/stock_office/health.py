@@ -33,7 +33,7 @@ WORKER_SILENT = timedelta(minutes=10)
 MEETING_TOO_LONG = timedelta(minutes=30)
 RESEARCH_GRACE = timedelta(minutes=10)     # after the open
 NAV_GRACE = timedelta(hours=2)             # after the close
-MARKET_KO = {"KR": "국장", "US": "미장"}
+MARKET_KO = {"KR": "국내장", "US": "해외장"}
 
 
 def iso(dt: datetime) -> str:

@@ -36,7 +36,7 @@ export default function PortfolioPage() {
       <h1 className="px-3 pt-2 text-lg font-bold">{MARKET_KO[market]} 포트폴리오</h1>
 
       <div className="flex flex-col gap-3 p-3">
-        <Card title="키움 모의 계좌" sub={market === "KR" ? "국장 운용 자금(원화). 계좌 잔고가 곧 회사가 굴리는 돈입니다." : "미장 운용 자금(달러, 환전 없음). 계좌 잔고가 곧 회사가 굴리는 돈입니다."}>
+        <Card title="키움 모의 계좌" sub={market === "KR" ? "국내장 운용 자금(원화). 계좌 잔고가 곧 회사가 굴리는 돈입니다." : "해외장 운용 자금(달러, 환전 없음). 계좌 잔고가 곧 회사가 굴리는 돈입니다."}>
           <KiwoomMockPanel market={market} />
         </Card>
 

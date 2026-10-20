@@ -347,7 +347,8 @@ def create_app(
              "kind": "committee"} for s in slots]
         from stock_office.research.team import next_research
 
-        upcoming += [{"instrument_id": None, "name": f"{'국장' if m == 'KR' else '미장'} 리서치",
+        label = {"KR": "국내장", "US": "해외장"}
+        upcoming += [{"instrument_id": None, "name": f"{label[m]} 리서치",
                       "market": m, "at": next_research(m, now), "kind": "research"}
                      for m in ("KR", "US")]
         upcoming.sort(key=lambda u: u["at"])  # type: ignore[arg-type,return-value]

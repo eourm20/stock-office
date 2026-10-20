@@ -298,7 +298,7 @@ export interface InboxItem {
   plan: ApprovalPlan | SellPlan | null;
   approvals: { action: string; comment: string; decided_at: string; auto?: boolean; opinion?: boolean }[];
   paper?: PaperOrder[];
-  /** Orders on the Kiwoom mock account (국장/미장 desks). */
+  /** Orders on the Kiwoom mock account (국내장/해외장 desks). */
   mock_orders?: MockOrder[];
   auto_approved?: boolean;
   /** CEO's view on an auto-approved request (recorded only; the paper order follows the model). */

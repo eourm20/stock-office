@@ -165,7 +165,7 @@ export default function InboxDocument() {
 
           {item.mock_orders && item.mock_orders.length > 0 && (
             <section className="border-t border-[#d8d2c2] p-4">
-              <h2 className="mb-2 text-sm font-bold">키움 모의 주문 <span className="font-normal text-[#6b6455]">({marketOf(item.instrument_id) === "US" ? "미장" : "국장"} 계좌 · 모의투자 서버)</span></h2>
+              <h2 className="mb-2 text-sm font-bold">키움 모의 주문 <span className="font-normal text-[#6b6455]">({marketOf(item.instrument_id) === "US" ? "해외장" : "국내장"} 계좌 · 모의투자 서버)</span></h2>
               <ul className="space-y-1.5 text-[13px]">
                 {item.mock_orders.map((o) => (
                   <li key={o.id} className="flex flex-wrap items-baseline justify-between gap-x-2 rounded bg-[#ece7da] px-2 py-1.5">

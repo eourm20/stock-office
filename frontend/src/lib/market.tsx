@@ -3,9 +3,9 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { getInbox } from "./api";
 
-/** The company runs two separate desks: 국장 (KRX, KRW account) and 미장 (US, USD account). */
+/** The company runs two separate desks: 국내장 (KRX, KRW account) and 해외장 (US, USD account). */
 export type Market = "KR" | "US";
-export const MARKET_KO: Record<Market, string> = { KR: "국장", US: "미장" };
+export const MARKET_KO: Record<Market, string> = { KR: "국내장", US: "해외장" };
 export const MARKET_CURRENCY: Record<Market, "KRW" | "USD"> = { KR: "KRW", US: "USD" };
 
 /** "KR:KRX:005930" → "KR"; anything else (or nothing) → null. */
@@ -66,7 +66,7 @@ export function useMarket(): MarketState {
   return v;
 }
 
-/** [국장 | 미장] with a dot for waiting approvals. */
+/** [국내장 | 해외장] with a dot for waiting approvals. */
 export function MarketSwitch() {
   const { market, setMarket, pending } = useMarket();
   return (

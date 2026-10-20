@@ -37,7 +37,7 @@ from stock_office.schedule import closed_sessions, first_session_opening_after, 
 
 log = logging.getLogger("stock_office.research")
 INDEX = {"KR": "KOSPI200", "US": "NASDAQ100"}
-MARKET_KO = {"KR": "국장", "US": "미장"}
+MARKET_KO = {"KR": "국내장", "US": "해외장"}
 KR_LEAD = timedelta(hours=2)          # research 2 h before the KRX open
 US_AFTER = timedelta(minutes=90)      # research 90 min after the NYSE close
 
