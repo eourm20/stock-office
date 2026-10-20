@@ -302,15 +302,8 @@ def test_approving_a_kiwoom_plan_queues_it_without_any_network(tmp_path: Path) -
     assert len(desks.orders()) == 1
 
 
-def test_sharp_moves_and_new_filings_are_reported_once(tmp_path: Path) -> None:
-    calls: list[str] = []
-
-    def filings(instrument_id: str, day: Any) -> list[tuple[str, str]]:
-        calls.append(instrument_id)
-        return [("20261020000123", "주요사항보고서(자기주식취득결정)")]
-
+def test_sharp_moves_are_reported_once(tmp_path: Path) -> None:
     desks, fake = setup(tmp_path)
-    desks.filings = filings
     with transaction(desks.conn):   # the research team put Samsung on today's focus
         desks.conn.execute(
             "INSERT INTO research_runs (market, session, rules_version, universe, screened, "
@@ -319,35 +312,14 @@ def test_sharp_moves_and_new_filings_are_reported_once(tmp_path: Path) -> None:
             (json.dumps([KR]), json.dumps([{"instrument_id": KR, "why": "test"}])))
     fake.move = "-3.40"
     desks.tick(KR_OPEN)
-    desks.tick(KR_OPEN + timedelta(minutes=1))       # same move, filings not due again
+    desks.tick(KR_OPEN + timedelta(minutes=1))       # same move: nothing new
     fake.move = "-5.10"
     desks.tick(KR_OPEN + timedelta(minutes=2))
     fake.move = "-4.00"                               # back above −5%: nothing new
-    desks.tick(KR_OPEN + timedelta(minutes=12))      # filings checked again: same receipt
-    assert titles(desks) == ["[급변] 삼성전자 −3.4%",
-                             "[공시] 삼성전자 · 주요사항보고서(자기주식취득결정)",
-                             "[급변] 삼성전자 −5.1%"]
-    assert calls == [KR, KR]
+    desks.tick(KR_OPEN + timedelta(minutes=12))
+    assert titles(desks) == ["[급변] 삼성전자 −3.4%", "[급변] 삼성전자 −5.1%"]
     keys = [r[0] for r in desks.conn.execute("SELECT dedupe_key FROM inbox_items")]
     assert all(k.startswith("watch:") for k in keys)  # reports, not order notifications
-
-
-def test_us_filings_from_sec_are_reported_once(tmp_path: Path) -> None:
-    def us_filings(instrument_id: str, day: Any) -> list[tuple[str, str, str]]:
-        return [("0001045810-26-000101", "8-K 수시 공시 · 실적 발표",
-                 "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000101/x.htm")]
-
-    desks, _ = setup(tmp_path, "US")
-    desks.us_filings = us_filings
-    with transaction(desks.conn):
-        desks.conn.execute(
-            "INSERT INTO research_runs (market, session, rules_version, universe, screened, "
-            "liquid, candidates, watchlist, focus, created_at) VALUES ('US', '2026-10-20', "
-            "'SCREEN_V1', 'NASDAQ100', 1, 1, '[]', ?, ?, 'x')",
-            (json.dumps([US]), json.dumps([{"instrument_id": US, "why": "test"}])))
-    desks.tick(US_OPEN)
-    desks.tick(US_OPEN + timedelta(minutes=12))
-    assert titles(desks) == ["[공시] 엔비디아 · 8-K 수시 공시 · 실적 발표"]
 
 
 def test_an_add_on_buy_joins_the_position_and_the_stop_sells_it_all(tmp_path: Path) -> None:

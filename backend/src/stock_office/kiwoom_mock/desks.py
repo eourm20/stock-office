@@ -50,8 +50,6 @@ MAX_DRAWDOWN = D("0.10")            # IPS: no new buys once the account is 10% b
 BENCHMARK = {"KR": "^KS11", "US": "^NDX"}  # KOSPI, NASDAQ-100
 ROLE_KO = {"entry": "매수", "take_profit": "익절", "stop": "손절", "exit": "매도"}
 MOVE_STEPS = (D(3), D(5), D(10))      # C: report a watched stock's day move at ±3%, ±5%, ±10%
-FILINGS_EVERY = timedelta(minutes=10)
-FILINGS_LOOKBACK = timedelta(days=3)   # filings after the close or over a weekend still reported
 GAP_LIMIT = D("0.05")   # pre-order check: skip when the price moved > 5% from the meeting's price
 
 
@@ -94,16 +92,8 @@ class Desks:
     def __init__(self, conn: sqlite3.Connection,
                  clients: Callable[[str], KiwoomMockClient | None],
                  policy: Policy = POLICY_V3,
-                 benchmark: Callable[[str, Any], Decimal | None] | None = None,
-                 filings: Callable[[str, Any], list[tuple[str, str]]] | None = None,
-                 us_filings: Callable[[str, Any], list[tuple[str, str, str]]] | None = None
-                 ) -> None:
+                 benchmark: Callable[[str, Any], Decimal | None] | None = None) -> None:
         self.conn, self.clients, self.policy, self.benchmark = conn, clients, policy, benchmark
-        # KR filings (DART): instrument → [(receipt no, title)] filed that KST day
-        self.filings = filings
-        # US filings (SEC EDGAR): instrument → [(accession no, title, link)] of the last few days
-        self.us_filings = us_filings
-        self._filings_at: dict[str, datetime] = {}
 
     # ================================================================ queue (no network)
     def queue_entry(self, item_id: int, instrument_id: str, plan: dict[str, Any],
@@ -536,9 +526,9 @@ class Desks:
     # ---------------------------------------------------------------- C: intraday reports
     def _alerts(self, market: str, client: KiwoomMockClient, acc: MockAccount,
                 now: datetime) -> None:
-        """Watched and held stocks: a report when the day's move crosses ±3/5/10%, and when a new
-        filing appears (국장 DART, 미장 SEC EDGAR). Inbox reports only (`watch:` keys, not order
-        alerts)."""
+        """Watched and held stocks: a report when the day's move crosses ±3/5/10%, so the CEO knows
+        what is happening. Inbox reports only (`watch:` keys, not order alerts); no trading effect.
+        Filings are not watched here (owner, 2026-10-21): meetings read DART and news themselves."""
         row = self.conn.execute("SELECT focus FROM research_runs WHERE market=? ORDER BY id "
                                 "DESC LIMIT 1", (market,)).fetchone()
         watched = {f["instrument_id"] for f in json.loads(row["focus"])} if row else set()
@@ -572,35 +562,6 @@ class Desks:
                              f"현재가 {now_price}",
                              f"move:{instrument_id}:{day}:{'up' if move > 0 else 'down'}{step}",
                              now, prefix="watch")
-        if (self.filings if market == "KR" else self.us_filings) is None:
-            return
-        for instrument_id in sorted(watched | held):
-            last = self._filings_at.get(instrument_id)
-            if last and now - last < FILINGS_EVERY:
-                continue
-            self._filings_at[instrument_id] = now
-            try:
-                found = self._new_filings(market, instrument_id, day)
-            except Exception as exc:
-                log.warning("filings %s: %s", instrument_id, exc)
-                continue
-            ref = {"instrument_id": instrument_id, "id": None, "item_id": None}
-            with transaction(self.conn):
-                for key, title, body, url in found:
-                    self._notice(ref, "adhoc", f"[공시] {display_name(instrument_id)} · {title}",
-                                 body, key, now, {"url": url}, prefix="watch")
-
-    def _new_filings(self, market: str, instrument_id: str, day: Any
-                     ) -> list[tuple[str, str, str, str]]:
-        """[(dedupe key, title, body, link)] from DART (국장) or SEC EDGAR (미장)."""
-        if market == "KR":
-            assert self.filings is not None
-            return [(f"dart:{no}", title, f"DART 접수번호 {no} · dart.fss.or.kr에서 원문 확인",
-                     f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={no}")
-                    for no, title in self.filings(instrument_id, day)]
-        assert self.us_filings is not None
-        return [(f"sec:{acc}", title, f"SEC EDGAR 접수번호 {acc} · sec.gov에서 원문 확인", url)
-                for acc, title, url in self.us_filings(instrument_id, day)]
 
     # ================================================================ evaluation (E)
     def record_nav(self, now: datetime) -> None:
@@ -654,35 +615,4 @@ def build_desks(settings: Any, conn: sqlite3.Connection) -> Desks:
         result: Decimal | None = index_close(symbol, day)
         return result
 
-    def filings(instrument_id: str, day: Any) -> list[tuple[str, str]]:
-        from stock_office.domain.instruments import get_instrument as inst
-        from stock_office.filings import kr_topic
-        from stock_office.providers.dart import DartDisclosureProvider
-
-        key = settings.dart_api_key.get_secret_value() if settings.dart_api_key else None
-        if not key:
-            return []
-        # The last few days, so a filing after the close (earnings often are) reaches the next
-        # session; only important ones (filings.kr_topic), each once by its receipt number.
-        result = DartDisclosureProvider(api_key=key).fetch_range(
-            inst(instrument_id), day - FILINGS_LOOKBACK, day)
-        out = []
-        for snap in result.snapshots:
-            name = str(snap.payload["report_nm"])
-            topic = kr_topic(name)
-            if topic is not None:
-                out.append((str(snap.payload["rcept_no"]), f"{topic} · {name.strip()}"))
-        return out
-
-    sec = None
-    if settings.sec_user_agent:
-        from stock_office.providers.sec import SecFilings
-
-        sec = SecFilings(settings.sec_user_agent)
-
-    def us_filings(instrument_id: str, day: Any) -> list[tuple[str, str, str]]:
-        assert sec is not None
-        return sec.recent(_code(instrument_id)[0], day)
-
-    return Desks(conn, clients, benchmark=benchmark, filings=filings,
-                 us_filings=us_filings if sec else None)
+    return Desks(conn, clients, benchmark=benchmark)
