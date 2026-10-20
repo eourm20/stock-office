@@ -3,9 +3,9 @@
 **Server (since 2026-10-19):** `stock-office` (SSH alias; Oracle Ampere A1, ARM64, Ubuntu 24.04, 4 OCPU, 24 GB RAM,
 45 GB disk; Always-Free allowance, account is Pay-As-You-Go with a 0.01 SGD budget alert).
 **Exposure:** none. The UI (3000) and API (8000) listen on `127.0.0.1` only; the only public port is SSH.
-**Previous server** `quant-worker` (1 GB): Stock Office services stopped and disabled on 2026-10-19, files and data kept
-for rollback (`sudo systemctl enable --now stock-office-api stock-office-worker stock-office-web` there, after stopping
-the new ones, would revert). It left the tailnet; the new server took over the same name.
+**Previous server** `quant-worker` (1 GB): Stock Office stopped there on 2026-10-19 and **removed on 2026-10-20** (owner's
+approval; every run it held was confirmed on the new server first): `~/stock-office` and the three `stock-office-*`
+unit files deleted. Its legacy quant-trading and stock-coach folders are untouched. It left the tailnet.
 ## Open it on your phone or PC (Tailscale, recommended)
 Since 2026-10-19 the server is in the owner's Tailscale network (device `stock-office`). `tailscale serve`
 publishes it **to that tailnet only** over HTTPS; nothing is exposed to the internet:
@@ -100,6 +100,8 @@ ARM instance (up to 4 OCPU / 24 GB, free tier).
 - 2026-10-20 13:20 KST — step D (paper book) and the office boardroom. `office.db` backed up first with SQLite's
   backup API (`office.db.bak-20261020-v1`); migrations 2 and 3 applied on start (`user_version` 3); health, portfolio,
   settings and office APIs, pages `/`, `/portfolio`, `/office`, `/settings` → 200; three services active.
+- 2026-10-20 14:52 KST — two desks (국장/미장 switch, per-market screens, office labels). Pages 200; `office/now`
+  `next` carries `market`.
 - 2026-10-20 14:40 KST — K1, read-only Kiwoom mock link. Owner put the mock app keys (domestic and overseas pairs)
   into `.env` and allowed the server IP `129.154.55.33` at Kiwoom. Check without amounts:
   `cd ~/stock-office/backend && .venv/bin/python -m stock_office.kiwoom_mock.link`. Both accounts answered.
