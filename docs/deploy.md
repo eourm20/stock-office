@@ -100,6 +100,9 @@ ARM instance (up to 4 OCPU / 24 GB, free tier).
 - 2026-10-20 13:20 KST — step D (paper book) and the office boardroom. `office.db` backed up first with SQLite's
   backup API (`office.db.bak-20261020-v1`); migrations 2 and 3 applied on start (`user_version` 3); health, portfolio,
   settings and office APIs, pages `/`, `/portfolio`, `/office`, `/settings` → 200; three services active.
+- 2026-10-20 14:40 KST — K1, read-only Kiwoom mock link. Owner put the mock app keys (domestic and overseas pairs)
+  into `.env` and allowed the server IP `129.154.55.33` at Kiwoom. Check without amounts:
+  `cd ~/stock-office/backend && .venv/bin/python -m stock_office.kiwoom_mock.link`. Both accounts answered.
 - 2026-10-20 14:05 KST — phone notifications. `office.db` backed up (`office.db.bak-20261020-v3`); migration 4
   (`user_version` 4); owner generated the push keys on the server; iPhone home-screen app subscribed (Apple push)
   and received the test notification. A Safari bookmark cannot receive notifications: use "홈 화면에 추가".
