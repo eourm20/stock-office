@@ -18,15 +18,14 @@ TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 SUBMISSIONS_URL = "https://data.sec.gov/submissions/CIK{cik:010d}.json"
 ARCHIVE_URL = "https://www.sec.gov/Archives/edgar/data/{cik}/{acc}/{doc}"
 
-# Forms worth a report to the CEO (US issuers and foreign private issuers).
+# Forms worth a report to the CEO: periodic results, and 8-Ks only for the items below. 6-Ks
+# (foreign issuers' frequent notices), amendments and other forms are checked but not reported.
 FORM_KO = {"8-K": "8-K 수시 공시", "10-Q": "10-Q 분기 보고서", "10-K": "10-K 연간 보고서",
-           "6-K": "6-K 수시 공시(해외 기업)", "20-F": "20-F 연간 보고서(해외 기업)",
-           "8-K/A": "8-K 정정", "10-Q/A": "10-Q 정정", "10-K/A": "10-K 정정"}
-# 8-K items that say what the filing is about.
+           "20-F": "20-F 연간 보고서(해외 기업)"}
+# 8-K items that matter (Reg FD notices, shareholder votes and "other events" do not).
 ITEM_KO = {"1.01": "중요 계약", "1.02": "계약 종료", "2.01": "인수·매각 완료", "2.02": "실적 발표",
            "2.05": "구조조정", "2.06": "자산 손상", "3.01": "상장 유지 문제",
-           "4.02": "재무제표 신뢰 불가", "5.01": "지배권 변경", "5.02": "임원·이사 변경",
-           "5.07": "주주총회 결과", "7.01": "공정공시", "8.01": "기타 중요 사항"}
+           "4.02": "재무제표 신뢰 불가", "5.01": "지배권 변경", "5.02": "임원·이사 변경"}
 LOOKBACK = timedelta(days=3)   # an after-close or weekend filing still reaches the next session
 MIN_INTERVAL_S = 0.15
 
@@ -71,6 +70,8 @@ class SecFilings:
                 continue
             acc = str(recent["accessionNumber"][i])
             items = [ITEM_KO[x] for x in str(_at(recent, "items", i)).split(",") if x in ITEM_KO]
+            if form == "8-K" and not items:
+                continue
             title = FORM_KO[form] + (f" · {', '.join(items[:2])}" if items else "")
             doc = _at(recent, "primaryDocument", i)
             url = (ARCHIVE_URL.format(cik=cik, acc=acc.replace("-", ""), doc=doc) if doc

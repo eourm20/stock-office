@@ -51,6 +51,7 @@ BENCHMARK = {"KR": "^KS11", "US": "^NDX"}  # KOSPI, NASDAQ-100
 ROLE_KO = {"entry": "매수", "take_profit": "익절", "stop": "손절", "exit": "매도"}
 MOVE_STEPS = (D(3), D(5), D(10))      # C: report a watched stock's day move at ±3%, ±5%, ±10%
 FILINGS_EVERY = timedelta(minutes=10)
+FILINGS_LOOKBACK = timedelta(days=3)   # filings after the close or over a weekend still reported
 GAP_LIMIT = D("0.05")   # pre-order check: skip when the price moved > 5% from the meeting's price
 
 
@@ -655,13 +656,23 @@ def build_desks(settings: Any, conn: sqlite3.Connection) -> Desks:
 
     def filings(instrument_id: str, day: Any) -> list[tuple[str, str]]:
         from stock_office.domain.instruments import get_instrument as inst
+        from stock_office.filings import kr_topic
         from stock_office.providers.dart import DartDisclosureProvider
 
         key = settings.dart_api_key.get_secret_value() if settings.dart_api_key else None
         if not key:
             return []
-        result = DartDisclosureProvider(api_key=key).fetch_range(inst(instrument_id), day, day)
-        return [(str(s.payload["rcept_no"]), str(s.payload["report_nm"])) for s in result.snapshots]
+        # The last few days, so a filing after the close (earnings often are) reaches the next
+        # session; only important ones (filings.kr_topic), each once by its receipt number.
+        result = DartDisclosureProvider(api_key=key).fetch_range(
+            inst(instrument_id), day - FILINGS_LOOKBACK, day)
+        out = []
+        for snap in result.snapshots:
+            name = str(snap.payload["report_nm"])
+            topic = kr_topic(name)
+            if topic is not None:
+                out.append((str(snap.payload["rcept_no"]), f"{topic} · {name.strip()}"))
+        return out
 
     sec = None
     if settings.sec_user_agent:
