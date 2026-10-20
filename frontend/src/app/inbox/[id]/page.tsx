@@ -4,13 +4,16 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { decideInbox, getBriefing, getInboxItem, markRead, type Briefing, type InboxItem } from "../../../lib/api";
-import { approvalLine, deadlineLabel, kstDateTime, money, shares, STATUS_KO, STATUS_TONE } from "../../../inbox/model";
+import { approvalLine, buyPlan, deadlineLabel, kstDateTime, money, ORDER_STATUS_KO, paperLine, pnlTone, ROLE_KO,
+         sellPlan, shares, signedWon, STATUS_KO, STATUS_TONE } from "../../../inbox/model";
 import { FLAG_KO, RATING_KO } from "../../../office/explain";
 import { humanizeTickers } from "../../../office/names";
 import NavBar from "../../NavBar";
 
 type Act = "approve" | "defer" | "reject";
 const ACT_KO: Record<Act, string> = { approve: "승인", defer: "보류", reject: "반려" };
+/** On an auto-approved request the buttons record the CEO's view only; the order follows the model. */
+const OPINION_KO: Record<Act, string> = { approve: "동의", defer: "보류", reject: "반대" };
 
 /** 결재 문서: one approval request (or report) laid out like a paper document. */
 export default function InboxDocument() {
@@ -45,8 +48,11 @@ export default function InboxDocument() {
     }
   };
 
-  const open = item && (item.status === "PENDING" || item.status === "DEFERRED");
-  const p = item?.plan;
+  const opinion = !!item?.opinion_open;
+  const open = item && (item.status === "PENDING" || item.status === "DEFERRED" || opinion);
+  const label = opinion ? OPINION_KO : ACT_KO;
+  const p = buyPlan(item);
+  const sp = sellPlan(item);
   const a = p?.allocation;
 
   return (
@@ -66,6 +72,12 @@ export default function InboxDocument() {
             </div>
             <h1 className="mt-1 text-xl font-bold">{item.title}</h1>
             {item.kind === "approval" && <Stamps item={item} />}
+            {item.kind === "approval" && item.paper && item.paper.length > 0 && (
+              <p className="mt-3 rounded bg-[#e5efe6] px-2 py-1.5 text-sm font-semibold text-[#2f6b3d]">{paperLine(item.paper)}</p>
+            )}
+            {item.ceo_opinion && (
+              <p className="mt-2 text-[13px] text-[#6b6455]">CEO 의견: <b className="text-[#1c1b17]">{OPINION_KO[item.ceo_opinion as Act]}</b> (기록만 · 모의 주문은 결재안대로)</p>
+            )}
           </header>
 
           <section className="space-y-3 p-4">
@@ -126,6 +138,42 @@ export default function InboxDocument() {
             </section>
           )}
 
+          {sp && (
+            <section className="border-t border-[#d8d2c2] p-4">
+              <h2 className="mb-2 text-sm font-bold">매도 조건 <span className="font-normal text-[#6b6455]">(모의투자 · 보유분 전량)</span></h2>
+              <table className="w-full text-sm">
+                <tbody className="[&_td]:py-1.5 [&_tr]:border-b [&_tr]:border-[#e4dfd1]">
+                  <Row label="수량" value={shares(sp.qty)} />
+                  <Row label="평균 매수가" value={money(sp.avg_price, sp.currency)} />
+                  <Row label="최근 종가" value={money(sp.last_price, sp.currency)} note={`${sp.marked_session} 기준`} />
+                  <Row label="평가 금액" value={money(sp.value_krw, "KRW")} />
+                  <Row label="평가 손익" value={signedWon(Number(sp.value_krw) - Number(sp.cost_krw))} note="비용 포함 매수 금액 대비" />
+                  <Row label="처리 방식" value="다음 장 시가" note={sp.execution} />
+                </tbody>
+              </table>
+            </section>
+          )}
+
+          {item.paper && item.paper.length > 0 && (
+            <section className="border-t border-[#d8d2c2] p-4">
+              <h2 className="mb-2 text-sm font-bold">모의 주문 <span className="font-normal text-[#6b6455]">(가상 계좌 · 실제 주문 아님)</span></h2>
+              <ul className="space-y-1.5 text-[13px]">
+                {item.paper.map((o) => (
+                  <li key={o.id} className="flex flex-wrap items-baseline justify-between gap-x-2 rounded bg-[#ece7da] px-2 py-1.5">
+                    <span><b>{ROLE_KO[o.role]}</b> {shares(o.qty)}{o.price ? ` · ${o.role === "stop" ? "손절가" : o.role === "take_profit" ? "목표가" : "지정가"} ${money(o.price, o.currency)}` : " · 시가"}</span>
+                    <span className={o.status === "FILLED" ? "font-semibold text-[#2f6b3d]" : o.status === "OPEN" ? "text-[#2b5c8a]" : "text-[#6b6455]"}>
+                      {ORDER_STATUS_KO[o.status]}
+                      {o.fill ? ` @ ${money(o.fill.price, o.currency)} · ${o.fill.session}` : ""}
+                      {o.fill?.realized_krw ? <span className={`ml-1 ${pnlTone(o.fill.realized_krw).replace("300", "700")}`}>{signedWon(o.fill.realized_krw)}</span> : null}
+                    </span>
+                    {o.reason && <span className="w-full text-[11px] text-[#6b6455]">{o.reason}</span>}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-[11px] text-[#6b6455]">장 마감 후 그날 일봉으로 체결을 판정합니다 (같은 날 목표가·손절가가 모두 닿으면 손절로 처리). <Link href="/portfolio" className="underline">포트폴리오 보기</Link></p>
+            </section>
+          )}
+
           {item.payload.risk_flags && item.payload.risk_flags.length > 0 && (
             <section className="border-t border-[#d8d2c2] p-4 text-[13px]">
               <h2 className="mb-1 text-sm font-bold">데이터 주의</h2>
@@ -135,6 +183,7 @@ export default function InboxDocument() {
 
           <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-[#d8d2c2] p-4 text-sm">
             {item.run_id && <Link href={`/records/${item.run_id}`} className="font-semibold text-[#2b5c8a] underline">📎 회의록 보기</Link>}
+            {(item.kind === "execution" || item.kind === "closing") && <Link href="/portfolio" className="font-semibold text-[#2b5c8a] underline">📊 포트폴리오 보기</Link>}
             <span className={`rounded border px-2 py-0.5 text-xs ${STATUS_TONE[item.status].replace(/text-[^ ]+/, "")} text-[#1c1b17]`}>
               {STATUS_KO[item.status]}{item.decided_at ? ` · ${kstDateTime(item.decided_at)}` : ""}
             </span>
@@ -142,12 +191,12 @@ export default function InboxDocument() {
           {item.approvals.length > 0 && (
             <ul className="border-t border-[#d8d2c2] px-4 py-3 text-[13px] text-[#6b6455]">
               {item.approvals.map((ap) => (
-                <li key={ap.decided_at}>CEO {ACT_KO[ap.action as Act] ?? ap.action} · {kstDateTime(ap.decided_at)}{ap.comment ? ` — “${ap.comment}”` : ""}</li>
+                <li key={ap.decided_at}>{ap.auto ? "자동 승인" : ap.opinion ? `CEO 의견 · ${OPINION_KO[ap.action as Act] ?? ap.action}` : `CEO ${ACT_KO[ap.action as Act] ?? ap.action}`} · {kstDateTime(ap.decided_at)}{ap.comment ? ` — “${ap.comment}”` : ""}</li>
               ))}
             </ul>
           )}
-          {item.status === "APPROVED" && (
-            <p className="border-t border-[#d8d2c2] px-4 py-3 text-[12px] text-[#6b6455]">결재 기록만 남겼습니다. 승인된 결재안을 모의 예약 주문으로 연결하는 기능은 다음 단계에서 추가됩니다.</p>
+          {item.status === "APPROVED" && item.payload.demo && (
+            <p className="border-t border-[#d8d2c2] px-4 py-3 text-[12px] text-[#6b6455]">DEMO 문서는 연습 데이터라 모의 계좌에 주문을 넣지 않습니다.</p>
           )}
         </article>
       )}
@@ -155,7 +204,9 @@ export default function InboxDocument() {
       {open && item && (
         <div className="fixed inset-x-0 bottom-[calc(3.6rem+env(safe-area-inset-bottom))] z-40 border-t border-[var(--line)] bg-[#0b1020]/95 p-3 backdrop-blur sm:bottom-0">
           <div className="mx-auto max-w-2xl">
-            <p className="mb-2 text-center text-xs text-amber-200">{deadlineLabel(item.expires_at)}</p>
+            <p className="mb-2 text-center text-xs text-amber-200">
+              {opinion ? `자동 승인됨 · 모의 주문은 결재안대로 진행, CEO 의견만 기록 · ${deadlineLabel(item.expires_at)}` : deadlineLabel(item.expires_at)}
+            </p>
             {sheet ? (
               <div className="space-y-2">
                 <textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={2} maxLength={500}
@@ -164,15 +215,15 @@ export default function InboxDocument() {
                   <button onClick={() => setSheet(null)} className="flex-1 rounded border border-[var(--line)] py-2 text-sm">취소</button>
                   <button disabled={busy} onClick={() => void decide(sheet)}
                           className={`flex-[2] rounded py-2 text-sm font-semibold text-black disabled:opacity-50 ${sheet === "approve" ? "bg-emerald-400" : sheet === "reject" ? "bg-rose-400" : "bg-sky-300"}`}>
-                    {ACT_KO[sheet]} 확정
+                    {label[sheet]} 확정
                   </button>
                 </div>
               </div>
             ) : (
               <div className="grid grid-cols-3 gap-2">
-                <button onClick={() => setSheet("reject")} className="rounded border border-rose-400 py-2.5 text-sm font-semibold text-rose-300">반려</button>
-                <button onClick={() => setSheet("defer")} className="rounded border border-sky-400 py-2.5 text-sm font-semibold text-sky-200">보류</button>
-                <button onClick={() => setSheet("approve")} className="rounded bg-emerald-400 py-2.5 text-sm font-semibold text-black">승인</button>
+                <button onClick={() => setSheet("reject")} className="rounded border border-rose-400 py-2.5 text-sm font-semibold text-rose-300">{label.reject}</button>
+                <button onClick={() => setSheet("defer")} className="rounded border border-sky-400 py-2.5 text-sm font-semibold text-sky-200">{label.defer}</button>
+                <button onClick={() => setSheet("approve")} className="rounded bg-emerald-400 py-2.5 text-sm font-semibold text-black">{label.approve}</button>
               </div>
             )}
           </div>
@@ -194,6 +245,7 @@ function Stamps({ item }: { item: InboxItem }) {
           : s.state === "REJECTED" ? "border-[#9b2f3a] bg-[#9b2f3a] text-white"
           : "border-[#9a9384] text-[#9a9384]";
         const mark = s.state === "done" ? "✓" : s.state === "draft" ? "기안" : s.state === "waiting" ? "대기"
+          : s.state === "APPROVED" && item.auto_approved ? "자동"
           : STATUS_KO[s.state as keyof typeof STATUS_KO] ?? "";
         return (
           <li key={s.who} className="flex items-center gap-0.5 sm:gap-1.5">
@@ -221,10 +273,10 @@ function Points({ title, items, tone }: { title: string; items: string[]; tone: 
 function Row({ label, value, source, note }: { label: string; value: string; source?: "ai" | "policy"; note?: string }) {
   return (
     <tr>
-      <td className="w-36 text-[#6b6455]">{label}</td>
+      <td className="w-24 text-[#6b6455] sm:w-36">{label}</td>
       <td className="font-semibold">{value}{note && <span className="ml-1 text-xs font-normal text-[#6b6455]">{note}</span>}</td>
-      <td className="text-right">
-        {source && <span className={`rounded px-1.5 py-0.5 text-[10px] ${source === "ai" ? "bg-[#dde8f3] text-[#2b5c8a]" : "bg-[#efe6cf] text-[#7a5a17]"}`}>
+      <td className="whitespace-nowrap text-right">
+        {source && <span className={`whitespace-nowrap rounded px-1 py-0.5 text-[10px] ${source === "ai" ? "bg-[#dde8f3] text-[#2b5c8a]" : "bg-[#efe6cf] text-[#7a5a17]"}`}>
           {source === "ai" ? "AI 제시" : "규정 기본값"}</span>}
       </td>
     </tr>

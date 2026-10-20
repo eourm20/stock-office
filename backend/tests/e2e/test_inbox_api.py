@@ -21,6 +21,8 @@ def run_demo(client: TestClient, instrument: str) -> str:
 def test_buy_meeting_becomes_an_approval_request_and_the_ceo_decides_once(
         make_client: Callable[..., TestClient]) -> None:
     client = make_client(demo_engine=DemoEngine(rating="Buy"))
+    off = client.post("/api/v1/company/auto-approve", json={"enabled": False})
+    assert off.json() == {"auto_approve": False}
     run_id = run_demo(client, "US:NASDAQ:NVDA")
 
     items = client.get("/api/v1/inbox").json()
@@ -44,7 +46,9 @@ def test_buy_meeting_becomes_an_approval_request_and_the_ceo_decides_once(
     assert first.status_code == 200 and first.json()["status"] == "APPROVED"
     again = client.post(f"/api/v1/inbox/{item['id']}/decision", json=body)    # double tap
     assert again.status_code == 200 and again.json()["status"] == "APPROVED"
-    assert len(again.json()["approvals"]) == 1
+    assert len(again.json()["approvals"]) == 1 and again.json()["approvals"][0]["auto"] is False
+    paper = again.json()["paper"]                   # the approval booked one simulated entry
+    assert [(o["role"], o["status"]) for o in paper] == [("entry", "OPEN")]
     late = client.post(f"/api/v1/inbox/{item['id']}/decision",
                        json={"action": "reject", "client_request_id": "tap-2"})
     assert late.status_code == 409

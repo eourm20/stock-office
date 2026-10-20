@@ -40,12 +40,14 @@ def test_api_exposes_no_order_routes(tmp_path: Path) -> None:
     paths = {r.path for r in app.routes if isinstance(r, APIRoute)}
     assert not [p for p in paths if re.search(r"order|account|trade|broker", p)]
     mutating = {r.path for r in app.routes if isinstance(r, APIRoute) and r.methods - {"GET"}}
-    # Every state-changing route is listed by name. The CEO's inbox decision only records an
-    # approval in the local database; nothing reaches any external service.
+    # Every state-changing route is listed by name. An inbox decision records an approval and
+    # books a simulated order in the local paper book; the auto-approve switch is a local
+    # setting. Nothing reaches any external service.
     assert mutating == {
         "/api/v1/analysis-runs",
         "/api/v1/inbox/{item_id}/decision",
         "/api/v1/inbox/{item_id}/read",
+        "/api/v1/company/auto-approve",
     }
 
 

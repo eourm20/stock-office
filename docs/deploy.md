@@ -55,6 +55,9 @@ runs if the key arrives before the slot's deadline (the next market open).
 Daily schedule (exchange calendars, holidays skipped; `STOCK_OFFICE_SCHEDULE_ENABLED=true` on the server):
 - NVDA: 17:00 New York time after each NYSE session (≈ 06:00–07:00 KST next morning)
 - Samsung (005930): 07:30 KST before each KRX session
+- Paper settlement (same worker, trading days only): KRX close + 40 min (≈ 16:10 KST), NYSE close + 30 min
+  (≈ 05:30–06:30 KST). Uses that session's daily bar from Yahoo; a missing bar is retried every 10 min until the
+  next session opens, then the session is settled as NO_DATA and open orders expire. Nothing leaves the server.
 
 Cost guard: at most `STOCK_OFFICE_MAX_PAID_RUNS_PER_DAY` (8) real-engine runs per rolling 24 h, manual and
 scheduled together; further requests get HTTP 429. Expected spend for 2 instruments ≈ $2/month.
@@ -89,7 +92,7 @@ ARM instance (up to 4 OCPU / 24 GB, free tier).
 | `runs/<run_id>/reports.json`, `briefing.json` | full redacted reports and debate transcripts; one-page AI summary |
 | `runs/<run_id>/tool_results.json` | what the analysts' tools returned (redacted, ≤ 6,000 chars each; runs from 2026-10-20 on) |
 | `runs/<run_id>/snapshots/` | provider data the run was given (prices, filings, news) with point-in-time stamps |
-| `office.db` | SQLite: inbox documents, approval plans, CEO decisions |
+| `office.db` | SQLite: inbox documents, approval plans, CEO decisions and opinions; paper book (settings, KRW cash ledger, simulated orders and fills, positions, settled sessions). Migrations run on start (`PRAGMA user_version`, 3 since 2026-10-20); back it up before deploying a new migration |
 
 File the inbox for runs that have no document yet (past deadlines arrive as EXPIRED):
 `cd ~/stock-office/backend && .venv/bin/python -m stock_office.inbox`.

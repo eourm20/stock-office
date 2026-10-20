@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import NavBar from "../app/NavBar";
 import { fetchRunEvents, getBriefing, getDecision, getInbox, getReports, getRunDetail, getSnapshots,
   getToolResults, type InboxItem, type ToolResult } from "../lib/api";
-import { STATUS_KO, STATUS_TONE } from "../inbox/model";
+import { approvalNote, mainPaperStatus, STATUS_KO, STATUS_TONE } from "../inbox/model";
 import { INSTRUMENT_KO } from "../office/auto";
 import { ACTION_KO } from "../office/explain";
 import { humanizeTickers, PHASE_KO } from "../office/names";
@@ -90,8 +90,11 @@ export default function MinutesView({ runId }: { runId: string }) {
               <dt className="text-[var(--muted)]">결재</dt>
               <dd>
                 {doc ? (
-                  <Link href={doc.kind === "approval" ? `/inbox/${doc.id}` : `/inbox/${doc.id}`} className="inline-flex items-center gap-2">
+                  <Link href={`/inbox/${doc.id}`} className="inline-flex items-center gap-2">
                     <span className={`rounded border px-1.5 text-xs ${STATUS_TONE[doc.status]}`}>{STATUS_KO[doc.status]}</span>
+                    {approvalNote(doc.auto_approved, mainPaperStatus(doc), doc.ceo_opinion) && (
+                      <span className="text-[11px] text-[var(--muted)]">{approvalNote(doc.auto_approved, mainPaperStatus(doc), doc.ceo_opinion)}</span>
+                    )}
                     <span className="text-xs underline">{doc.title}</span>
                   </Link>
                 ) : <span className="text-[var(--muted)]">결재함 문서 없음</span>}

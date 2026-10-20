@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { getRecords, type RecordRow } from "../../lib/api";
-import { groupRecordsByDay, STATUS_KO, STATUS_TONE } from "../../inbox/model";
+import { approvalNote, groupRecordsByDay, STATUS_KO, STATUS_TONE } from "../../inbox/model";
 import { ACTION_KO } from "../../office/explain";
 import { humanizeTickers, PHASE_KO } from "../../office/names";
 import NavBar from "../NavBar";
@@ -71,7 +71,14 @@ export default function RecordsPage() {
                       </span>
                       {r.headline && <span className="mt-0.5 block line-clamp-2 text-[12px] leading-snug text-[#c7d7ee]">{humanizeTickers(r.headline)}</span>}
                     </span>
-                    {r.approval && <span className={`shrink-0 rounded border px-1.5 text-[11px] ${STATUS_TONE[r.approval]}`}>{STATUS_KO[r.approval]}</span>}
+                    {r.approval && (
+                      <span className="flex shrink-0 flex-col items-end gap-0.5">
+                        <span className={`rounded border px-1.5 text-[11px] ${STATUS_TONE[r.approval]}`}>{STATUS_KO[r.approval]}</span>
+                        {approvalNote(r.approval_auto, r.paper, r.ceo_opinion) && (
+                          <span className="text-[10px] text-[var(--muted)]">{approvalNote(r.approval_auto, r.paper, r.ceo_opinion)}</span>
+                        )}
+                      </span>
+                    )}
                   </Link>
                 </li>
               ))}

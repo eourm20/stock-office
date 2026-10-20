@@ -170,6 +170,7 @@ export interface PlanAllocation {
 }
 
 export interface ApprovalPlan {
+  side?: "BUY" | "SELL";
   currency: "KRW" | "USD";
   limit: string;
   stop: string;
@@ -192,6 +193,85 @@ export interface ApprovalPlan {
   valid_until?: string;
 }
 
+/** SELL request: the whole paper position, sold at the next open. */
+export interface SellPlan {
+  side: "SELL";
+  currency: "KRW" | "USD";
+  qty: string;
+  avg_price: string;
+  cost_krw: string;
+  last_price: string;
+  last_fx: string;
+  marked_session: string;
+  value_krw: string;
+  rating: string | null;
+  policy_version: string;
+  valid_until?: string;
+  execution: string;
+}
+
+export type OrderRole = "entry" | "take_profit" | "stop" | "exit";
+export type OrderStatus = "OPEN" | "FILLED" | "CANCELLED" | "EXPIRED" | "REJECTED";
+
+export interface PaperFill {
+  session: string; price: string; qty: string; gross: string; fee: string; tax: string; fx: string;
+  amount_krw: string; realized_krw: string | null; rule: string; filled_at: string;
+}
+
+/** A simulated order in the paper book (nothing is sent anywhere). */
+export interface PaperOrder {
+  id: number;
+  item_id: number | null;
+  parent_id: number | null;
+  instrument_id: string;
+  name: string;
+  market: "KR" | "US";
+  currency: "KRW" | "USD";
+  role: OrderRole;
+  side: "BUY" | "SELL";
+  qty: string;
+  price: string | null;
+  reserved_krw: string;
+  status: OrderStatus;
+  reason: string;
+  detail: { stop?: string; target?: string; session?: string; nav_krw?: string };
+  active_from: string;
+  valid_until: string | null;
+  created_at: string;
+  closed_at: string | null;
+  fill: PaperFill | null;
+}
+
+export interface Holding {
+  instrument_id: string; name: string; currency: "KRW" | "USD"; qty: string; avg_price: string;
+  last_price: string; last_fx: string; marked_session: string; value_krw: string; cost_krw: string;
+  pnl_krw: string; pnl_pct: string; take_profit: string | null; stop: string | null;
+}
+
+export interface Portfolio {
+  started_at: string | null;
+  initial_krw: string;
+  cash_krw: string;
+  reserved_krw: string;
+  nav_krw: string;
+  return_pct: string;
+  realized_krw: string;
+  cash_weight_pct: string;
+  holdings: Holding[];
+  pending: PaperOrder[];
+  last_settles: { market: "KR" | "US"; session: string; status: string; note: string; created_at: string }[];
+  costs: { label: string; value: string }[];
+  auto_approve: boolean;
+  policy_version: string;
+}
+
+export interface CompanySettings {
+  auto_approve: boolean;
+  costs: { label: string; value: string }[];
+  policy_version: string;
+  initial_krw: string;
+}
+
 export type InboxStatus = "PENDING" | "APPROVED" | "REJECTED" | "DEFERRED" | "EXPIRED" | "INFO";
 
 export interface InboxItem {
@@ -203,14 +283,20 @@ export interface InboxItem {
   summary: string;
   payload: { action?: string; rating?: string | null; risk_flags?: string[]; demo?: boolean;
              name?: string; trigger?: string; note?: string; review_reasons?: string[];
-             filed_late?: boolean };
+             filed_late?: boolean; role?: OrderRole; status?: OrderStatus; realized_krw?: string;
+             item_id?: number | null };
   status: InboxStatus;
   expires_at: string | null;
   read_at: string | null;
   created_at: string;
   decided_at: string | null;
-  plan: ApprovalPlan | null;
-  approvals: { action: string; comment: string; decided_at: string }[];
+  plan: ApprovalPlan | SellPlan | null;
+  approvals: { action: string; comment: string; decided_at: string; auto?: boolean; opinion?: boolean }[];
+  paper?: PaperOrder[];
+  auto_approved?: boolean;
+  /** CEO's view on an auto-approved request (recorded only; the paper order follows the model). */
+  ceo_opinion?: "approve" | "reject" | "defer" | null;
+  opinion_open?: boolean;
 }
 
 export interface RecordRow {
@@ -225,12 +311,15 @@ export interface RecordRow {
   rating: string | null;
   headline: string | null;
   approval: InboxStatus | null;
+  approval_auto?: boolean;
+  paper?: OrderStatus | null;
+  ceo_opinion?: "approve" | "reject" | "defer" | null;
 }
 
 export interface OfficeNow {
   now: string;
   active: { run_id: string; instrument_id: string; name: string; status: string; demo: boolean } | null;
-  next: { instrument_id: string; name: string; at: string; kind: string }[];
+  next: { instrument_id: string | null; name: string; at: string; kind: "committee" | "settle" | string }[];
   budget: { month: string; budget_usd: string; spent_usd: string; reserved_usd: string;
             remaining_usd: string; paid_runs: number } | null;
   pending_approvals: number;
@@ -240,6 +329,18 @@ export const getInbox = () => getJson<InboxItem[]>("/api/v1/inbox");
 export const getInboxItem = (id: number | string) => getJson<InboxItem>(`/api/v1/inbox/${id}`);
 export const getRecords = () => getJson<RecordRow[]>("/api/v1/records");
 export const getOfficeNow = () => getJson<OfficeNow>("/api/v1/office/now");
+export const getPortfolio = () => getJson<Portfolio>("/api/v1/portfolio");
+export const getPortfolioActivity = () => getJson<PaperOrder[]>("/api/v1/portfolio/activity");
+export const getCompanySettings = () => getJson<CompanySettings>("/api/v1/company/settings");
+
+/** Paper-trading switch: approve every request as it is filed. Local setting only. */
+export async function setAutoApprove(enabled: boolean): Promise<boolean> {
+  const resp = await fetch(`${API_BASE}/api/v1/company/auto-approve`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ enabled }),
+  });
+  if (!resp.ok) throw new Error(resp.statusText);
+  return ((await resp.json()) as { auto_approve: boolean }).auto_approve;
+}
 
 export async function markRead(id: number): Promise<void> {
   await fetch(`${API_BASE}/api/v1/inbox/${id}/read`, { method: "POST" });

@@ -21,7 +21,7 @@ from stock_office.engine.adapter import EngineNotConfiguredError
 from stock_office.logging_setup import install_log_redaction
 from stock_office.runs.service import BudgetExceededError, RunService
 from stock_office.schedule import due_slots, next_slots
-from stock_office.wiring import build_service
+from stock_office.wiring import build_service, build_settler
 
 log = logging.getLogger("stock_office.worker")
 
@@ -92,6 +92,7 @@ def main(clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> None:
     if scheduling:
         for s in next_slots(clock()):
             log.info("next scheduled: %s at %s", s.key, s.scheduled_at.isoformat())
+    settler = build_settler(service.inbox) if scheduling and service.inbox else None
     last_tick = 0.0
     while True:
         drain(service)
@@ -100,6 +101,10 @@ def main(clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> None:
         if scheduling and time.monotonic() - last_tick >= 60:
             last_tick = time.monotonic()
             schedule_tick(service, clock())
+            if settler is not None:
+                for result in settler.tick(clock()):
+                    log.info("settle %s %s -> %s (%d fills) %s", result.market, result.session,
+                             result.status, result.fills, result.note)
         if args.once:
             return
         time.sleep(args.interval)

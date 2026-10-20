@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { API_BASE, getOfficeNow, type OfficeNow } from "../../lib/api";
-import { kstDateTime } from "../../inbox/model";
+import { kstDateTime, nextWorkLabel } from "../../inbox/model";
 import { DEPARTMENTS, departmentStatus } from "../../office/departments";
 import { ACTION_KO, narrate } from "../../office/explain";
 import { agentName, humanizeTickers, STATUS_KO, toolNames } from "../../office/names";
@@ -101,7 +101,7 @@ export default function OfficePage() {
   };
   const next = now?.next[0];
   const sel = selected ? state.characters[selected] : undefined;
-  const idleText = next ? `지금 진행 중인 업무 없음 · 다음: ${kstDateTime(next.at)} ${next.name} 회의` : "지금 진행 중인 업무 없음";
+  const idleText = next ? `지금 진행 중인 업무 없음 · 다음: ${kstDateTime(next.at)} ${nextWorkLabel(next)}` : "지금 진행 중인 업무 없음";
 
   return (
     <main className="flex min-h-screen flex-col md:h-screen">
@@ -125,7 +125,7 @@ export default function OfficePage() {
               </div>
               <div className={`mt-1 text-[13px] leading-tight ${d.phase === "working" ? "text-sky-100" : "text-[var(--muted)]"}`}>
                 {d.phase === "idle"
-                  ? (next ? `다음 ${new Date(next.at).toLocaleTimeString("en-GB", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" })} ${next.name} 회의` : "예정 없음")
+                  ? (next ? `다음 ${new Date(next.at).toLocaleTimeString("en-GB", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" })} ${nextWorkLabel(next)}` : "예정 없음")
                   : d.task}
                 {d.total > 0 && d.phase !== "idle" && <span className="ml-1 text-[var(--muted)]">({d.done}/{d.total})</span>}
               </div>
@@ -164,7 +164,7 @@ export default function OfficePage() {
             <div className="rounded-lg border border-[var(--line)] bg-[var(--panel)] p-3">
               <h2 className="text-xs text-[var(--muted)]">오늘 일정</h2>
               <ul className="mt-1 space-y-1">
-                {(now?.next ?? []).map((n) => <li key={n.instrument_id + n.at}>{kstDateTime(n.at)} · {n.name} 정기 회의</li>)}
+                {(now?.next ?? []).map((n) => <li key={n.instrument_id + n.at}>{kstDateTime(n.at)} · {nextWorkLabel(n, "정기 회의")}</li>)}
               </ul>
               <Link href="/records" className="mt-2 inline-block text-xs underline">지난 회의록 보기 →</Link>
             </div>

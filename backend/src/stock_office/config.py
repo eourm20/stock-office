@@ -53,6 +53,13 @@ class Settings(BaseSettings):
     # Monthly LLM budget (Korea calendar month), a hard stop for every paid run. ≈ 10,000 KRW.
     monthly_budget_usd: Decimal = Decimal("7")
 
+    # Paper book cost assumptions (shown as assumptions in ⚙ and on the portfolio screen).
+    paper_kr_commission: Decimal = Decimal("0.00015")
+    paper_kr_sell_tax: Decimal = Decimal("0.0020")
+    paper_us_commission: Decimal = Decimal("0.001")
+    paper_fx_spread: Decimal = Decimal("0.0025")
+    paper_slippage: Decimal = Decimal("0.0005")
+
     dart_api_key: SecretStr | None = None
     # Official Naver Search API (Korean press headlines), read-only.
     naver_client_id: SecretStr | None = None

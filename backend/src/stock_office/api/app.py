@@ -1,4 +1,4 @@
-"""FastAPI surface for Sprint 0. There are intentionally no order/account endpoints."""
+"""FastAPI surface. PAPER ONLY: nothing here reaches a securities firm or any order service."""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 from stock_office import __version__
 from stock_office.config import TRADINGAGENTS_COMMIT, TRADINGAGENTS_VERSION, Settings, get_settings
+from stock_office.db import transaction
 from stock_office.domain.instruments import (
     InvalidInstrumentIdError,
     UnknownInstrumentError,
@@ -35,6 +36,7 @@ from stock_office.domain.models import (
 from stock_office.events.sse import format_sse, resume_after
 from stock_office.inbox import DecisionError, Inbox, InboxItem
 from stock_office.logging_setup import install_log_redaction
+from stock_office.paper.settle import next_settle_times as settle_times
 from stock_office.runs.service import BudgetExceededError, FutureAsOfError, RunService
 from stock_office.runs.summary import OfficeSummary, build_summary
 from stock_office.schedule import next_slots
@@ -48,6 +50,10 @@ class DecisionBody(BaseModel):
     action: str
     comment: str = ""
     client_request_id: str
+
+
+class AutoApproveBody(BaseModel):
+    enabled: bool
 
 
 class Dispatcher(Protocol):
@@ -144,7 +150,7 @@ def create_app(
 
     @app.post("/api/v1/inbox/{item_id}/decision")
     def decide(item_id: int, body: DecisionBody) -> InboxItem:
-        """CEO decision. Records it only; nothing is sent anywhere (paper orders come later)."""
+        """CEO decision. An approval books a simulated order in the local paper book only."""
         try:
             return inbox.decide(item_id, body.action, body.comment, body.client_request_id,
                                 service.clock())
@@ -160,6 +166,7 @@ def create_app(
     def records() -> list[dict[str, object]]:
         """Meeting minutes list: every run with its decision, headline and approval outcome."""
         outcome = inbox.by_run()
+        none: dict[str, object] = {}
         rows: list[dict[str, object]] = []
         for run in service.repo.list_runs():
             decision = service.repo.get_decision(run.id)
@@ -171,9 +178,37 @@ def create_app(
                 "action": decision.action.value if decision else None,
                 "rating": decision.engine_rating if decision else None,
                 "headline": briefing.get("headline") if briefing.get("status") == "OK" else None,
-                "approval": outcome.get(run.id),
+                "approval": outcome.get(run.id, none).get("status"),
+                "approval_auto": outcome.get(run.id, none).get("auto", False),
+                "paper": outcome.get(run.id, none).get("paper"),
+                "ceo_opinion": outcome.get(run.id, none).get("opinion"),
             })
         return rows
+
+    @app.get("/api/v1/portfolio")
+    def portfolio() -> dict[str, object]:
+        """Paper book: KRW cash, holdings marked at the last settled close, NAV, return."""
+        return inbox.book.portfolio()
+
+    @app.get("/api/v1/portfolio/activity")
+    def portfolio_activity(limit: Annotated[int, Query(ge=1, le=500)] = 100
+                           ) -> list[dict[str, object]]:
+        """Simulated orders and their fills, newest first."""
+        return inbox.book.activity(limit)
+
+    @app.get("/api/v1/company/settings")
+    def company_settings() -> dict[str, object]:
+        return {"auto_approve": inbox.book.auto_approve(),
+                "costs": inbox.book.costs.describe(),
+                "policy_version": inbox.book.policy.version,
+                "initial_krw": str(inbox.book.policy.initial_equity_krw)}
+
+    @app.post("/api/v1/company/auto-approve")
+    def set_auto_approve(body: AutoApproveBody) -> dict[str, object]:
+        """Paper-trading period switch: approve every request as it is filed (local setting)."""
+        with transaction(inbox.conn):
+            inbox.book.set_auto_approve(body.enabled, service.clock())
+        return {"auto_approve": inbox.book.auto_approve()}
 
     @app.get("/api/v1/office/now")
     def office_now() -> dict[str, object]:
@@ -182,9 +217,14 @@ def create_app(
         runs = service.repo.list_runs()
         active = next((r for r in runs if r.status.value in ("QUEUED", "RUNNING")), None)
         slots = sorted(next_slots(now), key=lambda s: s.scheduled_at)
-        upcoming = [{"instrument_id": s.rule.instrument_id,
-                     "name": display_name(s.rule.instrument_id),
-                     "at": s.scheduled_at, "kind": "committee"} for s in slots]
+        upcoming: list[dict[str, object]] = [
+            {"instrument_id": s.rule.instrument_id, "name": display_name(s.rule.instrument_id),
+             "at": s.scheduled_at, "kind": "committee"} for s in slots]
+        if inbox.book.started_at() is not None:
+            upcoming += [{"instrument_id": None,
+                          "name": "국내 장 마감 정산" if m is Market.KR else "미국 장 마감 정산",
+                          "at": at, "kind": "settle"} for m, at in settle_times(now)]
+            upcoming.sort(key=lambda u: u["at"])  # type: ignore[arg-type,return-value]
         status = service.budget()
         return {
             "now": now,

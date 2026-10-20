@@ -52,6 +52,88 @@ MIGRATIONS: list[str] = [
         decided_at TEXT NOT NULL
     );
     """,
+    # 2: company settings, the paper book (KRW cash ledger, simulated orders and fills, positions)
+    # and one row per settled exchange session
+    """
+    CREATE TABLE company_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TEXT
+    );
+    INSERT INTO company_settings (key, value) VALUES ('auto_approve', '1');
+    CREATE TABLE paper_cash (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        amount_krw TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        ref TEXT NOT NULL UNIQUE,
+        created_at TEXT NOT NULL
+    );
+    CREATE TABLE paper_orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        item_id INTEGER REFERENCES inbox_items (id),
+        parent_id INTEGER REFERENCES paper_orders (id),
+        instrument_id TEXT NOT NULL,
+        market TEXT NOT NULL,
+        currency TEXT NOT NULL,
+        role TEXT NOT NULL CHECK (role IN ('entry', 'take_profit', 'stop', 'exit')),
+        side TEXT NOT NULL CHECK (side IN ('BUY', 'SELL')),
+        qty TEXT NOT NULL,
+        price TEXT,
+        reserved_krw TEXT NOT NULL DEFAULT '0',
+        status TEXT NOT NULL CHECK (status IN
+            ('OPEN', 'FILLED', 'CANCELLED', 'EXPIRED', 'REJECTED')),
+        reason TEXT NOT NULL DEFAULT '',
+        detail TEXT NOT NULL DEFAULT '{}',
+        active_from TEXT NOT NULL,
+        valid_until TEXT,
+        idempotency_key TEXT NOT NULL UNIQUE,
+        created_at TEXT NOT NULL,
+        closed_at TEXT
+    );
+    CREATE INDEX paper_orders_open ON paper_orders (status, market, active_from);
+    CREATE TABLE paper_fills (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id INTEGER NOT NULL UNIQUE REFERENCES paper_orders (id),
+        session TEXT NOT NULL,
+        price TEXT NOT NULL,
+        qty TEXT NOT NULL,
+        gross TEXT NOT NULL,
+        fee TEXT NOT NULL,
+        tax TEXT NOT NULL,
+        fx TEXT NOT NULL,
+        amount_krw TEXT NOT NULL,
+        realized_krw TEXT,
+        rule TEXT NOT NULL,
+        filled_at TEXT NOT NULL
+    );
+    CREATE TABLE paper_positions (
+        instrument_id TEXT PRIMARY KEY,
+        market TEXT NOT NULL,
+        currency TEXT NOT NULL,
+        qty TEXT NOT NULL,
+        avg_price TEXT NOT NULL,
+        cost_krw TEXT NOT NULL,
+        last_price TEXT NOT NULL,
+        last_fx TEXT NOT NULL,
+        marked_session TEXT NOT NULL,
+        opened_at TEXT NOT NULL
+    );
+    CREATE TABLE settle_runs (
+        market TEXT NOT NULL,
+        session TEXT NOT NULL,
+        status TEXT NOT NULL,
+        note TEXT NOT NULL DEFAULT '',
+        nav_krw TEXT NOT NULL,
+        cash_krw TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (market, session)
+    );
+    """,
+    # 3: CEO opinions on auto-approved requests, kept apart from the decision that booked the order
+    """
+    ALTER TABLE approvals ADD COLUMN kind TEXT NOT NULL DEFAULT 'decision'
+        CHECK (kind IN ('decision', 'opinion'))
+    """,
 ]
 
 

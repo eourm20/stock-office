@@ -12,12 +12,14 @@ next open), never after it.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from functools import lru_cache
 from typing import Literal
 from zoneinfo import ZoneInfo
 
 import exchange_calendars as xcals
+
+from stock_office.domain.models import Market
 
 
 @dataclass(frozen=True)
@@ -102,3 +104,55 @@ def next_slots(now: datetime, rules: tuple[ScheduleRule, ...] = DEFAULT_RULES,
                 break
             probe += timedelta(hours=1)
     return out
+
+
+# ---------------------------------------------------------------- exchange sessions (paper book)
+MARKET_CALENDAR = {Market.KR: "XKRX", Market.US: "XNYS"}
+
+
+@dataclass(frozen=True)
+class Session:
+    day: date  # exchange-local session date
+    open: datetime
+    close: datetime
+
+
+def _session(cal: xcals.ExchangeCalendar, day: date) -> Session:
+    iso = day.isoformat()
+    return Session(day, cal.session_open(iso).to_pydatetime(),
+                   cal.session_close(iso).to_pydatetime())
+
+
+def first_session_opening_after(market: Market, now: datetime) -> Session:
+    """The first session whose open is at or after `now` (orders approved during a session wait
+    for the next one: a daily bar cannot tell what happened before the approval)."""
+    cal = _calendar(MARKET_CALENDAR[market])
+    day = now.astimezone(UTC).date() - timedelta(days=1)
+    for _ in range(20):
+        if cal.is_session(day.isoformat()):
+            session = _session(cal, day)
+            if session.open >= now:
+                return session
+        day += timedelta(days=1)
+    raise RuntimeError("no session within 20 days")
+
+
+def closed_sessions(market: Market, now: datetime, limit: int = 5) -> list[Session]:
+    """The latest `limit` sessions that closed at or before `now`, oldest first."""
+    cal = _calendar(MARKET_CALENDAR[market])
+    day = now.astimezone(UTC).date() + timedelta(days=1)
+    out: list[Session] = []
+    for _ in range(limit * 3 + 10):
+        if cal.is_session(day.isoformat()):
+            session = _session(cal, day)
+            if session.close <= now:
+                out.append(session)
+                if len(out) == limit:
+                    break
+        day -= timedelta(days=1)
+    return out[::-1]
+
+
+def session_of(market: Market, day: date) -> Session | None:
+    cal = _calendar(MARKET_CALENDAR[market])
+    return _session(cal, day) if cal.is_session(day.isoformat()) else None

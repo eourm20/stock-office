@@ -84,8 +84,10 @@ def make_service(settings: Settings) -> Callable[..., RunService]:
         service = RunService(RunRepository(settings.data_dir), engines, provs,
                              briefers=lambda run: DemoBriefingWriter() if run.demo else None)
         # CEO inbox on a temporary database; a fixed USD/KRW rate instead of a network call.
+        # DEMO meetings reach the paper book here (production keeps them out of it).
         service.inbox = Inbox(connect(settings.data_dir), service.repo,
-                              fx=lambda: (Decimal(1400), datetime(2026, 10, 15, tzinfo=UTC)))
+                              fx=lambda: (Decimal(1400), datetime(2026, 10, 15, tzinfo=UTC)),
+                              book_demo_runs=True)
         service.reporter = lambda run: service.inbox.file_run(run, service.clock())
         return service
 

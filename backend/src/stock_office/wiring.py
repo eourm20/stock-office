@@ -12,6 +12,9 @@ from stock_office.engine.adapter import AnalysisEngine
 from stock_office.engine.demo_engine import DemoEngine
 from stock_office.engine.tradingagents_engine import TradingAgentsEngine
 from stock_office.inbox import Inbox
+from stock_office.paper.book import Book
+from stock_office.paper.costs import Costs
+from stock_office.paper.settle import Settler
 from stock_office.providers.base import MarketDataProvider
 from stock_office.providers.dart import DartDisclosureProvider
 from stock_office.providers.fixture import FixtureProvider
@@ -55,7 +58,24 @@ def build_service(settings: Settings) -> RunService:
     return service
 
 
+def costs_from(settings: Settings) -> Costs:
+    return Costs(
+        kr_commission=settings.paper_kr_commission,
+        kr_sell_tax=settings.paper_kr_sell_tax,
+        us_commission=settings.paper_us_commission,
+        fx_spread=settings.paper_fx_spread,
+        slippage=settings.paper_slippage,
+    )
+
+
 def build_inbox(settings: Settings, repo: RunRepository) -> Inbox:
     from stock_office.providers.yahoo import usd_krw_rate
 
-    return Inbox(connect(settings.data_dir), repo, fx=usd_krw_rate)
+    conn = connect(settings.data_dir)
+    return Inbox(conn, repo, fx=usd_krw_rate, book=Book(conn, costs=costs_from(settings)))
+
+
+def build_settler(inbox: Inbox) -> Settler:
+    from stock_office.providers.yahoo import daily_bar, usd_krw_rate
+
+    return Settler(inbox.book, daily_bar, usd_krw_rate)

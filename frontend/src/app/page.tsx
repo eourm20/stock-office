@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { getInbox, getOfficeNow, type InboxItem, type OfficeNow } from "../lib/api";
-import { deadlineLabel, groupInbox, kstDateTime, money, STATUS_KO, STATUS_TONE } from "../inbox/model";
+import { getInbox, getOfficeNow, getPortfolio, type InboxItem, type OfficeNow, type Portfolio } from "../lib/api";
+import { buyPlan, deadlineLabel, groupInbox, kstDateTime, money, nextWorkLabel, paperLine, pnlTone, sellPlan, shares, signedPct,
+         STATUS_KO, STATUS_TONE } from "../inbox/model";
 import ConveneButton from "./ConveneButton";
 import NavBar from "./NavBar";
 
@@ -15,12 +16,14 @@ const ACTION_COLOR: Record<string, string> = {
 export default function InboxPage() {
   const [items, setItems] = useState<InboxItem[] | null>(null);
   const [now, setNow] = useState<OfficeNow | null>(null);
+  const [book, setBook] = useState<Portfolio | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [clock, setClock] = useState(() => Date.now());
 
   useEffect(() => {
     const load = () => Promise.all([getInbox(), getOfficeNow()]).then(([i, n]) => {
       setItems(i); setNow(n); setClock(Date.now()); setError(null);
+      getPortfolio().then(setBook).catch(() => setBook(null));
     }).catch((e: Error) => setError(`서버에 연결할 수 없습니다: ${e.message}`));
     void load();
     const timer = setInterval(() => void load(), 60_000);
@@ -35,6 +38,8 @@ export default function InboxPage() {
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col">
       <NavBar><ConveneButton onStarted={(id) => { window.location.href = `/office?run=${id}`; }} /></NavBar>
 
+      {book && <PortfolioCard book={book} />}
+
       <section aria-label="오늘 현황" className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-4">
         <Stat label="결재 대기" value={`${g.pending.length}건`} tone={g.pending.length ? "text-amber-200" : ""} />
         <Stat label="보고" value={`${g.reports.length}건`} sub={unread ? `안 읽음 ${unread}` : "모두 읽음"} />
@@ -46,7 +51,7 @@ export default function InboxPage() {
             <div className="mt-0.5 font-semibold">{now.active.name}</div>
           </Link>
         ) : (
-          <Stat label="다음 업무" value={next ? `${kstDateTime(next.at)}` : "—"} sub={next ? `${next.name} 회의` : undefined} />
+          <Stat label="다음 업무" value={next ? `${kstDateTime(next.at)}` : "—"} sub={next ? nextWorkLabel(next) : undefined} />
         )}
       </section>
 
@@ -59,7 +64,8 @@ export default function InboxPage() {
             <h2 className="mb-2 text-sm font-semibold">결재 대기 <span className="text-[var(--muted)]">{g.pending.length}</span></h2>
             {g.pending.length === 0 ? (
               <p className="rounded-lg border border-dashed border-[var(--line)] p-4 text-sm text-[var(--muted)]">
-                결재할 문서가 없습니다.{next ? ` 다음 회의는 ${kstDateTime(next.at)} ${next.name}입니다.` : ""}
+                결재할 문서가 없습니다.{next ? ` 다음 업무: ${kstDateTime(next.at)} ${nextWorkLabel(next)}` : ""}
+                {book?.auto_approve ? " 모의투자 기간이라 결재안은 자동 승인됩니다 (⚙에서 변경)." : ""}
               </p>
             ) : (
               <ul className="space-y-2">
@@ -92,6 +98,28 @@ export default function InboxPage() {
   );
 }
 
+
+/** The paper account at a glance; the details live on /portfolio. */
+function PortfolioCard({ book }: { book: Portfolio }) {
+  const ret = Number(book.return_pct);
+  return (
+    <Link href="/portfolio" className="mx-3 mt-3 block rounded-xl border border-[var(--line)] bg-[var(--panel)] p-3 hover:bg-[#1d2944]">
+      <div className="flex items-center justify-between text-[11px] text-[var(--muted)]">
+        <span>모의 계좌 · 검증 전 성과</span><span aria-hidden="true">자세히 →</span>
+      </div>
+      <div className="mt-0.5 flex items-baseline gap-2">
+        <span className="text-xl font-bold">{money(book.nav_krw, "KRW")}</span>
+        <span className={`text-sm font-semibold ${pnlTone(ret)}`}>{signedPct(ret)}</span>
+      </div>
+      <div className="text-xs text-[var(--muted)]">
+        보유 {book.holdings.length}종목 · 현금 {Number(book.cash_weight_pct).toFixed(0)}%
+        {book.pending.length > 0 ? ` · 대기 예약 ${book.pending.length}건` : ""}
+        {book.started_at ? "" : " · 아직 거래 없음"}
+      </div>
+    </Link>
+  );
+}
+
 function Stat({ label, value, sub, tone = "" }: { label: string; value: string; sub?: string; tone?: string }) {
   return (
     <div className="rounded-lg border border-[var(--line)] bg-[var(--panel)] p-3">
@@ -103,7 +131,9 @@ function Stat({ label, value, sub, tone = "" }: { label: string; value: string; 
 }
 
 function ApprovalCard({ item, now }: { item: InboxItem; now: number }) {
-  const a = item.plan?.allocation;
+  const plan = buyPlan(item);
+  const sell = sellPlan(item);
+  const a = plan?.allocation;
   const due = deadlineLabel(item.expires_at, now);
   const urgent = item.expires_at ? Date.parse(item.expires_at) - now < 3 * 3_600_000 : false;
   return (
@@ -113,10 +143,16 @@ function ApprovalCard({ item, now }: { item: InboxItem; now: number }) {
           <span className="font-semibold leading-snug">{item.title}</span>
           {item.payload.demo && <span className="shrink-0 rounded bg-amber-400 px-1.5 text-[10px] font-bold text-black">DEMO</span>}
         </div>
-        {item.plan && a && (
+        {plan && a && (
           <div className="mt-1 text-sm text-[#c7d7ee]">
-            {money(item.plan.limit, item.plan.currency)} 지정가 · {money(a.notional_krw, "KRW")}
+            {money(plan.limit, plan.currency)} 지정가 · {money(a.notional_krw, "KRW")}
             <span className="text-[var(--muted)]"> · 손절 시 최대 {money(a.max_loss_krw, "KRW")}</span>
+          </div>
+        )}
+        {sell && (
+          <div className="mt-1 text-sm text-[#c7d7ee]">
+            {shares(sell.qty)} · 평가 {money(sell.value_krw, "KRW")}
+            <span className="text-[var(--muted)]"> · 다음 장 시가에 매도</span>
           </div>
         )}
         {item.summary && <p className="mt-1 line-clamp-2 text-[13px] text-[var(--muted)]">{item.summary}</p>}
@@ -131,6 +167,9 @@ function ApprovalCard({ item, now }: { item: InboxItem; now: number }) {
 
 function ReportRow({ item }: { item: InboxItem }) {
   const action = item.payload.action;
+  const realized = item.payload.realized_krw;
+  const tone = realized !== undefined ? pnlTone(realized) : action ? ACTION_COLOR[action] ?? "" : "";
+  const paper = item.kind === "approval" ? paperLine(item.paper) : null;
   const href = item.kind === "approval" ? `/inbox/${item.id}` : item.run_id ? `/records/${item.run_id}` : `/inbox/${item.id}`;
   return (
     <li>
@@ -138,13 +177,13 @@ function ReportRow({ item }: { item: InboxItem }) {
         <span aria-hidden="true" className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${item.read_at || item.status !== "INFO" ? "bg-transparent" : "bg-[var(--accent)]"}`} />
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2 text-sm">
-            <span className={`truncate font-medium ${action ? ACTION_COLOR[action] ?? "" : ""}`}>{item.title}</span>
+            <span className={`truncate font-medium ${tone}`}>{item.title}</span>
             {item.payload.demo && <span className="rounded bg-amber-400 px-1 text-[10px] font-bold text-black">DEMO</span>}
           </span>
-          {item.summary && <span className="mt-0.5 block line-clamp-1 text-[12px] text-[var(--muted)]">{item.summary}</span>}
+          {(paper || item.summary) && <span className="mt-0.5 block line-clamp-1 text-[12px] text-[var(--muted)]">{paper ?? item.summary}</span>}
         </span>
         <span className="shrink-0 text-right text-[11px] text-[var(--muted)]">
-          <span className={`inline-block rounded border px-1 ${STATUS_TONE[item.status]}`}>{STATUS_KO[item.status]}</span>
+          <span className={`inline-block rounded border px-1 ${STATUS_TONE[item.status]}`}>{item.auto_approved ? "자동 승인" : STATUS_KO[item.status]}</span>
           <span className="mt-0.5 block">{kstDateTime(item.created_at)}</span>
         </span>
       </Link>

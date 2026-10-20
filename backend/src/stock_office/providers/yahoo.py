@@ -6,12 +6,13 @@ unlicensed for redistribution: raw responses are stored only under the git-ignor
 
 from __future__ import annotations
 
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any
 from zoneinfo import ZoneInfo
 
 from stock_office.domain.models import Instrument, MarketSnapshot
+from stock_office.paper.fills import DayBar
 
 from .base import ProviderError, ProviderResult, payload_hash, utcnow
 
@@ -112,3 +113,35 @@ def usd_krw_rate() -> tuple[Decimal, datetime] | None:
     at = idx.to_pydatetime()
     rate = Decimal(_dec(row["Close"]))
     return (rate, at) if rate > 0 else None
+
+
+def daily_bar(instrument_id: str, session: date) -> DayBar | None:
+    """That session's daily OHLC from Yahoo, or None when Yahoo has no bar for that date yet.
+
+    Used by the paper book's settlement after the close. Prices as reported (not adjusted).
+    """
+    from stock_office.domain.instruments import get_instrument
+
+    inst = get_instrument(instrument_id)
+    symbol = inst.provider_symbols.get("yahoo")
+    if not symbol:
+        return None
+    try:
+        import yfinance as yf
+
+        frame = yf.Ticker(symbol).history(
+            start=session.isoformat(), end=(session + timedelta(days=1)).isoformat(),
+            interval="1d", auto_adjust=False)
+    except Exception:
+        return None
+    if frame is None or frame.empty:
+        return None
+    for idx, row in frame.iterrows():
+        if idx.to_pydatetime().date() != session:
+            continue
+        try:
+            return DayBar(session, Decimal(_dec(row["Open"])), Decimal(_dec(row["High"])),
+                          Decimal(_dec(row["Low"])), Decimal(_dec(row["Close"])))
+        except (ArithmeticError, ValueError, KeyError):
+            return None
+    return None

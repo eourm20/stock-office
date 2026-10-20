@@ -2,10 +2,13 @@
 
 - BUY with a valid plan and a non-zero allocation → approval request (PENDING, expires at the next
   session close of the instrument's exchange).
-- Everything else → a report (INFO): HOLD/REVIEW, SELL without a position (the paper book is
-  long-only and empty until paper orders exist), or a BUY whose plan failed a check (REVIEW reasons
-  shown, cannot be approved).
-Approving records the decision only; paper orders are connected in a later step (stated in the UI).
+- SELL while the paper book holds the instrument → approval request to sell the whole position.
+- Everything else → a report (INFO): HOLD/REVIEW, SELL without a position (the book is long-only),
+  or a BUY whose plan failed a check (REVIEW reasons shown, cannot be approved).
+With auto-approve on (the paper-trading default, ⚙), requests are approved as they are filed and
+recorded as automatic; the CEO's buttons then record an opinion only (kept apart, never changes the
+book), so the paper results measure the model alone. An approval books a simulated order in the
+paper book (paper/book.py); nothing is sent anywhere.
 """
 
 from __future__ import annotations
@@ -24,13 +27,14 @@ from stock_office.db import transaction
 from stock_office.domain.instruments import display_name, get_instrument
 from stock_office.domain.models import AnalysisRun, DecisionAction, Market
 from stock_office.paper.allocator import POLICY, Policy, allocate
+from stock_office.paper.book import Book
 from stock_office.plan_extract import build_buy_plan, daily_bars, parse_labels
 from stock_office.runs.repository import RunRepository
 
 FxSource = Callable[[], tuple[Decimal, datetime] | None]  # KRW per USD and when it was observed
 
 ACTION_KO = {"BUY": "매수", "SELL": "매도", "HOLD": "보유", "REVIEW": "판단 보류"}
-_CALENDAR = {Market.KR: "XKRX", Market.US: "XNYS"}
+AUTO_COMMENT = "자동 승인 (모의투자 기간: 결재안을 그대로 따름)"
 
 
 class DecisionError(Exception):
@@ -54,6 +58,10 @@ class InboxItem(BaseModel):
     decided_at: datetime | None
     plan: dict[str, Any] | None = None
     approvals: list[dict[str, Any]] = []
+    paper: list[dict[str, Any]] = []  # simulated orders this document produced
+    auto_approved: bool = False
+    ceo_opinion: str | None = None  # approve/reject/defer on an auto-approved request
+    opinion_open: bool = False      # auto-approved and still within its deadline
 
 
 def _iso(dt: datetime | None) -> str | None:
@@ -67,9 +75,9 @@ def _dt(text: str | None) -> datetime | None:
 
 def next_session_close(market: Market, now: datetime) -> datetime:
     """First session close of the instrument's exchange strictly after `now`."""
-    from stock_office.schedule import _calendar
+    from stock_office.schedule import MARKET_CALENDAR, _calendar
 
-    cal = _calendar(_CALENDAR[market])
+    cal = _calendar(MARKET_CALENDAR[market])
     day = now.astimezone(UTC).date()
     for _ in range(15):
         iso = day.isoformat()
@@ -106,8 +114,16 @@ class Inbox:
         repo: RunRepository,
         policy: Policy = POLICY,
         fx: FxSource | None = None,
+        book: Book | None = None,
+        book_demo_runs: bool = False,
     ) -> None:
         self.conn, self.repo, self.policy, self.fx = conn, repo, policy, fx
+        self.book = book or Book(conn, policy)
+        # DEMO meetings use fixture prices: they never reach the paper book (tests opt in).
+        self.book_demo_runs = book_demo_runs
+
+    def _books(self, demo: bool) -> bool:
+        return not demo or self.book_demo_runs
 
     # ---------------------------------------------------------------- filing (worker)
     def file_run(self, run: AnalysisRun, now: datetime) -> int | None:
@@ -135,12 +151,31 @@ class Inbox:
         plan_body: dict[str, Any] | None = None
         kind, status, expires = "daily", "INFO", None
         title = f"[일일 보고] {name} {ACTION_KO.get(decision.action.value, decision.action.value)}"
-        if decision.action is DecisionAction.SELL:
+        position = self.book.position(inst.id) if self._books(run.demo) else None
+        if decision.action is DecisionAction.SELL and position is not None:
+            kind, status = "approval", "PENDING"
+            expires = next_session_close(inst.market, decision.created_at)
+            if expires <= now:
+                status = "EXPIRED"
+                payload["filed_late"] = True
+            plan_body = {
+                "side": "SELL", "currency": position["currency"], "qty": position["qty"],
+                "avg_price": position["avg_price"], "cost_krw": position["cost_krw"],
+                "last_price": position["last_price"], "last_fx": position["last_fx"],
+                "marked_session": position["marked_session"],
+                "value_krw": self.book.value_krw(position), "rating": decision.engine_rating,
+                "policy_version": self.policy.version, "valid_until": _iso(expires),
+                "execution": "승인되면 다음 장 시가에 전량 매도 (모의)",
+            }
+            title = f"[결재] {name} 전량 매도 {format_qty(position['qty'])}주"
+        elif decision.action is DecisionAction.SELL:
             payload["note"] = (
                 "보유 종목이 없어 참고 보고로 올렸습니다 (모의 계좌는 매수만, 보유분만 매도)."
             )
         if decision.action is DecisionAction.BUY:
             plan_body, reasons = self._buy_plan(run, inst.market, decision.engine_rating)
+            if plan_body is not None:
+                plan_body["side"] = "BUY"
             if plan_body and not reasons:
                 kind, status = "approval", "PENDING"
                 # The deadline belongs to the meeting: the next close after it was decided.
@@ -179,12 +214,14 @@ class Inbox:
                         item_id,
                         run.id,
                         inst.id,
-                        "BUY",
+                        plan_body.get("side", "BUY"),
                         json.dumps(_jsonable(plan_body), ensure_ascii=False),
                         self.policy.version,
                         _iso(expires),
                     ),
                 )
+        if status == "PENDING" and self.book.auto_approve() and self._books(run.demo):
+            self.decide(item_id, "approve", AUTO_COMMENT, f"auto:{item_id}", now)
         return item_id
 
     def _buy_plan(
@@ -212,12 +249,20 @@ class Inbox:
                 reasons.append("원/달러 환율을 구하지 못해 금액을 계산할 수 없음")
             else:
                 fx_rate, fx_at = got
-        nav = self.policy.initial_equity_krw  # no paper book yet: full cash, nothing held
+        # The paper book as it is now (DEMO meetings: the starting account, untouched).
+        books = self._books(run.demo)
+        nav = self.book.nav_krw() if books else self.policy.initial_equity_krw
+        cash = self.book.cash_krw() - self.book.reserved_krw() if books else nav
+        held = Decimal(0)
+        if books:
+            pos = self.book.position(run.instrument_id)
+            held = (self.book.value_krw(pos) if pos else Decimal(0)) + \
+                self.book.reserved_krw(run.instrument_id)
         alloc = allocate(
             self.policy,
             nav_krw=nav,
-            cash_krw=nav,
-            held_krw=Decimal(0),
+            cash_krw=cash,
+            held_krw=held,
             rating=rating or draft.rating,
             multiplier=draft.multiplier,
             limit=draft.limit,
@@ -246,7 +291,8 @@ class Inbox:
             "fx_at": fx_at,
             "allocation": asdict(alloc),
             "policy_version": self.policy.version,
-            "account_basis": "가상 계좌 시작 금액 기준 (모의 계좌 연결 전)",
+            "account_basis": "모의 계좌 현재 상태 기준 (승인 시 다시 계산)"
+            if books else "DEMO: 가상 계좌 시작 금액 기준 (모의 주문 없음)",
         }
         return body, reasons
 
@@ -267,16 +313,27 @@ class Inbox:
             decided_at=_dt(row["decided_at"]),
         )
         plan = self.conn.execute("SELECT body FROM plans WHERE item_id=?", (item.id,)).fetchone()
+        item.auto_approved = item.status == "APPROVED" and self.conn.execute(
+            "SELECT 1 FROM approvals WHERE item_id=? AND client_request_id LIKE 'auto:%'",
+            (item.id,)).fetchone() is not None
+        if item.auto_approved:
+            item.ceo_opinion = self._opinion(item.id)
+            item.opinion_open = self._opinion_open(item.id, datetime.now(UTC))
         if plan:
             item.plan = json.loads(plan["body"])
         if detail:
             item.approvals = [
-                dict(r)
+                {"action": r["action"], "comment": r["comment"], "decided_at": r["decided_at"],
+                 "auto": str(r["client_request_id"]).startswith("auto:"),
+                 "opinion": r["kind"] == "opinion"}
                 for r in self.conn.execute(
-                    "SELECT action, comment, decided_at FROM approvals WHERE item_id=? ORDER BY id",
+                    "SELECT action, comment, client_request_id, decided_at, kind FROM approvals "
+                    "WHERE item_id=? ORDER BY id",
                     (item.id,),
                 )
             ]
+        if item.kind == "approval":
+            item.paper = self.book.orders_for_item(item.id)
         return item
 
     def list(self, limit: int = 100) -> list[InboxItem]:
@@ -289,14 +346,26 @@ class Inbox:
         row = self.conn.execute("SELECT * FROM inbox_items WHERE id=?", (item_id,)).fetchone()
         return self._row(row, detail=True) if row else None
 
-    def by_run(self) -> dict[str, str]:
-        """run_id → inbox status, for the records list."""
-        return {
-            r["run_id"]: r["status"]
-            for r in self.conn.execute(
-                "SELECT run_id, status FROM inbox_items WHERE run_id IS NOT NULL"
-            )
-        }
+    def by_run(self) -> dict[str, dict[str, Any]]:
+        """run_id → approval outcome and what the paper book did with it (records list)."""
+        out: dict[str, dict[str, Any]] = {}
+        for r in self.conn.execute(
+            "SELECT i.run_id, i.status, "
+            "(SELECT client_request_id FROM approvals a WHERE a.item_id=i.id "
+            " AND a.action='approve' AND a.kind='decision') AS approved_by, "
+            "(SELECT action FROM approvals a WHERE a.item_id=i.id AND a.kind='opinion' "
+            " ORDER BY a.id DESC LIMIT 1) AS opinion, "
+            "(SELECT status FROM paper_orders o WHERE o.item_id=i.id "
+            " AND o.role IN ('entry','exit')) AS paper "
+            "FROM inbox_items i WHERE i.run_id IS NOT NULL"
+        ):
+            out[r["run_id"]] = {
+                "status": r["status"],
+                "auto": str(r["approved_by"] or "").startswith("auto:"),
+                "paper": r["paper"],
+                "opinion": r["opinion"],
+            }
+        return out
 
     # ---------------------------------------------------------------- CEO actions
     def mark_read(self, item_id: int, now: datetime) -> None:
@@ -318,6 +387,13 @@ class Inbox:
             if seen:  # a repeated tap: same answer
                 if int(seen["item_id"]) != item_id:
                     raise DecisionError(409, "request id already used for another document")
+            elif self._opinion_open(item_id, now):
+                # Auto-approved: the order follows the model; the CEO's view is recorded beside it.
+                self.conn.execute(
+                    "INSERT INTO approvals (item_id, action, comment, client_request_id, "
+                    "decided_at, kind) VALUES (?,?,?,?,?, 'opinion')",
+                    (item_id, action, comment[:500], client_request_id, _iso(now)),
+                )
             else:
                 row = self.conn.execute(
                     "SELECT status, expires_at FROM inbox_items WHERE id=?", (item_id,)
@@ -337,9 +413,39 @@ class Inbox:
                     "WHERE id=?",
                     (status, None if status == "DEFERRED" else _iso(now), _iso(now), item_id),
                 )
+                if status == "APPROVED":
+                    self._book_approved(item_id, now)
         item = self.get(item_id)
         assert item is not None
         return item
+
+    def _opinion(self, item_id: int) -> str | None:
+        row = self.conn.execute(
+            "SELECT action FROM approvals WHERE item_id=? AND kind='opinion' ORDER BY id DESC",
+            (item_id,)).fetchone()
+        return row["action"] if row else None
+
+    def _opinion_open(self, item_id: int, now: datetime) -> bool:
+        """Auto-approved, before its deadline, and the CEO has not agreed or objected yet."""
+        row = self.conn.execute(
+            "SELECT i.expires_at FROM inbox_items i JOIN approvals a ON a.item_id=i.id "
+            "WHERE i.id=? AND i.status='APPROVED' AND a.client_request_id LIKE 'auto:%'",
+            (item_id,)).fetchone()
+        if row is None or (row["expires_at"] and row["expires_at"] <= _iso(now)):
+            return False
+        return self._opinion(item_id) in (None, "defer")
+
+    def _book_approved(self, item_id: int, now: datetime) -> None:
+        """Approved plan → simulated order in the paper book (same transaction)."""
+        row = self.conn.execute(
+            "SELECT i.instrument_id, i.payload, p.side, p.body FROM inbox_items i "
+            "JOIN plans p ON p.item_id = i.id WHERE i.id=?", (item_id,)).fetchone()
+        if row is None or not self._books(bool(json.loads(row["payload"]).get("demo"))):
+            return
+        if row["side"] == "SELL":
+            self.book.book_exit(item_id, row["instrument_id"], now)
+        else:
+            self.book.open_bracket(item_id, row["instrument_id"], json.loads(row["body"]), now)
 
     def expire_due(self, now: datetime) -> int:
         cur = self.conn.execute(

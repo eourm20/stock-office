@@ -12,11 +12,11 @@ runs the company as its **CEO** from a phone-friendly web app with three tabs:
 - **기록 (records)** — meeting minutes: team reports, the bull/bear and risk debates as a chat, the decision and
   its approval, and attachments (sources, what the AI looked up, run facts).
 
-> **PAPER ONLY.** There is no securities-firm, account or order-execution code. Approvals are recorded, and later
-> become paper orders only through a deterministic risk policy. Nothing here is investment advice, and no
+> **PAPER ONLY.** There is no securities-firm, account or order-execution code. Approvals become simulated paper
+> orders only through a deterministic risk policy; nothing leaves the app. Nothing here is investment advice, and no
 > performance is claimed.
 
-## Status (2026-10-19)
+## Status (2026-10-20)
 | Area | State |
 |---|---|
 | Daily committee meetings on exchange calendars (NVDA, Samsung 005930), Korean reports, 2 debate rounds | ✅ running on the server |
@@ -24,10 +24,11 @@ runs the company as its **CEO** from a phone-friendly web app with three tabs:
 | CEO inbox, approval documents, POLICY_V2 allocator (fractional US shares), expiry, one-page AI briefing | ✅ |
 | Office as CCTV, records of minutes, company settings, installable phone app (Tailscale only) | ✅ |
 | Monthly LLM budget hard stop ($7 ≈ 10,000 KRW), paid-run cap | ✅ |
-| Auto-approval + paper orders and portfolio (step D) | next |
+| Auto-approval (CEO opinion kept apart), paper orders settled on daily bars, KRW ledger, portfolio page (step D) | ✅ local, deploying next |
+| Shared meeting room in the office scene | next |
 | Intraday monitoring and ad-hoc reports (C), research screener and watchlist (B), investment policy statement | planned |
 
-Tests: backend 133 passed (unit/contract/e2e, no network) · frontend 42 passed. Reports per step are in
+Tests: backend 162 passed (unit/contract/e2e, no network) · frontend 46 passed. Reports per step are in
 [docs/](docs/); the current overview and remaining work are in [IMPLEMENTATION_PLAN.md §0](IMPLEMENTATION_PLAN.md).
 
 ## Tech stack
@@ -36,7 +37,7 @@ Tests: backend 133 passed (unit/contract/e2e, no network) · frontend 42 passed.
 | Web app | Next.js 16, React 19, TypeScript, Tailwind CSS; Phaser 3 + Tiled (office); React Flow (committee graph) |
 | Backend | FastAPI API, background worker (queue + daily schedule), SSE with replayable ordered events |
 | Multi-agent | TradingAgents 0.6.0 (LangGraph), pinned `1394a3f`, behind `TradingAgentsAdapter` |
-| Storage | Run records as JSON/JSONL files; office operations (inbox, plans, approvals) in SQLite |
+| Storage | Run records as JSON/JSONL files; office operations (inbox, plans, approvals, paper book) in SQLite |
 | Server | Oracle Ampere A1 (ARM64), systemd, reachable only through the owner's Tailscale |
 
 ## Quick start

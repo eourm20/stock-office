@@ -1,5 +1,5 @@
 /** CEO inbox and records: pure helpers (sorting, deadlines, stamps, grouping), unit-tested. */
-import type { InboxItem, InboxStatus, RecordRow } from "../lib/api";
+import type { ApprovalPlan, InboxItem, InboxStatus, OfficeNow, OrderRole, OrderStatus, PaperOrder, RecordRow, SellPlan } from "../lib/api";
 
 const TZ = "Asia/Seoul";
 
@@ -104,4 +104,94 @@ export function groupRecordsByDay(rows: RecordRow[]): { day: string; label: stri
     }
   }
   return out;
+}
+
+// ---------------------------------------------------------------- paper book
+
+export const ROLE_KO: Record<OrderRole, string> = { entry: "매수", take_profit: "익절", stop: "손절", exit: "매도" };
+export const ORDER_STATUS_KO: Record<OrderStatus, string> = {
+  OPEN: "대기", FILLED: "체결", CANCELLED: "취소", EXPIRED: "미체결", REJECTED: "거절",
+};
+
+/** "엔비디아 회의" / "국내 장 마감 정산": the next scheduled job, by kind. */
+export function nextWorkLabel(n: OfficeNow["next"][number], meeting = "회의"): string {
+  return n.kind === "settle" ? n.name : `${n.name} ${meeting}`;
+}
+
+const OPINION_SHORT: Record<string, string> = { approve: "CEO 동의", reject: "CEO 반대", defer: "CEO 보류" };
+
+/** Small print beside an approval status: "자동 승인 · 체결 · CEO 반대" (records and minutes). */
+export function approvalNote(auto: boolean | undefined, paper: OrderStatus | null | undefined,
+                             opinion: string | null | undefined): string {
+  return [auto ? "자동 승인" : null, paper ? `모의 ${ORDER_STATUS_KO[paper]}` : null,
+          opinion ? OPINION_SHORT[opinion] ?? null : null].filter(Boolean).join(" · ");
+}
+
+/** The paper status of a document's main order (entry or exit). */
+export function mainPaperStatus(item: InboxItem): OrderStatus | null {
+  return item.paper?.find((o) => o.role === "entry" || o.role === "exit")?.status ?? null;
+}
+
+/** How a simulated fill was decided from the day's bar (paper/fills.py). */
+export const FILL_RULE_KO: Record<string, string> = {
+  open_at_or_below_limit: "시가가 지정가 이하 → 시가 체결",
+  low_touched_limit: "저가가 지정가 도달",
+  gap_below_stop: "시가가 손절가 아래 → 시가 손절",
+  gap_above_target: "시가가 목표가 위 → 시가 익절",
+  low_touched_stop: "저가가 손절가 도달",
+  high_touched_target: "고가가 목표가 도달",
+  sold_at_open: "시가 매도",
+};
+
+export function sellPlan(item: InboxItem | null): SellPlan | null {
+  return item?.plan && item.plan.side === "SELL" ? (item.plan as SellPlan) : null;
+}
+
+export function buyPlan(item: InboxItem | null): ApprovalPlan | null {
+  return item?.plan && item.plan.side !== "SELL" ? (item.plan as ApprovalPlan) : null;
+}
+
+/** "+12,300원" / "−4,500원" (whole won, explicit sign). */
+export function signedWon(value: string | number): string {
+  const n = Math.round(Number(value));
+  if (!Number.isFinite(n)) return String(value);
+  return `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toLocaleString("ko-KR")}원`;
+}
+
+/** "+1.25%" / "−0.40%". */
+export function signedPct(value: string | number): string {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return String(value);
+  return `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toFixed(2)}%`;
+}
+
+export function pnlTone(value: string | number): string {
+  const n = Number(value);
+  return n > 0 ? "text-emerald-300" : n < 0 ? "text-rose-300" : "";
+}
+
+/** One line on what the paper book did with an approved document. */
+export function paperLine(orders: PaperOrder[] | undefined): string | null {
+  const main = orders?.find((o) => o.role === "entry" || o.role === "exit");
+  if (!main) return null;
+  const what = main.role === "exit" ? "전량 매도" : `매수 ${shares(main.qty)}`;
+  switch (main.status) {
+    case "OPEN":
+      return main.role === "exit"
+        ? `모의 매도 예약 · ${kstDateTime(main.active_from)} 장 시작 시가에 ${shares(main.qty)}`
+        : `모의 예약 주문 접수 · ${what} 지정가 ${money(main.price ?? 0, main.currency)} · ${kstDateTime(main.active_from)}~${kstDateTime(main.valid_until)}`;
+    case "FILLED": {
+      const exit = orders?.find((o) => (o.role === "take_profit" || o.role === "stop") && o.status === "FILLED");
+      const base = `${what} 체결 @ ${money(main.fill?.price ?? main.price ?? 0, main.currency)}`;
+      if (exit?.fill?.realized_krw) return `${base} → ${ROLE_KO[exit.role]} ${signedWon(exit.fill.realized_krw)}`;
+      if (main.fill?.realized_krw) return `${base} · ${signedWon(main.fill.realized_krw)}`;
+      return main.role === "entry" ? `${base} · 보유 중` : base;
+    }
+    case "EXPIRED":
+      return `미체결 · ${main.reason || "가격이 닿지 않음"}`;
+    case "REJECTED":
+      return `리스크 거절 · ${main.reason}`;
+    default:
+      return `${ORDER_STATUS_KO[main.status]} · ${main.reason}`;
+  }
 }

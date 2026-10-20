@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from stock_office.db import transaction
 from stock_office.domain.models import CreateRunRequest, Market
 from stock_office.engine.demo_engine import DemoEngine
 from stock_office.inbox import DecisionError, next_session_close
@@ -30,6 +31,8 @@ def test_next_session_close_follows_each_exchange_calendar() -> None:
 
 def _buy_run(make_service: Callable[..., RunService]) -> tuple[RunService, int]:
     service = make_service(demo_engine=DemoEngine(rating="Buy"))
+    with transaction(service.inbox.conn):           # the CEO decides by hand in these tests
+        service.inbox.book.set_auto_approve(False, service.clock())
     run = service.create_run(CreateRunRequest(instrument_id="KR:KRX:005930", engine="demo"))
     service.execute(run.id)
     items = service.inbox.list()
