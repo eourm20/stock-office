@@ -167,7 +167,7 @@ def build_sheet(cid: str, shirt: tuple[int, int, int], hair: tuple[int, int, int
 
 # ---------------------------------------------------------------- office art
 TW, TH = 64, 32          # isometric tile size
-MAP_W, MAP_H = 22, 16
+MAP_W, MAP_H = 22, 24
 
 ZONES = {
     # name: (x0, y0, x1, y1) inclusive tile bounds, floor color
@@ -175,6 +175,8 @@ ZONES = {
     "research_room": ((12, 1, 20, 6), (120, 96, 140)),
     "trading_desk": ((1, 9, 9, 14), (80, 130, 120)),
     "risk_executive": ((12, 9, 20, 14), (140, 112, 86)),
+    # shared meeting room below the corridor: both debates and their chairs meet here
+    "boardroom": ((5, 17, 16, 22), (112, 120, 92)),
 }
 CORRIDOR = (60, 66, 82)
 
@@ -291,7 +293,6 @@ def build_office() -> None:
         # research room
         "desk:bull_researcher": (14, 2), "home:bull_researcher": (13, 3),
         "desk:bear_researcher": (18, 2), "home:bear_researcher": (19, 3),
-        "meet:bull_researcher": (15, 4), "meet:bear_researcher": (18, 5),
         "desk:research_manager": (16, 2),
         "inbox:research_room": (13, 5),
         "door:research_room": (12, 4),
@@ -299,14 +300,18 @@ def build_office() -> None:
         "desk:trader": (4, 11), "home:trader": (5, 11), "door:trading_desk": (9, 11),
         "home:risk_aggressive": (7, 11), "home:risk_conservative": (2, 14),
         "home:risk_neutral": (6, 14),
-        # risk & executive: risk debate table, portfolio manager
-        "meet:risk_aggressive": (13, 12), "meet:risk_conservative": (16, 13),
-        "meet:risk_neutral": (15, 14),
+        # risk & executive: the portfolio manager's office
         "desk:portfolio_manager": (17, 10), "home:portfolio_manager": (18, 11),
         "door:risk_executive": (12, 11),
         # office equipment that shows the status of agents without a character
         "station:data_collector": (1, 1), "station:memory_log": (20, 2),
         "corridor:center": (10, 8),
+        # boardroom: one long table (tiles 9-12 x 19-20); chairs at the ends, debaters along the sides
+        "door:boardroom": (10, 17),
+        "meet:research_manager": (8, 19), "meet:portfolio_manager": (13, 20),
+        "meet:bull_researcher": (9, 18), "meet:bear_researcher": (11, 21),
+        "meet:risk_aggressive": (11, 18), "meet:risk_neutral": (12, 18),
+        "meet:risk_conservative": (9, 21),
     }
     objects = []
     oid = 1
@@ -317,11 +322,14 @@ def build_office() -> None:
         oid += 1
     props = [
         ("desk", 3, 1), ("desk", 6, 1), ("desk", 3, 4), ("desk", 6, 4),
-        ("desk", 14, 1), ("desk", 18, 1), ("desk", 16, 1), ("meeting_table", 16, 4),
+        ("desk", 14, 1), ("desk", 18, 1), ("desk", 16, 1), ("plant", 17, 5),
         ("whiteboard", 20, 5), ("server_rack", 1, 1), ("plant", 9, 1), ("plant", 12, 6),
         ("desk", 4, 10), ("desk", 17, 9), ("plant", 1, 14), ("plant", 20, 14),
         ("archive", 20, 2), ("desk", 7, 10), ("desk", 2, 13), ("desk", 6, 13),
-        ("meeting_table", 14, 12),
+        ("plant", 14, 13),
+        # boardroom: two tables make one long table, a whiteboard and plants
+        ("meeting_table", 9, 19), ("meeting_table", 11, 19), ("whiteboard", 15, 18),
+        ("plant", 5, 17), ("plant", 16, 22), ("plant", 5, 22),
     ]
     furniture_objs = []
     for kind, tx, ty in props:

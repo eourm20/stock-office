@@ -45,8 +45,8 @@ export const STATUS_KO: Record<CharacterStatus, string> = {
 };
 
 export const ZONE_KO: Record<string, string> = {
-  analyst_office: "분석실", research_room: "리서치 회의실",
-  trading_desk: "트레이딩 데스크", risk_executive: "리스크·임원실",
+  analyst_office: "분석실", research_room: "리서치실",
+  trading_desk: "트레이딩 데스크", risk_executive: "리스크·임원실", boardroom: "회의실",
 };
 
 export const PHASE_KO: Record<string, string> = {

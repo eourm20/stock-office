@@ -31,6 +31,8 @@ export interface DeptStatus {
   done: number;
   /** Agents of this department that took part in this run so far. */
   total: number;
+  /** Where the camera should look: the boardroom while the department is in a meeting there. */
+  room: string;
 }
 
 type Status = "idle" | "working" | "talking" | "done" | "failed";
@@ -72,6 +74,8 @@ export function departmentStatus(state: OfficeState): DeptStatus[] {
     else if (took.length > 0 && done === took.length) phase = "done";
     const task = phase === "working" ? taskLabel(d.zone, busy, all.some((a) => a.lookup))
       : phase === "done" ? "완료" : phase === "failed" ? "문제 발생" : "대기";
-    return { zone: d.zone, name: d.name, phase, task, done, total: took.length };
+    const meeting = d.agents.some((a) => state.characters[a]?.activity === "meet");
+    return { zone: d.zone, name: d.name, phase, task, done, total: took.length,
+             room: meeting ? "boardroom" : d.zone };
   });
 }

@@ -14,10 +14,8 @@ import { STATION_AGENTS } from "../office/roster";
  */
 
 const FOOTPRINT: Record<string, number> = { desk: 1, server_rack: 1, archive: 1, meeting_table: 2 };
-/** Centre of each room's meeting table (tile coordinates), so speakers face each other. */
-const MEETING_CENTER: Record<string, Point> = {
-  research_room: { x: 17, y: 5 }, risk_executive: { x: 15, y: 13 },
-};
+/** Centre of the boardroom table (tile coordinates), so people at the table face each other. */
+const MEETING_CENTER: Record<string, Point> = { boardroom: { x: 11, y: 20 } };
 const STANCE_COLOR: Record<string, number> = {
   bull: 0x2f9c5c, bear: 0xb84a52, aggressive: 0xd9822b, conservative: 0x3b7dd8, neutral: 0x8a8fa3,
 };
@@ -26,6 +24,8 @@ const STATUS_ICON: Record<CharacterStatus, [string, string]> = {
   failed: ["!", "#ff6b6b"], idle: ["", "#ffffff"],
 };
 const WALK_PX_PER_SEC = 110;
+/** Long walks (e.g. a desk to the boardroom) speed up to finish within this time: motion is cosmetic. */
+const MAX_WALK_MS = 3500;
 
 interface View {
   agentId: string;
@@ -149,8 +149,10 @@ export class OfficeScene extends Phaser.Scene {
     }
     const zoom = Phaser.Math.Clamp(Math.min(this.scale.width / target.w, this.scale.height / target.h) * (zone ? 1 : 1.05), 0.4, 2.5);
     const ms = this.reducedMotion ? 0 : 450;
-    cam.pan(target.x, target.y, ms, "Sine.easeInOut");
-    cam.zoomTo(zoom, ms, "Sine.easeInOut");
+    // force: a new target (another tab, or a department walking into the boardroom) replaces a
+    // camera move still in progress instead of being ignored.
+    cam.pan(target.x, target.y, ms, "Sine.easeInOut", true);
+    cam.zoomTo(zoom, ms, "Sine.easeInOut", true);
   }
 
   /** Zoom the camera by a factor (pinch, wheel, keys and the on-screen buttons). */
@@ -338,7 +340,7 @@ export class OfficeScene extends Phaser.Scene {
     const at = this.layout.spots[view.spot];
     const center = at && MEETING_CENTER[zoneOf(this.layout, at)?.name ?? ""];
     if (ch.status === "working" && ch.activity === "work") this.play(view, "work", "up");
-    else if ((ch.status === "talking" || ch.status === "working") && ch.activity === "meet" && at) {
+    else if ((ch.status === "talking" || ch.status === "working" || ch.status === "done") && ch.activity === "meet" && at) {
       const dir = center ? facing(this.world(at), this.world(center)) : "down";
       this.play(view, ch.status === "talking" ? "talk" : "idle", dir);
     } else if (ch.status === "failed") this.play(view, "idle", view.dir);
@@ -356,6 +358,10 @@ export class OfficeScene extends Phaser.Scene {
       this.pose(view, ch);
       return;
     }
+    let total = 0;
+    path.reduce((a, b) => { total += Phaser.Math.Distance.Between(a.x, a.y, b.x, b.y); return b; },
+                { x: view.sprite.x, y: view.sprite.y });
+    const pxPerSec = Math.max(WALK_PX_PER_SEC * this.speed, total / (MAX_WALK_MS / 1000));
     const step = (i: number) => {
       const next = path[i];
       if (!next) {
@@ -368,7 +374,7 @@ export class OfficeScene extends Phaser.Scene {
       this.play(view, "walk", facing(from, next));
       view.moving = this.tweens.add({
         targets: view.sprite, x: next.x, y: next.y,
-        duration: Math.max(80, (dist / (WALK_PX_PER_SEC * this.speed)) * 1000),
+        duration: Math.max(80, (dist / pxPerSec) * 1000),
         onComplete: () => step(i + 1),
       });
     };

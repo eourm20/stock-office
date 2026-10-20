@@ -157,6 +157,34 @@ describe("character state machine", () => {
     expect(failed.characters.market_analyst).toMatchObject({ status: "failed", activity: "work" });
   });
 
+  it("keeps a debate seated in the boardroom until its chair has ruled", () => {
+    const roster = [...ROSTER, { agentId: "research_manager", role: "Research Manager" }];
+    seq = 0;
+    const events = [
+      ev("run.created"), ev("run.started"),
+      ev("agent.started", "bull_researcher", { role: "Bull Researcher", turn: 1 }),
+      ev("debate.message", "bull_researcher", { debate: "investment", stance: "bull", text: "up" }),
+      ev("agent.completed", "bull_researcher", { role: "Bull Researcher" }),
+      ev("agent.started", "bear_researcher", { role: "Bear Researcher", turn: 1 }),
+      ev("debate.message", "bear_researcher", { debate: "investment", stance: "bear", text: "down" }),
+      ev("agent.completed", "bear_researcher", { role: "Bear Researcher" }),
+      ev("agent.started", "research_manager", { role: "Research Manager" }),
+      ev("agent.completed", "research_manager", { role: "Research Manager", summary: "buy" }),
+    ];
+    const at = (n: number) => foldEvents(initialOfficeState(roster), events.slice(0, n));
+    // The bull has spoken and finished: done (event), still at the table (presentation).
+    expect(at(5).characters.bull_researcher).toMatchObject({ status: "done", activity: "meet" });
+    expect(at(9).characters.research_manager).toMatchObject({ status: "working", activity: "meet" });
+    expect(at(9).characters.bear_researcher).toMatchObject({ status: "done", activity: "meet" });
+    // The ruling ends the meeting: everyone done, nobody left in the boardroom.
+    const end = at(10);
+    for (const id of ["bull_researcher", "bear_researcher", "research_manager"]) {
+      expect(end.characters[id], id).toMatchObject({ status: "done", activity: null });
+    }
+    // Analysts are not part of any meeting.
+    expect(at(10).characters.market_analyst).toMatchObject({ status: "idle", activity: null });
+  });
+
   it("strips speaker prefixes and markdown from bubbles only", () => {
     expect(bubbleText("Bear Analyst: ## Bear case on 005930.KS: **stale** evidence"))
       .toBe("Bear case on 삼성전자(005930): stale evidence");
@@ -247,16 +275,18 @@ describe("office layout (Tiled map)", () => {
       expect(idle.startsWith("home:") || idle.startsWith("desk:"), `${agentId} → ${idle}`).toBe(true);
       expect(zoneOf(layout, layout.spots[idle]!), `${agentId} home in a room`).not.toBeNull();
     }
-    // The risk debate happens at the risk & executive table, away from the analysts' seats.
-    for (const id of ["risk_aggressive", "risk_conservative", "risk_neutral"]) {
+    // Both debates and their chairs meet in the shared boardroom, away from everyone's desks.
+    for (const id of ["bull_researcher", "bear_researcher", "research_manager",
+                      "risk_aggressive", "risk_conservative", "risk_neutral", "portfolio_manager"]) {
       const meet = targetSpot(layout, id, "talking", "meet", null);
       expect(meet).toBe(`meet:${id}`);
-      expect(zoneOf(layout, layout.spots[meet]!)?.name).toBe("risk_executive");
-      expect(zoneOf(layout, layout.spots[`home:${id}`]!)?.name).toBe("trading_desk");
+      expect(zoneOf(layout, layout.spots[meet]!)?.name, id).toBe("boardroom");
+      expect(targetSpot(layout, id, "done", "meet", null), `${id} stays seated`).toBe(`meet:${id}`);
     }
+    expect(zoneOf(layout, layout.spots["home:risk_neutral"]!)?.name).toBe("trading_desk");
     expect(planPath(layout, "home:risk_neutral", "meet:risk_neutral")).toEqual([
       layout.spots["door:trading_desk"], layout.spots["corridor:center"],
-      layout.spots["door:risk_executive"], layout.spots["meet:risk_neutral"]]);
+      layout.spots["door:boardroom"], layout.spots["meet:risk_neutral"]]);
     // Equipment that stands in for agents without a character.
     for (const id of STATION_AGENTS) expect(layout.spots[`station:${id}`], id).toBeDefined();
     // No two people share a seat.
@@ -270,8 +300,15 @@ describe("office layout (Tiled map)", () => {
     const path = planPath(layout, "desk:market_analyst", "inbox:research_room");
     expect(path).toEqual([layout.spots["door:analyst_office"], layout.spots["corridor:center"],
                           layout.spots["door:research_room"], layout.spots["inbox:research_room"]]);
-    expect(planPath(layout, "home:bull_researcher", "meet:bull_researcher"))
-      .toEqual([layout.spots["meet:bull_researcher"]]);
+    expect(planPath(layout, "home:bull_researcher", "meet:bull_researcher")).toEqual([
+      layout.spots["door:research_room"], layout.spots["corridor:center"],
+      layout.spots["door:boardroom"], layout.spots["meet:bull_researcher"]]);
+    // The corridor runs straight down to the boardroom door (no walking through other rooms).
+    const [corridor, door] = [layout.spots["corridor:center"]!, layout.spots["door:boardroom"]!];
+    expect(door.x).toBe(corridor.x);
+    for (let y = corridor.y + 1; y < door.y - 1; y++) {
+      expect(zoneOf(layout, { x: corridor.x, y }), `y=${y}`).toBeNull();
+    }
   });
 
   it("projects isometrically and picks a facing", () => {

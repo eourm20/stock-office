@@ -35,9 +35,18 @@ export interface OfficeState {
   decision: { action: string; rating: string | null; flags: string[]; execution: string } | null;
 }
 
-/** Agents that meet in a room to talk instead of working at their desk. */
-const MEETING_AGENTS = new Set(["bull_researcher", "bear_researcher",
-  "risk_aggressive", "risk_conservative", "risk_neutral"]);
+/**
+ * The two committee meetings held in the shared boardroom: the debaters and the chair who rules on
+ * their debate. A debater who has finished stays seated until the chair's ruling is in; then the
+ * meeting breaks up. Where people sit is presentation; who is working or talking comes from events.
+ */
+export const MEETINGS: { chair: string; members: string[] }[] = [
+  { chair: "research_manager", members: ["bull_researcher", "bear_researcher"] },
+  { chair: "portfolio_manager", members: ["risk_aggressive", "risk_conservative", "risk_neutral"] },
+];
+const MEETING_AGENTS = new Set(MEETINGS.flatMap((m) => [m.chair, ...m.members]));
+const MEMBER_OF = new Map(MEETINGS.flatMap((m) => m.members.map((id) => [id, m] as const)));
+const CHAIRED = new Map(MEETINGS.map((m) => [m.chair, m] as const));
 const BUBBLE_MAX = 160;
 
 export function initialOfficeState(roster: { agentId: string; role: string }[]): OfficeState {
@@ -81,10 +90,24 @@ function applyCommand(state: OfficeState, cmd: OfficeCommand, seq: number): Offi
       next = { ...prev, status: "working", activity: prev.activity ?? "work",
                lookup: { tools: cmd.tools, round: cmd.round, seq } };
       break;
-    case "complete":
-      next = { ...prev, status: "done", activity: null, bubble: null, lookup: null,
-               summary: cmd.summary || prev.summary };
+    case "complete": {
+      // A debater stays at the table until the chair has ruled; the chair's ruling ends the meeting.
+      const member = MEMBER_OF.get(cmd.agentId);
+      const chair = member && (state.characters[member.chair] ?? state.offstage[member.chair]);
+      const chairDone = member ? chair?.status === "done" : true;
+      next = { ...prev, status: "done", activity: member && !chairDone ? "meet" : null, bubble: null,
+               lookup: null, summary: cmd.summary || prev.summary };
+      const meeting = CHAIRED.get(cmd.agentId);
+      if (meeting) {
+        const characters = { ...state.characters, [cmd.agentId]: { ...next, lastSeq: seq } };
+        for (const id of meeting.members) {
+          const c = characters[id];
+          if (c && c.status === "done" && c.activity === "meet") characters[id] = { ...c, activity: null };
+        }
+        return { ...state, characters };
+      }
       break;
+    }
     case "fail":
       // A failed agent stays where it is (no walking away from the problem).
       next = { ...prev, status: "failed", bubble: null, lookup: null, error: cmd.error };

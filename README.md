@@ -25,10 +25,10 @@ runs the company as its **CEO** from a phone-friendly web app with three tabs:
 | Office as CCTV, records of minutes, company settings, installable phone app (Tailscale only) | ✅ |
 | Monthly LLM budget hard stop ($7 ≈ 10,000 KRW), paid-run cap | ✅ |
 | Auto-approval (CEO opinion kept apart), paper orders settled on daily bars, KRW ledger, portfolio page (step D) | ✅ local, deploying next |
-| Shared meeting room in the office scene | next |
+| Shared boardroom in the office scene: both debates and their chairs meet there, from real events | ✅ local, deploying with step D |
 | Intraday monitoring and ad-hoc reports (C), research screener and watchlist (B), investment policy statement | planned |
 
-Tests: backend 162 passed (unit/contract/e2e, no network) · frontend 46 passed. Reports per step are in
+Tests: backend 162 passed (unit/contract/e2e, no network) · frontend 47 passed. Reports per step are in
 [docs/](docs/); the current overview and remaining work are in [IMPLEMENTATION_PLAN.md §0](IMPLEMENTATION_PLAN.md).
 
 ## Tech stack

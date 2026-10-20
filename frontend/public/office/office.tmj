@@ -5,19 +5,19 @@
  "orientation": "isometric",
  "renderorder": "right-down",
  "width": 22,
- "height": 16,
+ "height": 24,
  "tilewidth": 64,
  "tileheight": 32,
  "infinite": false,
  "nextlayerid": 5,
- "nextobjectid": 59,
+ "nextobjectid": 69,
  "layers": [
   {
    "id": 1,
    "name": "floor",
    "type": "tilelayer",
    "width": 22,
-   "height": 16,
+   "height": 24,
    "data": [
     1,
     1,
@@ -370,6 +370,182 @@
     1,
     1,
     1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
     1
    ],
    "opacity": 1,
@@ -383,7 +559,7 @@
    "type": "objectgroup",
    "objects": [
     {
-     "id": 55,
+     "id": 64,
      "name": "analyst_office",
      "type": "zone",
      "x": 32,
@@ -394,7 +570,7 @@
      "visible": true
     },
     {
-     "id": 56,
+     "id": 65,
      "name": "research_room",
      "type": "zone",
      "x": 384,
@@ -405,7 +581,7 @@
      "visible": true
     },
     {
-     "id": 57,
+     "id": 66,
      "name": "trading_desk",
      "type": "zone",
      "x": 32,
@@ -416,12 +592,23 @@
      "visible": true
     },
     {
-     "id": 58,
+     "id": 67,
      "name": "risk_executive",
      "type": "zone",
      "x": 384,
      "y": 288,
      "width": 288,
+     "height": 192,
+     "rotation": 0,
+     "visible": true
+    },
+    {
+     "id": 68,
+     "name": "boardroom",
+     "type": "zone",
+     "x": 160,
+     "y": 544,
+     "width": 384,
      "height": 192,
      "rotation": 0,
      "visible": true
@@ -438,69 +625,12 @@
    "type": "objectgroup",
    "objects": [
     {
-     "id": 34,
-     "name": "desk",
-     "type": "furniture",
-     "point": true,
-     "x": 96,
-     "y": 32,
-     "width": 0,
-     "height": 0,
-     "rotation": 0,
-     "visible": true,
-     "properties": [
-      {
-       "name": "sprite",
-       "type": "string",
-       "value": "desk"
-      }
-     ]
-    },
-    {
-     "id": 35,
-     "name": "desk",
-     "type": "furniture",
-     "point": true,
-     "x": 192,
-     "y": 32,
-     "width": 0,
-     "height": 0,
-     "rotation": 0,
-     "visible": true,
-     "properties": [
-      {
-       "name": "sprite",
-       "type": "string",
-       "value": "desk"
-      }
-     ]
-    },
-    {
-     "id": 36,
-     "name": "desk",
-     "type": "furniture",
-     "point": true,
-     "x": 96,
-     "y": 128,
-     "width": 0,
-     "height": 0,
-     "rotation": 0,
-     "visible": true,
-     "properties": [
-      {
-       "name": "sprite",
-       "type": "string",
-       "value": "desk"
-      }
-     ]
-    },
-    {
      "id": 37,
      "name": "desk",
      "type": "furniture",
      "point": true,
-     "x": 192,
-     "y": 128,
+     "x": 96,
+     "y": 32,
      "width": 0,
      "height": 0,
      "rotation": 0,
@@ -518,7 +648,7 @@
      "name": "desk",
      "type": "furniture",
      "point": true,
-     "x": 448,
+     "x": 192,
      "y": 32,
      "width": 0,
      "height": 0,
@@ -537,6 +667,63 @@
      "name": "desk",
      "type": "furniture",
      "point": true,
+     "x": 96,
+     "y": 128,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "properties": [
+      {
+       "name": "sprite",
+       "type": "string",
+       "value": "desk"
+      }
+     ]
+    },
+    {
+     "id": 40,
+     "name": "desk",
+     "type": "furniture",
+     "point": true,
+     "x": 192,
+     "y": 128,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "properties": [
+      {
+       "name": "sprite",
+       "type": "string",
+       "value": "desk"
+      }
+     ]
+    },
+    {
+     "id": 41,
+     "name": "desk",
+     "type": "furniture",
+     "point": true,
+     "x": 448,
+     "y": 32,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "properties": [
+      {
+       "name": "sprite",
+       "type": "string",
+       "value": "desk"
+      }
+     ]
+    },
+    {
+     "id": 42,
+     "name": "desk",
+     "type": "furniture",
+     "point": true,
      "x": 576,
      "y": 32,
      "width": 0,
@@ -552,7 +739,7 @@
      ]
     },
     {
-     "id": 40,
+     "id": 43,
      "name": "desk",
      "type": "furniture",
      "point": true,
@@ -571,12 +758,12 @@
      ]
     },
     {
-     "id": 41,
-     "name": "meeting_table",
+     "id": 44,
+     "name": "plant",
      "type": "furniture",
      "point": true,
-     "x": 512,
-     "y": 128,
+     "x": 544,
+     "y": 160,
      "width": 0,
      "height": 0,
      "rotation": 0,
@@ -585,12 +772,12 @@
       {
        "name": "sprite",
        "type": "string",
-       "value": "meeting_table"
+       "value": "plant"
       }
      ]
     },
     {
-     "id": 42,
+     "id": 45,
      "name": "whiteboard",
      "type": "furniture",
      "point": true,
@@ -609,7 +796,7 @@
      ]
     },
     {
-     "id": 43,
+     "id": 46,
      "name": "server_rack",
      "type": "furniture",
      "point": true,
@@ -628,7 +815,7 @@
      ]
     },
     {
-     "id": 44,
+     "id": 47,
      "name": "plant",
      "type": "furniture",
      "point": true,
@@ -647,7 +834,7 @@
      ]
     },
     {
-     "id": 45,
+     "id": 48,
      "name": "plant",
      "type": "furniture",
      "point": true,
@@ -666,7 +853,7 @@
      ]
     },
     {
-     "id": 46,
+     "id": 49,
      "name": "desk",
      "type": "furniture",
      "point": true,
@@ -685,7 +872,7 @@
      ]
     },
     {
-     "id": 47,
+     "id": 50,
      "name": "desk",
      "type": "furniture",
      "point": true,
@@ -704,7 +891,7 @@
      ]
     },
     {
-     "id": 48,
+     "id": 51,
      "name": "plant",
      "type": "furniture",
      "point": true,
@@ -723,7 +910,7 @@
      ]
     },
     {
-     "id": 49,
+     "id": 52,
      "name": "plant",
      "type": "furniture",
      "point": true,
@@ -742,7 +929,7 @@
      ]
     },
     {
-     "id": 50,
+     "id": 53,
      "name": "archive",
      "type": "furniture",
      "point": true,
@@ -761,7 +948,7 @@
      ]
     },
     {
-     "id": 51,
+     "id": 54,
      "name": "desk",
      "type": "furniture",
      "point": true,
@@ -780,7 +967,7 @@
      ]
     },
     {
-     "id": 52,
+     "id": 55,
      "name": "desk",
      "type": "furniture",
      "point": true,
@@ -799,7 +986,7 @@
      ]
     },
     {
-     "id": 53,
+     "id": 56,
      "name": "desk",
      "type": "furniture",
      "point": true,
@@ -818,12 +1005,31 @@
      ]
     },
     {
-     "id": 54,
-     "name": "meeting_table",
+     "id": 57,
+     "name": "plant",
      "type": "furniture",
      "point": true,
      "x": 448,
-     "y": 384,
+     "y": 416,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "properties": [
+      {
+       "name": "sprite",
+       "type": "string",
+       "value": "plant"
+      }
+     ]
+    },
+    {
+     "id": 58,
+     "name": "meeting_table",
+     "type": "furniture",
+     "point": true,
+     "x": 288,
+     "y": 608,
      "width": 0,
      "height": 0,
      "rotation": 0,
@@ -833,6 +1039,101 @@
        "name": "sprite",
        "type": "string",
        "value": "meeting_table"
+      }
+     ]
+    },
+    {
+     "id": 59,
+     "name": "meeting_table",
+     "type": "furniture",
+     "point": true,
+     "x": 352,
+     "y": 608,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "properties": [
+      {
+       "name": "sprite",
+       "type": "string",
+       "value": "meeting_table"
+      }
+     ]
+    },
+    {
+     "id": 60,
+     "name": "whiteboard",
+     "type": "furniture",
+     "point": true,
+     "x": 480,
+     "y": 576,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "properties": [
+      {
+       "name": "sprite",
+       "type": "string",
+       "value": "whiteboard"
+      }
+     ]
+    },
+    {
+     "id": 61,
+     "name": "plant",
+     "type": "furniture",
+     "point": true,
+     "x": 160,
+     "y": 544,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "properties": [
+      {
+       "name": "sprite",
+       "type": "string",
+       "value": "plant"
+      }
+     ]
+    },
+    {
+     "id": 62,
+     "name": "plant",
+     "type": "furniture",
+     "point": true,
+     "x": 512,
+     "y": 704,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "properties": [
+      {
+       "name": "sprite",
+       "type": "string",
+       "value": "plant"
+      }
+     ]
+    },
+    {
+     "id": 63,
+     "name": "plant",
+     "type": "furniture",
+     "point": true,
+     "x": 160,
+     "y": 704,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "properties": [
+      {
+       "name": "sprite",
+       "type": "string",
+       "value": "plant"
       }
      ]
     }
@@ -1005,30 +1306,6 @@
     },
     {
      "id": 14,
-     "name": "meet:bull_researcher",
-     "type": "spot",
-     "point": true,
-     "x": 480,
-     "y": 128,
-     "width": 0,
-     "height": 0,
-     "rotation": 0,
-     "visible": true
-    },
-    {
-     "id": 15,
-     "name": "meet:bear_researcher",
-     "type": "spot",
-     "point": true,
-     "x": 576,
-     "y": 160,
-     "width": 0,
-     "height": 0,
-     "rotation": 0,
-     "visible": true
-    },
-    {
-     "id": 16,
      "name": "desk:research_manager",
      "type": "spot",
      "point": true,
@@ -1040,7 +1317,7 @@
      "visible": true
     },
     {
-     "id": 17,
+     "id": 15,
      "name": "inbox:research_room",
      "type": "spot",
      "point": true,
@@ -1052,7 +1329,7 @@
      "visible": true
     },
     {
-     "id": 18,
+     "id": 16,
      "name": "door:research_room",
      "type": "spot",
      "point": true,
@@ -1064,7 +1341,7 @@
      "visible": true
     },
     {
-     "id": 19,
+     "id": 17,
      "name": "desk:trader",
      "type": "spot",
      "point": true,
@@ -1076,7 +1353,7 @@
      "visible": true
     },
     {
-     "id": 20,
+     "id": 18,
      "name": "home:trader",
      "type": "spot",
      "point": true,
@@ -1088,7 +1365,7 @@
      "visible": true
     },
     {
-     "id": 21,
+     "id": 19,
      "name": "door:trading_desk",
      "type": "spot",
      "point": true,
@@ -1100,7 +1377,7 @@
      "visible": true
     },
     {
-     "id": 22,
+     "id": 20,
      "name": "home:risk_aggressive",
      "type": "spot",
      "point": true,
@@ -1112,7 +1389,7 @@
      "visible": true
     },
     {
-     "id": 23,
+     "id": 21,
      "name": "home:risk_conservative",
      "type": "spot",
      "point": true,
@@ -1124,7 +1401,7 @@
      "visible": true
     },
     {
-     "id": 24,
+     "id": 22,
      "name": "home:risk_neutral",
      "type": "spot",
      "point": true,
@@ -1136,43 +1413,7 @@
      "visible": true
     },
     {
-     "id": 25,
-     "name": "meet:risk_aggressive",
-     "type": "spot",
-     "point": true,
-     "x": 416,
-     "y": 384,
-     "width": 0,
-     "height": 0,
-     "rotation": 0,
-     "visible": true
-    },
-    {
-     "id": 26,
-     "name": "meet:risk_conservative",
-     "type": "spot",
-     "point": true,
-     "x": 512,
-     "y": 416,
-     "width": 0,
-     "height": 0,
-     "rotation": 0,
-     "visible": true
-    },
-    {
-     "id": 27,
-     "name": "meet:risk_neutral",
-     "type": "spot",
-     "point": true,
-     "x": 480,
-     "y": 448,
-     "width": 0,
-     "height": 0,
-     "rotation": 0,
-     "visible": true
-    },
-    {
-     "id": 28,
+     "id": 23,
      "name": "desk:portfolio_manager",
      "type": "spot",
      "point": true,
@@ -1184,7 +1425,7 @@
      "visible": true
     },
     {
-     "id": 29,
+     "id": 24,
      "name": "home:portfolio_manager",
      "type": "spot",
      "point": true,
@@ -1196,7 +1437,7 @@
      "visible": true
     },
     {
-     "id": 30,
+     "id": 25,
      "name": "door:risk_executive",
      "type": "spot",
      "point": true,
@@ -1208,7 +1449,7 @@
      "visible": true
     },
     {
-     "id": 31,
+     "id": 26,
      "name": "station:data_collector",
      "type": "spot",
      "point": true,
@@ -1220,7 +1461,7 @@
      "visible": true
     },
     {
-     "id": 32,
+     "id": 27,
      "name": "station:memory_log",
      "type": "spot",
      "point": true,
@@ -1232,12 +1473,108 @@
      "visible": true
     },
     {
-     "id": 33,
+     "id": 28,
      "name": "corridor:center",
      "type": "spot",
      "point": true,
      "x": 320,
      "y": 256,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true
+    },
+    {
+     "id": 29,
+     "name": "door:boardroom",
+     "type": "spot",
+     "point": true,
+     "x": 320,
+     "y": 544,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true
+    },
+    {
+     "id": 30,
+     "name": "meet:research_manager",
+     "type": "spot",
+     "point": true,
+     "x": 256,
+     "y": 608,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true
+    },
+    {
+     "id": 31,
+     "name": "meet:portfolio_manager",
+     "type": "spot",
+     "point": true,
+     "x": 416,
+     "y": 640,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true
+    },
+    {
+     "id": 32,
+     "name": "meet:bull_researcher",
+     "type": "spot",
+     "point": true,
+     "x": 288,
+     "y": 576,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true
+    },
+    {
+     "id": 33,
+     "name": "meet:bear_researcher",
+     "type": "spot",
+     "point": true,
+     "x": 352,
+     "y": 672,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true
+    },
+    {
+     "id": 34,
+     "name": "meet:risk_aggressive",
+     "type": "spot",
+     "point": true,
+     "x": 352,
+     "y": 576,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true
+    },
+    {
+     "id": 35,
+     "name": "meet:risk_neutral",
+     "type": "spot",
+     "point": true,
+     "x": 384,
+     "y": 576,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true
+    },
+    {
+     "id": 36,
+     "name": "meet:risk_conservative",
+     "type": "spot",
+     "point": true,
+     "x": 288,
+     "y": 672,
      "width": 0,
      "height": 0,
      "rotation": 0,
@@ -1255,12 +1592,12 @@
    "firstgid": 1,
    "name": "floor_tiles",
    "image": "floor_tiles.png",
-   "imagewidth": 320,
+   "imagewidth": 384,
    "imageheight": 32,
    "tilewidth": 64,
    "tileheight": 32,
-   "tilecount": 5,
-   "columns": 5,
+   "tilecount": 6,
+   "columns": 6,
    "margin": 0,
    "spacing": 0
   }

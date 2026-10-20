@@ -95,6 +95,8 @@ export default function OfficePage() {
 
   const live = Boolean(following && !finished);
   const board = departmentStatus(state);
+  // A department tab follows its people: to the boardroom while they are meeting there.
+  const camera = zone ? (board.find((b) => b.zone === zone)?.room ?? zone) : null;
   const lastAt = (agents: string[]) => {
     const f = [...state.feed].reverse().find((e) => e.agentId && agents.includes(e.agentId));
     return f ? new Date(f.time).toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit", hour12: false }) : null;
@@ -140,12 +142,12 @@ export default function OfficePage() {
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         <section className="relative h-[50vh] min-w-0 md:h-auto md:flex-1" aria-label="사무실 CCTV">
           <OfficeCanvas state={state} animate={animate} speed={1} reducedMotion={reducedMotion}
-                        selected={selected} onAgentClick={(id) => setSelected(id)} zone={zone} />
+                        selected={selected} onAgentClick={(id) => setSelected(id)} zone={camera} />
           {/* CCTV overlay: recording mark and the current time (presentation only). */}
           <div className="pointer-events-none absolute left-2 top-2 flex items-center gap-2 rounded bg-black/60 px-2 py-1 font-mono text-[11px] text-white">
             <span className={live ? "text-rose-400" : "text-slate-400"}>{live ? "● REC" : "○ 대기"}</span>
             <span>{clock?.toLocaleTimeString("en-GB", { timeZone: "Asia/Seoul", hour12: false }) ?? "--:--:--"}</span>
-            {zone && <span className="text-[#ffd98a]">{board.find((b) => b.zone === zone)?.name}</span>}
+            {zone && <span className="text-[#ffd98a]">{board.find((b) => b.zone === zone)?.name}{camera === "boardroom" ? " · 회의실" : ""}</span>}
           </div>
           <div className="pointer-events-none absolute left-1/2 top-10 w-[min(640px,92%)] -translate-x-1/2 rounded-xl border border-[#ffd98a55] bg-[#0b1020e6] px-3 py-1.5 text-center text-[13px] text-[#fff3d6] sm:text-[14px]"
                role="status" aria-live="polite">
