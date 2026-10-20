@@ -34,7 +34,7 @@ runs the company as its **CEO** from a phone-friendly web app with three tabs:
 | Intraday monitoring (C, also triggers K exits), research screener (B), investment policy statement | planned |
 | **Step E: one month of mock trading** on the Kiwoom mock accounts; criteria draft in [docs/evaluation-plan.md](docs/evaluation-plan.md) | criteria to confirm |
 
-Tests: backend 208 passed (unit/contract/e2e, no network) · frontend 49 passed. Reports per step are in
+Tests: backend 208 passed (unit/contract/e2e, no network) · frontend 49 passed. One-month mock-trading run: 2026-10-20 ~ 11-19. Reports per step are in
 [docs/](docs/); the current overview and remaining work are in [IMPLEMENTATION_PLAN.md §0](IMPLEMENTATION_PLAN.md).
 
 ## Tech stack

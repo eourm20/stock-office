@@ -1,8 +1,8 @@
 # Portfolio Evidence — Stock Office (draft, updated 2026-10-20)
 
 Only **implemented and verified** items are listed as results; planned work is labelled as planned. There are
-no investment-performance claims: real analyses run daily, but their decisions are unevaluated proposals, and
-the paper book (step D) is new, with assumed costs and no evaluation yet.
+no investment-performance claims: the one-month mock-trading run on Kiwoom mock accounts started 2026-10-20 and
+is not evaluated yet (criteria fixed in advance: `docs/evaluation-plan.md`).
 
 ## What exists
 | Feature | Code | Verification |
@@ -15,11 +15,12 @@ the paper book (step D) is new, with assumed costs and no evaluation yet.
 | Daily schedule on exchange calendars; monthly LLM budget hard stop; paid-run cap | [schedule.py](../backend/src/stock_office/schedule.py), [budget.py](../backend/src/stock_office/budget.py) | unit; production since 2026-10-17 |
 | CEO inbox: approval plans from labelled engine lines, POLICY_V2 allocator, expiry, decisions | [plan_extract.py](../backend/src/stock_office/plan_extract.py), [paper/allocator.py](../backend/src/stock_office/paper/allocator.py), [inbox.py](../backend/src/stock_office/inbox.py) | unit + e2e (127 → 133 backend tests) |
 | Paper book: auto-approval (CEO opinion recorded apart), POLICY_V2 re-check at approval, limit entries from the next session, fills decided on the day's bar after the close (both touched → stop), target/stop pair, KRW cash ledger, USD at that day's rate, idempotent orders and settlements | [paper/fills.py](../backend/src/stock_office/paper/fills.py), [paper/book.py](../backend/src/stock_office/paper/book.py), [paper/settle.py](../backend/src/stock_office/paper/settle.py), [paper/costs.py](../backend/src/stock_office/paper/costs.py) | unit + e2e (133 → 162 backend tests); screens with DEMO seed data (`docs/screenshots/ceo-d-*.png`); deployed 2026-10-20, no real fills yet |
-| Phone notifications: Web Push to the installed web app, three event types only, outbox with dedupe, quiet hours with one summary, known push services only | [notify.py](../backend/src/stock_office/notify.py), [sw.js](../frontend/public/sw.js), [push.ts](../frontend/src/lib/push.ts) | unit + e2e (162 → 173 backend tests); real subscription and delivery checked locally with Edge |
+| Research team (B): dated KOSPI200 (199) / NASDAQ-100 (101) snapshots, deterministic screener SCREEN_V1 (liquidity filter; trend, 3-month momentum rank, volume surge, 52-week high; volatility and overbought penalties) with written reasons, 25-stock watchlist, 3 focus meetings per market a day with held stocks first | [research/](../backend/src/stock_office/research/), [universe/](../backend/src/stock_office/universe/) | 4 unit tests; first live run 2026-10-20 (99 US stocks screened, 3 meetings) |
+| Phone notifications: Web Push to the installed web app, four event types only (meeting started, meeting ended, approval request, desk orders), outbox with dedupe, quiet hours with one summary, known push services only | [notify.py](../backend/src/stock_office/notify.py), [sw.js](../frontend/public/sw.js), [push.ts](../frontend/src/lib/push.ts) | unit + e2e (162 → 173 backend tests); real subscription and delivery checked locally with Edge |
 | Kiwoom 모의투자 read-only link (K1): mock server fixed in one module, account queries only, token renewal, paging, rate spacing; domestic and overseas snapshots | [kiwoom_mock/](../backend/src/stock_office/kiwoom_mock/) | unit tests with a fake HTTP server (no network); checked live against the mock server 2026-10-20 |
-| Kiwoom mock desks (K2–K4, C exits): approved plans → regular-hours limit orders sized on the live mock account (POLICY_V3), SENDING-before-request so no double order, fills from Kiwoom's own order history, deadline cancels, stop/target exits, −10% loss limit, per-session account value with benchmark | [kiwoom_mock/desks.py](../backend/src/stock_office/kiwoom_mock/desks.py) | 12 tests against a fake Kiwoom server; deployed 2026-10-20; first real mock orders pending |
-| No-real-orders guard (PAPER ONLY until step K; MOCK ONLY rule from 2026-10-20) | [test_no_live_orders.py](../backend/tests/unit/test_no_live_orders.py) | named state-changing routes, no network imports in `paper/`, banned order/securities-firm words |
-| Web app: inbox, approval document, office CCTV (Phaser, event-driven, deterministic state machine), records, settings, installable on iOS | [frontend/src/app/](../frontend/src/app/), [office/](../frontend/src/office/), [game/](../frontend/src/game/) | vitest 47 (incl. boardroom seating and meeting break-up from events); iPhone-size browser checks (screenshots in `docs/screenshots/`) |
+| Kiwoom mock desks (K2–K4, C): approved plans → regular-hours limit orders sized on the live mock account (POLICY_V3), pre-order check at the open (stop already broken or > 5% gap → held back), SENDING-before-request so no double order, fills from Kiwoom's own order history, deadline cancels, stop/target exits on the whole position, add-on buys merged into one position, −10% loss limit, intraday move (±3/5/10%) and DART filing reports, per-session account value with benchmark | [kiwoom_mock/desks.py](../backend/src/stock_office/kiwoom_mock/desks.py) | 18 tests against a fake Kiwoom server; deployed 2026-10-20; first real mock orders 2026-10-20 22:30 KST |
+| No-real-orders guard (MOCK ONLY rule from 2026-10-20) | [test_no_live_orders.py](../backend/tests/unit/test_no_live_orders.py) | named state-changing routes; the real trading domain appears nowhere; the mock address lives in one file; order paths and API ids only in `kiwoom_mock/client.py` and `desks.py`; no network imports in `paper/` |
+| Web app: two desks (국장/미장 switch), inbox with a summary-first approval document, office CCTV (Phaser, event-driven, deterministic state machine, shared boardroom), records, portfolio (Kiwoom account, performance vs benchmark, orders), settings, installable on iOS | [frontend/src/app/](../frontend/src/app/), [office/](../frontend/src/office/), [game/](../frontend/src/game/) | vitest 49; iPhone-size browser checks (screenshots in `docs/screenshots/`) |
 
 ## Measured
 | What | Value | Source |
@@ -27,11 +28,12 @@ the paper book (step D) is new, with assumed costs and no evaluation yet.
 | Real committee run (economy profile) | ≈ 140–225 s, ≈ $0.04–0.05 | sprint-0, 2b reports |
 | One-page briefing | ≈ $0.0014–0.0021 | sprint-2b report |
 | Production frame rate (office) | 57–62 fps (mean ≈ 61) | sprint-2a report |
-| Spend so far (October) | ≈ $0.3 of a $7 budget | `/api/v1/budget` |
+| Spend so far (October, as of 2026-10-20 evening) | $0.73 of a $7 budget (12 paid runs) | `/api/v1/budget` |
+| Research screening (NASDAQ-100, Yahoo daily bars, ARM server) | ≈ 20 s for 101 stocks | worker log 2026-10-20 |
 
 ## Not yet achieved (do not present as results)
-- Paper results from real meetings (step D runs since 2026-10-20; no real fills yet); hourly-bar fills and intraday monitoring (C); screener (B).
-- Real Kiwoom mock order results (first orders 2026-10-21) and the one-month evaluation (step E, criteria in `docs/evaluation-plan.md`).
+- Kiwoom mock order results (first orders 2026-10-20 22:30 KST) and the one-month evaluation (2026-10-20 ~ 11-19, criteria in `docs/evaluation-plan.md`).
+- Learning from outcomes: off by design during the evaluation (decisions use fresh data but no reflection on past results).
 - Any statement about investment returns. The first evaluation will use criteria fixed before the paper month.
 
 ## Reports
