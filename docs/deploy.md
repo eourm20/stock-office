@@ -100,6 +100,10 @@ ARM instance (up to 4 OCPU / 24 GB, free tier).
 - 2026-10-20 13:20 KST — step D (paper book) and the office boardroom. `office.db` backed up first with SQLite's
   backup API (`office.db.bak-20261020-v1`); migrations 2 and 3 applied on start (`user_version` 3); health, portfolio,
   settings and office APIs, pages `/`, `/portfolio`, `/office`, `/settings` → 200; three services active.
+- 2026-10-20 16:16 KST — research team (migration 7, backup `-v6`); 미장 research ran at once (window open), three
+  meetings. 16:50 KST — `ops_start` set (company_settings) so the inbox and records start at operations; the test
+  period stays in the DB and is viewable in records. Server `.env` still caps paid runs at 8 per 24 h (owner to raise
+  to 10).
 - 2026-10-20 15:20–15:25 KST — K2–K4 desks (migration 5, backup `office.db.bak-20261020-v4`) and order notifications
   (migration 6, backup `-v5`). The worker runs a `kiwoom-mock-desks` thread: orders only in each market's regular
   session, account value after each close.
