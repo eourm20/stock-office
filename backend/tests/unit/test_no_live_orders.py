@@ -42,12 +42,18 @@ def test_api_exposes_no_order_routes(tmp_path: Path) -> None:
     mutating = {r.path for r in app.routes if isinstance(r, APIRoute) and r.methods - {"GET"}}
     # Every state-changing route is listed by name. An inbox decision records an approval and
     # books a simulated order in the local paper book; the auto-approve switch is a local
-    # setting. Nothing reaches any external service.
+    # setting. Apart from push notifications to the owner's phone, nothing reaches any external
+    # service.
     assert mutating == {
         "/api/v1/analysis-runs",
         "/api/v1/inbox/{item_id}/decision",
         "/api/v1/inbox/{item_id}/read",
         "/api/v1/company/auto-approve",
+        # Phone notifications: the owner's own push subscription (known push services only)
+        # and a test message to it. Notification text is inbox titles only.
+        "/api/v1/notify/subscribe",
+        "/api/v1/notify/unsubscribe",
+        "/api/v1/notify/test",
     }
 
 

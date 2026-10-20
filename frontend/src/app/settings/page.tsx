@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { getCompanySettings, getOfficeNow, setAutoApprove, type CompanySettings, type OfficeNow } from "../../lib/api";
 import { kstDateTime } from "../../inbox/model";
 import { INSTRUMENT_KO } from "../../office/auto";
+import { disablePush, enablePush, getNotifyStatus, pushState, sendTestPush, type NotifyStatus,
+         type PushState } from "../../lib/push";
 import NavBar from "../NavBar";
 
 /** ⚙ 회사 운영: budget, paper-trading switch, watched stocks, the asset-allocation policy. */
@@ -76,6 +78,8 @@ export default function SettingsPage() {
           ) : <p className="text-sm text-[var(--muted)]">불러오는 중…</p>}
         </Card>
 
+        <NotifyCard />
+
         <Card title="관심 종목" sub="지금은 아래 종목을 매일 정기 회의합니다. 리서치팀이 고르는 관찰·집중 종목은 다음 단계에서 추가됩니다.">
           <ul className="divide-y divide-[var(--line)] text-sm">
             {Object.entries(INSTRUMENT_KO).map(([id, name]) => {
@@ -105,6 +109,72 @@ export default function SettingsPage() {
         </Card>
       </div>
     </main>
+  );
+}
+
+const PUSH_TEXT: Record<PushState, string> = {
+  unsupported: "이 브라우저는 알림을 지원하지 않습니다.",
+  "install-first": "아이폰은 Safari에서 공유 → '홈 화면에 추가'로 설치한 앱에서만 알림을 켤 수 있습니다.",
+  blocked: "알림이 차단되어 있습니다. 설정 → 알림 → Stock Office에서 허용해 주세요.",
+  off: "꺼짐",
+  on: "켜짐 · 이 기기로 받습니다",
+};
+
+/** Phone notifications: only approval requests, fills/exits and problems. */
+function NotifyCard() {
+  const [status, setStatus] = useState<NotifyStatus | null>(null);
+  const [state, setState] = useState<PushState | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const refresh = () => {
+    getNotifyStatus().then(setStatus).catch(() => setStatus(null));
+    pushState().then(setState).catch(() => setState("unsupported"));
+  };
+  useEffect(refresh, []);
+  const act = async (fn: () => Promise<string>) => {
+    setBusy(true);
+    setNote(null);
+    try {
+      setNote(await fn());
+    } catch (e) {
+      setNote(`실패: ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
+      refresh();
+    }
+  };
+  const ready = status?.enabled && status.public_key;
+  return (
+    <Card title="휴대폰 알림" sub="회의 시작·끝과 결재 요청만 보냅니다. 체결·청산·정산 같은 나머지는 결재함과 포트폴리오에서 확인합니다.">
+      {status && (
+        <ul className="mb-3 space-y-0.5 text-sm">
+          {status.categories.map((c) => <li key={c}>· {c}</li>)}
+          <li className="text-xs text-[var(--muted)]">방해 금지 {status.quiet} (한국 시간): 그동안 온 알림은 끝나는 시각에 한 번에 묶어서 보냅니다.</li>
+        </ul>
+      )}
+      {!status ? <p className="text-sm text-[var(--muted)]">불러오는 중…</p>
+        : !ready ? <p className="text-sm text-amber-200">서버에 알림 키가 아직 없습니다 (관리자 설정 필요).</p>
+        : (
+          <>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm">{state ? PUSH_TEXT[state] : "확인 중…"}</span>
+              {state === "off" && (
+                <button disabled={busy} onClick={() => void act(async () => { await enablePush(status.public_key!); return "알림을 켰습니다."; })}
+                        className="shrink-0 rounded bg-[var(--mint)] px-3 py-1.5 text-sm font-semibold text-black disabled:opacity-50">알림 켜기</button>
+              )}
+              {state === "on" && (
+                <button disabled={busy} onClick={() => void act(async () => { await disablePush(); return "알림을 껐습니다."; })}
+                        className="shrink-0 rounded border border-[var(--line)] px-3 py-1.5 text-sm disabled:opacity-50">끄기</button>
+              )}
+            </div>
+            {state === "on" && (
+              <button disabled={busy} onClick={() => void act(async () => `테스트 알림 ${await sendTestPush()}건 보냄`)}
+                      className="mt-2 text-xs underline disabled:opacity-50">테스트 알림 보내기</button>
+            )}
+            {note && <p role="status" className="mt-2 text-xs text-[var(--muted)]">{note}</p>}
+          </>
+        )}
+    </Card>
   );
 }
 

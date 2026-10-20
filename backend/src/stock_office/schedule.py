@@ -11,6 +11,7 @@ next open), never after it.
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from functools import lru_cache
@@ -46,9 +47,19 @@ class DueSlot:
     deadline: datetime
 
 
+_CALENDAR_LOCK = threading.Lock()
+
+
 @lru_cache(maxsize=8)
-def _calendar(code: str) -> xcals.ExchangeCalendar:
+def _build_calendar(code: str) -> xcals.ExchangeCalendar:
     return xcals.get_calendar(code)
+
+
+def _calendar(code: str) -> xcals.ExchangeCalendar:
+    # Building a calendar is not thread-safe: concurrent first requests after a restart raced
+    # inside pandas ("Length of values does not match length of index"). Build under a lock.
+    with _CALENDAR_LOCK:
+        return _build_calendar(code)
 
 
 def slot_key(instrument_id: str, session: date) -> str:

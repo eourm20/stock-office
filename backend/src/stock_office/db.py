@@ -134,6 +134,28 @@ MIGRATIONS: list[str] = [
     ALTER TABLE approvals ADD COLUMN kind TEXT NOT NULL DEFAULT 'decision'
         CHECK (kind IN ('decision', 'opinion'))
     """,
+    # 4: phone notifications: the owner's push subscriptions and an outbox (one row per event)
+    """
+    CREATE TABLE push_subscriptions (
+        endpoint TEXT PRIMARY KEY,
+        p256dh TEXT NOT NULL,
+        auth TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        last_sent_at TEXT,
+        failures INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE notifications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        dedupe_key TEXT NOT NULL UNIQUE,
+        category TEXT NOT NULL CHECK (category IN ('meeting_start', 'meeting_end', 'approval')),
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        url TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        sent_at TEXT,
+        outcome TEXT
+    )
+    """,
 ]
 
 

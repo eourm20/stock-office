@@ -11,7 +11,7 @@ from typing import Annotated, Protocol
 from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from stock_office import __version__
 from stock_office.config import TRADINGAGENTS_COMMIT, TRADINGAGENTS_VERSION, Settings, get_settings
@@ -36,6 +36,7 @@ from stock_office.domain.models import (
 from stock_office.events.sse import format_sse, resume_after
 from stock_office.inbox import DecisionError, Inbox, InboxItem
 from stock_office.logging_setup import install_log_redaction
+from stock_office.notify import build_notifier
 from stock_office.paper.settle import next_settle_times as settle_times
 from stock_office.runs.service import BudgetExceededError, FutureAsOfError, RunService
 from stock_office.runs.summary import OfficeSummary, build_summary
@@ -54,6 +55,22 @@ class DecisionBody(BaseModel):
 
 class AutoApproveBody(BaseModel):
     enabled: bool
+
+
+class PushKeys(BaseModel):
+    p256dh: str = Field(min_length=1, max_length=200)
+    auth: str = Field(min_length=1, max_length=100)
+
+
+class PushSubscriptionBody(BaseModel):
+    """A browser PushSubscription as JSON (endpoint at a known push service)."""
+
+    endpoint: str = Field(min_length=1, max_length=1000)
+    keys: PushKeys
+
+
+class UnsubscribeBody(BaseModel):
+    endpoint: str = Field(min_length=1, max_length=1000)
 
 
 class Dispatcher(Protocol):
@@ -202,6 +219,45 @@ def create_app(
                 "costs": inbox.book.costs.describe(),
                 "policy_version": inbox.book.policy.version,
                 "initial_krw": str(inbox.book.policy.initial_equity_krw)}
+
+    notifier = build_notifier(settings, inbox.conn, service.repo)
+
+    @app.get("/api/v1/notify/status")
+    def notify_status() -> dict[str, object]:
+        """Phone notifications: whether the server can send, how many phones, quiet hours."""
+        return {"enabled": notifier.sender is not None,
+                "public_key": settings.vapid_public_key if notifier.sender else None,
+                "subscriptions": notifier.subscriptions(),
+                "quiet": f"{settings.notify_quiet_start:02d}:00–{settings.notify_quiet_end:02d}:00",
+                "categories": ["회의 시작 (정기 회의, 예산 한도로 못 열면 그 사실)",
+                               "회의 끝 (결론 또는 실패)", "결재 요청 (회의 끝 알림 대신)"]}
+
+    @app.post("/api/v1/notify/subscribe")
+    def notify_subscribe(body: PushSubscriptionBody) -> dict[str, object]:
+        try:
+            with transaction(inbox.conn):
+                notifier.subscribe(body.endpoint, body.keys.p256dh, body.keys.auth,
+                                   service.clock())
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        return {"subscriptions": notifier.subscriptions()}
+
+    @app.post("/api/v1/notify/unsubscribe")
+    def notify_unsubscribe(body: UnsubscribeBody) -> dict[str, object]:
+        with transaction(inbox.conn):
+            notifier.unsubscribe(body.endpoint)
+        return {"subscriptions": notifier.subscriptions()}
+
+    @app.post("/api/v1/notify/test")
+    def notify_test() -> dict[str, object]:
+        """Send one test notification now (ignores quiet hours)."""
+        if notifier.sender is None:
+            raise HTTPException(409, "push keys are not configured on the server")
+        with transaction(inbox.conn):
+            sent = notifier.send({"title": "Stock Office 알림 테스트",
+                                  "body": "이 휴대폰으로 회의 시작·끝, 결재 요청 알림을 받습니다.",
+                                  "url": "/settings", "tag": "test"}, service.clock())
+        return {"sent": sent}
 
     @app.post("/api/v1/company/auto-approve")
     def set_auto_approve(body: AutoApproveBody) -> dict[str, object]:

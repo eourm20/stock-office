@@ -60,6 +60,16 @@ class Settings(BaseSettings):
     paper_fx_spread: Decimal = Decimal("0.0025")
     paper_slippage: Decimal = Decimal("0.0005")
 
+    # Phone notifications (Web Push to the installed web app). Keys come from
+    # `python -m stock_office.notify keys` and live in the server .env only.
+    vapid_public_key: str | None = None
+    vapid_private_key: SecretStr | None = None
+    # Contact for push services: "mailto:..." or a bare https origin (no path).
+    vapid_subject: str = "https://stock-office.tail4755f0.ts.net"
+    # Quiet hours, Korea time [start, end): notifications wait and arrive as one summary.
+    notify_quiet_start: int = 23
+    notify_quiet_end: int = 7
+
     dart_api_key: SecretStr | None = None
     # Official Naver Search API (Korean press headlines), read-only.
     naver_client_id: SecretStr | None = None

@@ -10,15 +10,18 @@ from __future__ import annotations
 
 import argparse
 import logging
+import threading
 import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 
-from stock_office.config import get_settings
+from stock_office.config import Settings, get_settings
+from stock_office.db import connect
 from stock_office.domain.models import AnalysisRun, CreateRunRequest
 from stock_office.engine.adapter import EngineNotConfiguredError
 from stock_office.logging_setup import install_log_redaction
+from stock_office.notify import Notifier, build_notifier
 from stock_office.runs.service import BudgetExceededError, RunService
 from stock_office.schedule import due_slots, next_slots
 from stock_office.wiring import build_service, build_settler
@@ -49,7 +52,8 @@ def drain(service: RunService) -> int:
     return count
 
 
-def schedule_tick(service: RunService, now: datetime) -> list[AnalysisRun]:
+def schedule_tick(service: RunService, now: datetime,
+                  notifier: Notifier | None = None) -> list[AnalysisRun]:
     """Start every due scheduled analysis once (real engine), then execute it."""
     done = {r.schedule_slot for r in service.repo.list_runs()
             if r.trigger == "schedule" and r.schedule_slot}
@@ -70,6 +74,8 @@ def schedule_tick(service: RunService, now: datetime) -> list[AnalysisRun]:
                 trigger="schedule", schedule_slot=slot.key)
         except BudgetExceededError as exc:
             log.warning("schedule %s skipped: %s", slot.key, exc)
+            if notifier is not None:
+                notifier.budget_skipped(slot.key, slot.rule.instrument_id, now)
             continue
         log.info("schedule %s -> run %s", slot.key, run.id)
         started.append(service.execute(run.id))
@@ -93,6 +99,11 @@ def main(clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> None:
         for s in next_slots(clock()):
             log.info("next scheduled: %s at %s", s.key, s.scheduled_at.isoformat())
     settler = build_settler(service.inbox) if scheduling and service.inbox else None
+    notifier = (build_notifier(settings, service.inbox.conn, service.repo)
+                if scheduling and service.inbox else None)
+    if notifier is not None:
+        threading.Thread(target=notify_loop, args=(settings, service.repo, clock), daemon=True,
+                         name="notify").start()
     last_tick = 0.0
     while True:
         drain(service)
@@ -100,7 +111,7 @@ def main(clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> None:
             service.inbox.expire_due(clock())
         if scheduling and time.monotonic() - last_tick >= 60:
             last_tick = time.monotonic()
-            schedule_tick(service, clock())
+            schedule_tick(service, clock(), notifier)
             if settler is not None:
                 for result in settler.tick(clock()):
                     log.info("settle %s %s -> %s (%d fills) %s", result.market, result.session,
@@ -108,6 +119,16 @@ def main(clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> None:
         if args.once:
             return
         time.sleep(args.interval)
+
+
+def notify_loop(settings: Settings, repo: object, clock: Callable[[], datetime],
+                every_s: float = 20.0) -> None:
+    """Phone notifications on their own thread and connection: a meeting runs for minutes inside
+    the main loop, and "meeting started" must not wait for it to end."""
+    notifier = build_notifier(settings, connect(settings.data_dir), repo)
+    while True:
+        notifier.tick(clock())
+        time.sleep(every_s)
 
 
 if __name__ == "__main__":

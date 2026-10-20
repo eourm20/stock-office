@@ -26,9 +26,10 @@ runs the company as its **CEO** from a phone-friendly web app with three tabs:
 | Monthly LLM budget hard stop ($7 ≈ 10,000 KRW), paid-run cap | ✅ |
 | Auto-approval (CEO opinion kept apart), paper orders settled on daily bars, KRW ledger, portfolio page (step D) | ✅ deployed 2026-10-20 (first real fills pending) |
 | Shared boardroom in the office scene: both debates and their chairs meet there, from real events | ✅ deployed 2026-10-20 |
+| Phone notifications (web push): meeting started, meeting ended, approval request; quiet hours | ✅ local, deploy + server key next |
 | Intraday monitoring and ad-hoc reports (C), research screener and watchlist (B), investment policy statement | planned |
 
-Tests: backend 162 passed (unit/contract/e2e, no network) · frontend 47 passed. Reports per step are in
+Tests: backend 173 passed (unit/contract/e2e, no network) · frontend 48 passed. Reports per step are in
 [docs/](docs/); the current overview and remaining work are in [IMPLEMENTATION_PLAN.md §0](IMPLEMENTATION_PLAN.md).
 
 ## Tech stack

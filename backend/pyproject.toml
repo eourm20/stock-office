@@ -19,7 +19,10 @@ dependencies = [
 
 [project.optional-dependencies]
 # Read-only public market data (Yahoo via yfinance). Live use only; never in deterministic tests.
-live = ["yfinance>=1.7.0"]
+live = [
+    "pywebpush>=2.0",
+    "yfinance>=1.7.0",
+]
 # TradingAgents engine, pinned to an audited upstream commit (v0.6.0).
 engine = [
     "tradingagents @ git+https://github.com/TauricResearch/TradingAgents@1394a3f72aa4393e1a98f51b382434c4b4c2d972",

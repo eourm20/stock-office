@@ -42,6 +42,17 @@ nano ~/stock-office/backend/.env      # OPENAI_API_KEY, STOCK_OFFICE_DART_API_KE
 sudo systemctl restart stock-office-api stock-office-worker
 ```
 
+Phone notifications (once): generate the push key pair on the server and append it to `.env` (the
+private key is never printed to the screen this way), then restart:
+```
+ssh stock-office
+cd ~/stock-office/backend && .venv/bin/python -m stock_office.notify keys >> .env
+sudo systemctl restart stock-office-api stock-office-worker
+```
+Then on the iPhone (home-screen app): ⚙ → 휴대폰 알림 → 알림 켜기 → 테스트 알림 보내기. Notifications: scheduled
+meeting started (or not started: budget), meeting ended (verdict or failure), approval request (instead of
+"ended"). Quiet hours 23:00–07:00 KST; what arrives meanwhile is sent as one summary at 07:00.
+
 Until the OpenAI key is set, scheduled analyses **wait** without being recorded as failures. A missed slot still
 runs if the key arrives before the slot's deadline (the next market open).
 
@@ -97,7 +108,7 @@ ARM instance (up to 4 OCPU / 24 GB, free tier).
 | `runs/<run_id>/reports.json`, `briefing.json` | full redacted reports and debate transcripts; one-page AI summary |
 | `runs/<run_id>/tool_results.json` | what the analysts' tools returned (redacted, ≤ 6,000 chars each; runs from 2026-10-20 on) |
 | `runs/<run_id>/snapshots/` | provider data the run was given (prices, filings, news) with point-in-time stamps |
-| `office.db` | SQLite: inbox documents, approval plans, CEO decisions and opinions; paper book (settings, KRW cash ledger, simulated orders and fills, positions, settled sessions). Migrations run on start (`PRAGMA user_version`, 3 since 2026-10-20); back it up before deploying a new migration |
+| `office.db` | SQLite: inbox documents, approval plans, CEO decisions and opinions; paper book (settings, KRW cash ledger, simulated orders and fills, positions, settled sessions); phone push subscriptions and the notification outbox. Migrations run on start (`PRAGMA user_version`, 4 since the notifications release); back it up before deploying a new migration |
 
 File the inbox for runs that have no document yet (past deadlines arrive as EXPIRED):
 `cd ~/stock-office/backend && .venv/bin/python -m stock_office.inbox`.
