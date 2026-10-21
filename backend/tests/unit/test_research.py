@@ -18,23 +18,34 @@ def trend(n: int = 260, start: float = 100, step: float = 0.5, last_volume: floa
                 [value] * (n - 1) + [last_volume])
 
 
-def test_scores_explain_themselves_and_drop_illiquid_or_short_histories() -> None:
+def pullback(n: int = 260, pairs: int = 6, down: float = 0.025, up: float = 0.012) -> Bars:
+    """An uptrend, then a choppy pullback on lighter volume, and a first up day."""
+    close = [100 + 0.5 * i for i in range(n - 2 * pairs - 1)]
+    for _ in range(pairs):
+        close.append(close[-1] * (1 - down))
+        close.append(close[-1] * (1 + up))
+    close.append(close[-1] * 1.005)
+    volume = [1e6] * (len(close) - 5) + [6e5] * 5
+    return Bars(close, [c * 1.01 for c in close], [c * 0.99 for c in close], volume)
+
+
+def test_v2_prefers_a_pullback_in_an_uptrend_over_a_stock_at_its_high() -> None:
     bars = {
-        "US:NASDAQ:UP": trend(last_volume=3e6),             # trend, momentum, surge, new high
-        "US:NASDAQ:FLAT": trend(step=0.0),
-        "US:NASDAQ:DOWN": trend(start=300, step=-0.5),
+        "US:NASDAQ:PULL": pullback(),
+        "US:NASDAQ:TOP": trend(last_volume=3e6),            # straight up, at its high
+        "US:NASDAQ:DOWN": trend(start=300, step=-0.5),      # no uptrend: gate
         "US:NASDAQ:THIN": trend(value=10),                  # traded value far too low
         "US:NASDAQ:NEW": trend(n=150),                      # too little history
     }
     out = screen("US", bars)
-    assert [c.instrument_id for c in out] == ["US:NASDAQ:UP", "US:NASDAQ:FLAT", "US:NASDAQ:DOWN"]
-    up = out[0]
-    assert up.score == 6 and up.reasons[:2] == ["상승 추세 (종가 > 50일선 > 200일선)",
-                                                "3개월 수익률 상위 1/3 (+15.9%)"]
-    assert "거래량 급증 (20일 평균의 2.7배)" in up.reasons
-    assert "52주 신고가 (종가 기준)" in up.reasons
-    assert "과열 (RSI 100)" in up.reasons  # a straight line up is overbought: −1
-    assert out[-1].score <= 0
+    assert [(c.instrument_id, c.score) for c in out] == [
+        ("US:NASDAQ:PULL", 5), ("US:NASDAQ:TOP", 3), ("US:NASDAQ:DOWN", 0)]
+    pull, top, down = out
+    assert pull.reasons == ["장기 상승 추세 (종가·50일선 > 200일선)", "눌림 7.3% (20일 고점 대비)",
+                            "RSI 34", "조정 중 거래량 감소 (5일 평균이 20일의 0.7배)",
+                            "반등 시작 (전일 대비 상승)"]
+    assert "고점 근처 (20일 고점 대비 0.0%)" in top.reasons
+    assert down.reasons == ["장기 상승 추세 아님 (200일선 아래 또는 50일선 < 200일선)"]
 
 
 def test_focus_puts_held_first_skips_recent_and_unattractive() -> None:
@@ -44,6 +55,7 @@ def test_focus_puts_held_first_skips_recent_and_unattractive() -> None:
     watch, focus = pick(cands, held=["US:NASDAQ:H"], recent={"US:NASDAQ:A"}, focus_size=3)
     assert [i for i, _ in focus] == ["US:NASDAQ:H", "US:NASDAQ:B", "US:NASDAQ:C"]
     assert focus[0][1] == "보유 종목 재점검" and focus[1][1].startswith("점수 ")
+    assert "장기 상승 추세" not in focus[1][1]          # the gate is not news: reasons after it
     assert "US:NASDAQ:H" in watch and "US:NASDAQ:D" not in [i for i, _ in focus]
 
 
@@ -75,7 +87,7 @@ def test_one_research_per_market_and_session_with_an_inbox_report(tmp_path: Path
     title, payload = conn.execute(
         "SELECT title, payload FROM inbox_items WHERE kind='research'").fetchone()
     assert title == "[리서치] 해외장 2026-10-20 · 오늘 회의 2건: 엔비디아, 애플"
-    assert json.loads(payload)["rules"] == "SCREEN_V1"
+    assert json.loads(payload)["rules"] == "SCREEN_V2"
     events = [(r[0], r[1]) for r in conn.execute(
         "SELECT kind, title FROM office_events WHERE desk='research' ORDER BY id")]
     assert events == [("started", "해외장 리서치 시작"),

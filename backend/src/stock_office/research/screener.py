@@ -1,12 +1,19 @@
 """The research team's screener: deterministic scores on daily bars, no model involved.
 
-Rules (RULES_VERSION), on bars up to the last completed session only:
-- liquidity filter: 20-day average traded value ≥ 1억 KRW (국장) / $50M (미장); at least 200 bars
-- +2 uptrend (close > 50-day MA > 200-day MA), or +1 if only close > 50-day MA
-- +0..2 three-month momentum, by rank within the market (top third 2, middle third 1)
-- +1 volume surge (last volume ≥ 1.5 × 20-day average)
-- +1 near the 52-week high (close ≥ 95% of it), +1 more on a new 52-week closing high
-- −1 too volatile (14-day ATR above 6% of the price), −1 overbought (14-day RSI above 80)
+SCREEN_V2 (owner's decision, 2026-10-21; from the 10/22 research): **a pullback in an uptrend**.
+Look for strong stocks that have cooled off, not for stocks at their highs (V1 picked those, and
+the committee then set entries below the price that were never reached). On bars up to the last
+completed session only:
+- liquidity filter: 20-day average traded value ≥ 10억 KRW (국내장) / $50M (해외장); ≥ 200 bars
+- gate: long-term uptrend (close > 200-day MA and 50-day MA > 200-day MA); otherwise score 0
+- +2 pullback of 5–15% from the 20-day closing high (+1 for 3–5% or 15–20%; none when still at
+  the top or more than 20% down, where the trend may be breaking)
+- +2 RSI(14) cooled to 35–55 (+1 for 30–35 or 55–60)
+- +1 holding the 50-day MA (close ≥ 97% of it), −1 when well below it (< 92%)
+- +1 strong over three months (top third of the market by 63-day return)
+- +1 volume drying up in the pullback (5-day average < 80% of the 20-day average)
+- +1 turning up (last close above the previous close)
+- −1 too volatile (14-day ATR above 6% of the price)
 Every point is written out as a reason, so the CEO can read why a stock was picked.
 """
 
@@ -16,8 +23,8 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
 
-RULES_VERSION = "SCREEN_V1"
-MIN_VALUE = {"KR": 1e8 * 10, "US": 50e6}   # 10억 KRW (1e9) / $50M a day
+RULES_VERSION = "SCREEN_V2"
+MIN_VALUE = {"KR": 1e9, "US": 50e6}   # 10억 KRW / $50M a day
 WATCH_SIZE = 25
 FOCUS_SIZE = 3
 RECENT_DAYS = 5   # do not re-meet a non-held stock within this many sessions
@@ -64,9 +71,11 @@ def metrics(b: Bars) -> dict[str, float] | None:
         return None
     value20 = sum(c * v for c, v in zip(b.close[-20:], b.volume[-20:], strict=True)) / 20
     return {
-        "close": b.close[-1], "sma50": _sma(b.close, 50), "sma200": _sma(b.close, 200),
-        "mom63": (b.close[-1] / b.close[-64] - 1) * 100, "value20": value20,
-        "vol_ratio": b.volume[-1] / (_sma(b.volume, 20) or 1),
+        "close": b.close[-1], "prev_close": b.close[-2], "sma50": _sma(b.close, 50),
+        "sma200": _sma(b.close, 200), "mom63": (b.close[-1] / b.close[-64] - 1) * 100,
+        "value20": value20, "high20": max(b.close[-20:]),
+        "pullback": (1 - b.close[-1] / max(b.close[-20:])) * 100,
+        "vol5_ratio": _sma(b.volume, 5) / (_sma(b.volume, 20) or 1),
         "high52": max(b.close[-252:]), "rsi14": _rsi(b.close), "atr_pct": _atr_pct(b),
     }
 
@@ -76,39 +85,56 @@ def screen(market: str, bars: dict[str, Bars]) -> list[Candidate]:
     ms = {iid: m for iid, b in bars.items() if (m := metrics(b)) is not None
           and m["value20"] >= MIN_VALUE[market]}
     ranked = sorted(ms, key=lambda i: ms[i]["mom63"])
-    third = len(ranked) / 3
+    strong = set(ranked[int(len(ranked) * 2 / 3):])
     out = []
-    for pos, iid in enumerate(ranked):
-        m, score, why = ms[iid], 0, []
-        if m["close"] > m["sma50"] > m["sma200"]:
-            score += 2
-            why.append("상승 추세 (종가 > 50일선 > 200일선)")
-        elif m["close"] > m["sma50"]:
-            score += 1
-            why.append("종가가 50일선 위")
-        if pos >= 2 * third:
-            score += 2
-            why.append(f"3개월 수익률 상위 1/3 ({m['mom63']:+.1f}%)")
-        elif pos >= third:
-            score += 1
-            why.append(f"3개월 수익률 중간 ({m['mom63']:+.1f}%)")
-        if m["vol_ratio"] >= 1.5:
-            score += 1
-            why.append(f"거래량 급증 (20일 평균의 {m['vol_ratio']:.1f}배)")
-        if m["close"] >= 0.95 * m["high52"]:
-            score += 1
-            why.append("52주 고가의 95% 이상")
-            if m["close"] >= m["high52"]:
-                score += 1
-                why.append("52주 신고가 (종가 기준)")
-        if m["atr_pct"] > 6:
-            score -= 1
-            why.append(f"변동성 과다 (ATR {m['atr_pct']:.1f}%)")
-        if m["rsi14"] > 80:
-            score -= 1
-            why.append(f"과열 (RSI {m['rsi14']:.0f})")
+    for iid in ranked:
+        m = ms[iid]
+        score, why = _score(m, iid in strong)
         out.append(Candidate(iid, score, why, {k: round(v, 4) for k, v in m.items()}))
     return sorted(out, key=lambda c: (c.score, c.metrics["mom63"]), reverse=True)
+
+
+def _score(m: dict[str, float], strong: bool) -> tuple[int, list[str]]:
+    if not (m["close"] > m["sma200"] and m["sma50"] > m["sma200"]):
+        return 0, ["장기 상승 추세 아님 (200일선 아래 또는 50일선 < 200일선)"]
+    score, why = 0, ["장기 상승 추세 (종가·50일선 > 200일선)"]
+    pb = m["pullback"]
+    if 5 <= pb <= 15:
+        score += 2
+        why.append(f"눌림 {pb:.1f}% (20일 고점 대비)")
+    elif 3 <= pb < 5 or 15 < pb <= 20:
+        score += 1
+        why.append(f"눌림 {pb:.1f}% (20일 고점 대비)")
+    elif pb < 3:
+        why.append(f"고점 근처 (20일 고점 대비 {pb:.1f}%)")
+    else:
+        why.append(f"하락 깊음 (20일 고점 대비 {pb:.1f}%)")
+    rsi = m["rsi14"]
+    if 35 <= rsi <= 55:
+        score += 2
+        why.append(f"과열 해소 (RSI {rsi:.0f})")
+    elif 30 <= rsi < 35 or 55 < rsi <= 60:
+        score += 1
+        why.append(f"RSI {rsi:.0f}")
+    if m["close"] >= 0.97 * m["sma50"]:
+        score += 1
+        why.append("50일선 지지")
+    elif m["close"] < 0.92 * m["sma50"]:
+        score -= 1
+        why.append("50일선 크게 이탈")
+    if strong:
+        score += 1
+        why.append(f"3개월 수익률 상위 1/3 ({m['mom63']:+.1f}%)")
+    if m["vol5_ratio"] < 0.8:
+        score += 1
+        why.append(f"조정 중 거래량 감소 (5일 평균이 20일의 {m['vol5_ratio']:.1f}배)")
+    if m["close"] > m["prev_close"]:
+        score += 1
+        why.append("반등 시작 (전일 대비 상승)")
+    if m["atr_pct"] > 6:
+        score -= 1
+        why.append(f"변동성 과다 (ATR {m['atr_pct']:.1f}%)")
+    return score, why
 
 
 def pick(candidates: list[Candidate], held: list[str], recent: set[str],
@@ -123,7 +149,7 @@ def pick(candidates: list[Candidate], held: list[str], recent: set[str],
             break
         if c.instrument_id in held or c.instrument_id in recent or c.score <= 0:
             continue
-        focus.append((c.instrument_id, f"점수 {c.score}: " + ", ".join(c.reasons[:3])))
+        focus.append((c.instrument_id, f"점수 {c.score}: " + ", ".join(c.reasons[1:4])))
     for h in held:   # held stocks stay watched even when they no longer score
         if h not in watch:
             watch.append(h)

@@ -251,11 +251,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
     market = args[1]
     if args[0] == "dry":   # preview only: nothing stored, no meetings
-        bars = yahoo_bars(UNIVERSE[INDEX[market]], datetime.now(UTC).date())
+        last = closed_sessions(Market(market), datetime.now(UTC), limit=1)[-1].day
+        bars = yahoo_bars(UNIVERSE[INDEX[market]], last + timedelta(days=1))
         cands = screen(market, bars)
         print(f"bars {len(bars)} / liquid {len(cands)}")
         for c in cands[:10]:
             print(c.score, display_name(c.instrument_id), "; ".join(c.reasons))
+        print("focus (nothing held, nothing recent):",
+              [display_name(i) for i, _ in pick(cands, [], set())[1]])
         return 0
     settings = get_settings()
     service = build_service(settings)
