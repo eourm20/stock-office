@@ -69,10 +69,14 @@ def window(market: str, now: datetime) -> tuple[date, datetime, datetime] | None
     return (nxt.day, start, nxt.open) if start <= now < nxt.open else None
 
 
-def next_research(market: str, now: datetime) -> datetime:
-    """When the next research run for this market will start (office schedule)."""
+def next_research(market: str, now: datetime,
+                  done: Callable[[date], bool] = lambda day: False) -> datetime:
+    """When the next research run for this market will start (office schedule). A session whose
+    research is `done` is skipped, so a finished morning's research is not shown as "now"."""
     for probe in (now, now + timedelta(hours=12), now + timedelta(days=1), now + timedelta(days=3)):
         nxt = first_session_opening_after(Market(market), probe)
+        if done(nxt.day):
+            continue
         if market == "KR":
             start = nxt.open - KR_LEAD
         else:

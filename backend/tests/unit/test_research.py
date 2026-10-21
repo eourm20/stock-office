@@ -71,6 +71,10 @@ def test_research_windows_follow_each_exchange() -> None:
     assert window("US", kst("2026-10-20T22:31")) is None          # US session trading: stale bars
     assert window("US", kst("2026-10-21T04:59")) is None
     assert next_research("KR", kst("2026-10-20T17:00")) == kst("2026-10-21T07:00")
+    # 15:18 KST 10/21: the 10/21 US research ran at 06:30, so the next one is 06:30 on 10/22.
+    assert next_research("US", kst("2026-10-21T15:18")) == kst("2026-10-21T15:18")   # not done
+    assert next_research("US", kst("2026-10-21T15:18"),
+                         lambda day: day == date(2026, 10, 21)) == kst("2026-10-22T06:30")
 
 
 def test_one_research_per_market_and_session_with_an_inbox_report(tmp_path: Path) -> None:

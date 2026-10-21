@@ -6,6 +6,7 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from functools import partial
 from typing import Annotated, Protocol
 
 from fastapi import FastAPI, Header, HTTPException, Query
@@ -348,8 +349,15 @@ def create_app(
         from stock_office.research.team import next_research
 
         label = {"KR": "국내장", "US": "해외장"}
+
+        def research_done(market: str, day: object) -> bool:
+            return inbox.conn.execute(
+                "SELECT 1 FROM research_runs WHERE market=? AND session=?",
+                (market, str(day))).fetchone() is not None
+
         upcoming += [{"instrument_id": None, "name": f"{label[m]} 리서치",
-                      "market": m, "at": next_research(m, now), "kind": "research"}
+                      "market": m, "kind": "research",
+                      "at": next_research(m, now, partial(research_done, m))}
                      for m in ("KR", "US")]
         upcoming.sort(key=lambda u: u["at"])  # type: ignore[arg-type,return-value]
         if inbox.book.started_at() is not None:
