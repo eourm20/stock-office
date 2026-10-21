@@ -80,3 +80,21 @@ def test_one_research_per_market_and_session_with_an_inbox_report(tmp_path: Path
         "SELECT kind, title FROM office_events WHERE desk='research' ORDER BY id")]
     assert events == [("started", "해외장 리서치 시작"),
                       ("completed", "해외장 리서치 완료 · 오늘 회의 2건")]   # once
+
+
+def test_research_uses_the_close_just_before_the_target_session(tmp_path: Path) -> None:
+    from stock_office.research.team import last_close_day
+
+    asked: list[date] = []
+
+    def bars(ids: list[str], until: date) -> dict[str, Bars]:
+        asked.append(until)
+        return {}
+
+    team = ResearchTeam(connect(tmp_path), bars, lambda m: [], lambda m, now: set())
+    # 06:30 KST 10/21 is still 10/20 in UTC: the bars must run to the 10/20 US close anyway.
+    team.research("US", date(2026, 10, 21), datetime(2026, 10, 20, 21, 30, tzinfo=UTC))
+    assert asked == [date(2026, 10, 21)]                       # sessions before 10/21
+    assert last_close_day("US", date(2026, 10, 21)) == date(2026, 10, 20)
+    assert last_close_day("KR", date(2026, 10, 21)) == date(2026, 10, 20)
+    assert last_close_day("US", date(2026, 10, 26)) == date(2026, 10, 23)   # Monday: Friday

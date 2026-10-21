@@ -33,7 +33,12 @@ from stock_office.research.screener import (
     screen,
     to_json,
 )
-from stock_office.schedule import closed_sessions, first_session_opening_after, open_session
+from stock_office.schedule import (
+    closed_sessions,
+    first_session_opening_after,
+    open_session,
+    session_of,
+)
 
 log = logging.getLogger("stock_office.research")
 INDEX = {"KR": "KOSPI200", "US": "NASDAQ100"}
@@ -109,9 +114,11 @@ class ResearchTeam:
         if self.done(market, day):
             return []
         ids = UNIVERSE[INDEX[market]]
+        # Bars of the sessions before the target session (exchange-local dates), so the last bar
+        # is the close that just happened. Raises when the data is not in yet (retried next tick).
+        bars = self.bars(ids, day)
         self._event(market, "started", f"{MARKET_KO[market]} 리서치 시작",
                     f"{INDEX[market]} {len(ids)}종목 점수 계산", now)
-        bars = self.bars(ids, now.date())
         candidates: list[Candidate] = screen(market, bars)
         known = set(ids) | {"KR:KRX:005930", "US:NASDAQ:NVDA"}
         held = [h for h in self.held(market) if h in known]
@@ -152,24 +159,46 @@ class ResearchTeam:
 
 
 # ---------------------------------------------------------------- live wiring
+class StaleBarsError(RuntimeError):
+    """The close the research needs is not in the data yet."""
+
+
+def last_close_day(market: str, until: date) -> date:
+    """The session just before the target session `until` (exchange-local)."""
+    target = session_of(Market(market), until)
+    before = target.open if target else datetime.combine(until, datetime.min.time(), UTC)
+    return closed_sessions(Market(market), before, limit=1)[-1].day
+
+
 def yahoo_bars(instrument_ids: list[str], until: date) -> dict[str, Bars]:
-    """One year of daily bars per instrument from Yahoo, completed sessions before `until`."""
+    """One year of daily bars per instrument from Yahoo: sessions before the target session
+    `until`, each ending with the session just before it (stale instruments are left out; if
+    none is fresh the data is not in yet and StaleBarsError is raised)."""
     import yfinance as yf
 
     symbols = {get_instrument(i).provider_symbols["yahoo"]: i for i in instrument_ids}
     frame = yf.download(list(symbols), period="14mo", interval="1d", group_by="ticker",
                         auto_adjust=False, threads=True, progress=False)
     out: dict[str, Bars] = {}
+    need = last_close_day(get_instrument(instrument_ids[0]).market.value, until)
+    stale = 0
     for sym, iid in symbols.items():
         try:
             f = frame[sym].dropna(subset=["Close"])
         except KeyError:
             continue
         f = f[[d.date() < until for d in f.index]]
+        if len(f) and f.index[-1].date() < need:
+            stale += 1
+            continue
         if len(f) < 200:
             continue
         out[iid] = Bars([float(x) for x in f["Close"]], [float(x) for x in f["High"]],
                         [float(x) for x in f["Low"]], [float(x) for x in f["Volume"]])
+    if not out and stale:
+        raise StaleBarsError(f"{need} close not in Yahoo data yet ({stale} stale)")
+    if stale:
+        log.warning("research bars: %d instruments without the %s close", stale, need)
     return out
 
 
