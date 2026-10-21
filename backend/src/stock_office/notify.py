@@ -3,7 +3,7 @@
 Five categories, nothing else (owner's choices, 2026-10-20):
 - meeting_start: a scheduled real meeting started (or could not start: budget hard stop).
 - meeting_end: a real meeting ended with its verdict, or failed. A meeting that filed nothing to
-  the inbox (no action on a stock not held) sends nothing.
+  the inbox (no action on a stock not held) says "보유 종목이 아니어서 결재 올릴 것이 없습니다".
 - approval: the meeting ended with an approval request (BUY/SELL), auto-approved or waiting;
   this replaces its "meeting_end" so one meeting never sends two end notifications.
 - order: what the Kiwoom mock desks did (order placed, filled, exit with P&L, unfilled and
@@ -47,6 +47,7 @@ KST = ZoneInfo("Asia/Seoul")
 PUSH_HOSTS = ("push.apple.com", "fcm.googleapis.com", "push.services.mozilla.com",
               "notify.windows.com")
 DIGEST_LINES = 6
+NOTHING_TO_APPROVE = "보유 종목이 아니어서 결재 올릴 것이 없습니다."
 WORKER_CATEGORIES = ("meeting_start", "meeting_end", "approval", "order")
 
 
@@ -137,17 +138,15 @@ class Notifier:
                     self.enqueue(f"approval:{run.id}", "approval", doc["title"], body,
                                  f"/inbox/{doc['id']}", now)
                     continue
-                if doc is None:
-                    # No inbox document: nothing to do on a stock not held (owner, 2026-10-20).
-                    # The phone stays quiet too (a start still waiting out quiet hours is
-                    # dropped); the minutes are in 기록.
-                    self.conn.execute(
-                        "UPDATE notifications SET sent_at=?, outcome='dropped:no-report' "
-                        "WHERE dedupe_key=? AND sent_at IS NULL", (_iso(now), f"start:{run.id}"))
-                    continue
                 decision = self.repo.get_decision(run.id)
                 verdict = (ACTION_KO.get(decision.action.value, decision.action.value)
                            if decision else "결론 없음")
+                if doc is None:
+                    # No inbox document: nothing to do on a stock not held (owner, 2026-10-20);
+                    # the end notice says so in plain words (owner, 2026-10-21).
+                    self.enqueue(f"end:{run.id}", "meeting_end", f"[회의 끝] {name} · {verdict}",
+                                 NOTHING_TO_APPROVE, f"/records/{run.id}", now)
+                    continue
                 self.enqueue(f"end:{run.id}", "meeting_end", f"[회의 끝] {name} · {verdict}",
                              doc["summary"] or "결재함에서 보고 확인", f"/inbox/{doc['id']}", now)
 
