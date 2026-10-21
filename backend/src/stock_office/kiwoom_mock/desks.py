@@ -32,6 +32,7 @@ from stock_office.domain.instruments import display_name, get_instrument
 from stock_office.domain.models import Market
 from stock_office.kiwoom_mock.accounts import MockAccount, kr_account, num, us_account
 from stock_office.kiwoom_mock.client import KiwoomMockClient, KiwoomMockError
+from stock_office.kiwoom_mock.closing import NOTE, Meeting, compose
 from stock_office.paper.allocator import POLICY_V3, Policy, allocate
 from stock_office.schedule import closed_sessions, open_session
 
@@ -92,8 +93,11 @@ class Desks:
     def __init__(self, conn: sqlite3.Connection,
                  clients: Callable[[str], KiwoomMockClient | None],
                  policy: Policy = POLICY_V3,
-                 benchmark: Callable[[str, Any], Decimal | None] | None = None) -> None:
+                 benchmark: Callable[[str, Any], Decimal | None] | None = None,
+                 meetings: Callable[[str, Any], list[tuple[str, str]]] | None = None) -> None:
         self.conn, self.clients, self.policy, self.benchmark = conn, clients, policy, benchmark
+        # The session's meetings (instrument, action) for the closing report's feedback
+        self.meetings = meetings
 
     # ================================================================ queue (no network)
     def queue_entry(self, item_id: int, instrument_id: str, plan: dict[str, Any],
@@ -385,6 +389,11 @@ class Desks:
                                  f"expired:{row['id']}", now)
 
     def _price(self, market: str, client: KiwoomMockClient, instrument_id: str) -> Decimal | None:
+        return self._quote(market, client, instrument_id)[0]
+
+    def _quote(self, market: str, client: KiwoomMockClient, instrument_id: str
+               ) -> tuple[Decimal | None, Decimal | None]:
+        """(price, today's % change) from Kiwoom's quote; (None, None) when it fails."""
         code, exch = _code(instrument_id)
         try:
             if market == "KR":
@@ -394,9 +403,9 @@ class Desks:
                                     {"stex_tp": exch, "stk_cd": code})[0]
         except KiwoomMockError as exc:
             log.warning("price %s: %s", instrument_id, exc)
-            return None
-        value = num(page.get("cur_prc"))
-        return abs(D(value)) if value else None
+            return None, None
+        value, rate = num(page.get("cur_prc")), num(page.get("flu_rt"))
+        return (abs(D(value)) if value else None), (D(rate) if rate else None)
 
     def _place(self, market: str, client: KiwoomMockClient, row: sqlite3.Row, side: str,
                qty: Decimal, limit: Decimal, now: datetime) -> str | None:
@@ -610,6 +619,83 @@ class Desks:
                          BENCHMARK[market], str(bench) if bench is not None else None, iso(now)))
             except Exception:
                 log.exception("nav snapshot %s failed", market)
+                continue
+            try:
+                assert client is not None
+                self.closing(market, sessions[-1], acc, nav, bench, client, now)
+            except Exception:
+                log.exception("closing report %s failed", market)
+
+    def closing(self, market: str, session: Any, acc: MockAccount, nav: Decimal,
+                bench: Decimal | None, client: KiwoomMockClient, now: datetime) -> None:
+        """The closing report with feedback on the day's meetings (inbox only, once)."""
+        day, cur = session.day.isoformat(), acc.currency
+        key = f"closing:{market}:{day}"
+        if self.conn.execute("SELECT 1 FROM inbox_items WHERE dedupe_key=?", (key,)).fetchone():
+            return
+        prev = self.conn.execute(
+            "SELECT nav, benchmark_close FROM km_nav WHERE market=? AND session<? "
+            "ORDER BY session DESC LIMIT 1", (market, day)).fetchone()
+        bench_move = ((bench / D(prev["benchmark_close"]) - 1) * 100
+                      if prev and prev["benchmark_close"] and bench is not None else None)
+        since = iso(session.open - timedelta(hours=20))
+        rows = list(self.conn.execute(
+            "SELECT * FROM km_orders WHERE market=? AND (created_at>=? OR closed_at>=? "
+            "OR sent_at>=?) ORDER BY id", (market, since, since, since)))
+        trades = [self._trade_line(r) for r in rows if r["status"] != "WAITING"]
+        opened = {r["instrument_id"]: r for r in self._rows(market, "FILLED")
+                  if r["role"] == "entry" and not json.loads(r["detail"] or "{}").get("closed")}
+        holdings = []
+        for h in acc.holdings:
+            row = next((r for iid, r in opened.items() if iid.endswith(f":{h.code}")), None)
+            line = (f"{h.name} {h.qty}주 · 평균 {money(h.avg_price, cur)} · 현재 "
+                    f"{money(h.price, cur)} · {h.pnl_pct or '—'}%")
+            if row and h.price:
+                gap = (D(row["stop"]) / D(h.price) - 1) * 100
+                line += (f" · 손절가 {money(row['stop'], cur)}({gap:+.1f}%)"
+                         f" · 목표가 {money(row['target'], cur)}")
+            holdings.append(line)
+        held_codes = {h.code for h in acc.holdings}
+        meetings = []
+        for iid, action in (self.meetings(market, session.day) if self.meetings else []):
+            price, move = self._quote(market, client, iid)
+            plan = next((r for r in rows if r["instrument_id"] == iid), None)
+            meetings.append(Meeting(
+                display_name(iid), action, iid.split(":")[-1] in held_codes, move,
+                money(price, cur) if price else None,
+                self._trade_line(plan, short=True) if plan else None))
+        waiting = [f"{ROLE_KO[r['role']]} {display_name(r['instrument_id'])}"
+                   + (f" · 지정가 {money(r['limit_price'], cur)}" if r["limit_price"] else "")
+                   for r in self._rows(market, "WAITING")]
+        title, summary, sections = compose(market, day, money(nav, cur), nav,
+                                           D(prev["nav"]) if prev else None,
+                                           self.start_equity(market), bench_move, trades,
+                                           holdings, meetings, waiting)
+        with transaction(self.conn):
+            done = self.conn.execute(
+                "INSERT OR IGNORE INTO inbox_items (kind, run_id, instrument_id, title, summary, "
+                "payload, status, dedupe_key, created_at) VALUES ('closing', NULL, NULL, ?, ?, ?, "
+                "'INFO', ?, ?)",
+                (title, summary, json.dumps({"market": market, "session": day,
+                                             "sections": sections, "note": NOTE},
+                                            ensure_ascii=False), key, iso(now)))
+            if done.rowcount:
+                self.conn.execute(
+                    "INSERT INTO office_events (market, desk, kind, title, detail, created_at) "
+                    "VALUES (?, 'trading', '마감', ?, ?, ?)", (market, title, summary, iso(now)))
+
+    @staticmethod
+    def _trade_line(r: sqlite3.Row, short: bool = False) -> str:
+        cur = r["currency"]
+        what = "" if short else f"{ROLE_KO[r['role']]} {display_name(r['instrument_id'])} "
+        qty = f"{r['qty']}주 " if r["qty"] else ""
+        status = {"FILLED": "체결", "EXPIRED": "미체결 만료", "REJECTED": "주문 안 함",
+                  "CANCELLED": "다시 주문", "SENT": "주문 중", "SENDING": "주문 중",
+                  "REVIEW": "확인 필요", "WAITING": "주문 대기"}.get(r["status"], r["status"])
+        price = (f" @ {money(r['fill_price'], cur)}" if r["fill_price"]
+                 else f" (지정가 {money(r['limit_price'], cur)})" if r["limit_price"] else "")
+        reason = f" · {r['reason']}" if r["reason"] and r["status"] != "FILLED" else ""
+        return f"{what}{qty}{status}{price}{reason}".strip()
 
 
 def build_desks(settings: Any, conn: sqlite3.Connection) -> Desks:
@@ -631,4 +717,18 @@ def build_desks(settings: Any, conn: sqlite3.Connection) -> Desks:
         result: Decimal | None = index_close(symbol, day)
         return result
 
-    return Desks(conn, clients, benchmark=benchmark)
+    def meetings(market: str, day: Any) -> list[tuple[str, str]]:
+        """The research meetings for this session (slot "research:<instrument>@<day>")."""
+        from stock_office.runs.repository import RunRepository
+
+        repo = RunRepository(settings.data_dir)
+        out = []
+        for run in reversed(repo.list_runs()):
+            slot = run.schedule_slot or ""
+            if run.demo or not slot.endswith(f"@{day}") or not run.instrument_id.startswith(market):
+                continue
+            decision = repo.get_decision(run.id) if run.status.value == "COMPLETED" else None
+            out.append((run.instrument_id, decision.action.value if decision else "REVIEW"))
+        return out
+
+    return Desks(conn, clients, benchmark=benchmark, meetings=meetings)

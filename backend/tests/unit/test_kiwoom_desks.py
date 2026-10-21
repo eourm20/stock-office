@@ -273,6 +273,26 @@ def test_a_session_value_is_recorded_once_after_the_close(tmp_path: Path) -> Non
         [("2026-10-20", "10000000", "^KS11", "2600.5")]
 
 
+def test_the_closing_report_gives_feedback_on_the_days_meetings(tmp_path: Path) -> None:
+    desks, fake = setup(tmp_path, bench=lambda symbol, day: D("2600.5"))
+    desks.meetings = lambda market, day: [(KR, "BUY"), ("KR:KRX:000660", "HOLD")]
+    approve(desks, deadline=KR_OPEN + timedelta(hours=5, minutes=30))
+    desks.tick(KR_OPEN)
+    fake.fill(order(desks)["ext_order_no"], D(50000))
+    desks.tick(KR_OPEN + timedelta(minutes=1))
+    fake.move = "4.20"
+    desks.record_nav(KR_CLOSED)
+    desks.record_nav(KR_CLOSED + timedelta(minutes=5))               # once
+    rows = list(desks.conn.execute("SELECT title, payload FROM inbox_items WHERE kind='closing'"))
+    assert len(rows) == 1
+    assert rows[0][0].startswith("[마감] 국내장 2026-10-20 · 평가액 ")
+    sections = {s["title"]: s["lines"] for s in json.loads(rows[0][1])["sections"]}
+    assert sections["오늘 주문"] == ["매수 삼성전자 19주 체결 @ 50,000원"]
+    feedback = sections["오늘 회의 피드백"]
+    assert feedback[0].startswith("삼성전자 · 매수 → 19주 체결 @ 50,000원 · 오늘 +4.20%")
+    assert feedback[1].endswith("사지 않은 사이 크게 오름")
+
+
 def test_marketable_sell_prices_respect_ticks() -> None:
     assert marketable_sell("KR", D(51_813)) == D(51_200)   # 51,294.87 → 100-won tick
     assert marketable_sell("US", D("180.37")) == D("179.46")

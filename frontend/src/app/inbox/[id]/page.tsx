@@ -103,6 +103,14 @@ export default function InboxDocument() {
             {(item.summary || briefing?.headline) && (
               <p className="border-l-4 border-[#c9bfa6] pl-3 text-[15px] font-semibold leading-snug">{humanizeTickers(briefing?.headline || item.summary)}</p>
             )}
+            {item.payload.sections?.map((sec) => (
+              <div key={sec.title}>
+                <h2 className="mb-1 text-sm font-bold">{sec.title}</h2>
+                <ul className="space-y-1 text-[13px]">
+                  {sec.lines.map((line) => <li key={line} className="rounded bg-[#ece7da] px-2 py-1">{line}</li>)}
+                </ul>
+              </div>
+            ))}
             {item.payload.note && <p className="rounded bg-[#ece7da] p-2 text-sm">{item.payload.note}</p>}
             {item.payload.review_reasons && item.payload.review_reasons.length > 0 && (
               <div className="rounded border border-amber-600 bg-amber-50 p-2 text-sm">
