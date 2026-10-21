@@ -98,3 +98,27 @@ def test_research_uses_the_close_just_before_the_target_session(tmp_path: Path) 
     assert last_close_day("US", date(2026, 10, 21)) == date(2026, 10, 20)
     assert last_close_day("KR", date(2026, 10, 21)) == date(2026, 10, 20)
     assert last_close_day("US", date(2026, 10, 26)) == date(2026, 10, 23)   # Monday: Friday
+
+
+def test_an_empty_newest_close_is_filled_from_the_quote_inside_the_day_range() -> None:
+    import pandas as pd
+
+    from stock_office.research.team import _fill_last_close
+
+    class Quote:
+        def __init__(self, price: float) -> None:
+            self.fast_info = type("F", (), {"last_price": price})()
+
+    def frame() -> pd.DataFrame:
+        return pd.DataFrame({"Close": [171.06, float("nan")], "High": [174.36, 176.26],
+                             "Low": [169.53, 170.36]},
+                            index=pd.to_datetime(["2026-10-19", "2026-10-20"]))
+
+    def yf(price: float) -> object:
+        return type("YF", (), {"Ticker": staticmethod(lambda sym: Quote(price))})()
+
+    day = date(2026, 10, 20)
+    assert _fill_last_close(frame(), "SHOP", day, yf(173.48))["Close"].iloc[-1] == 173.48
+    assert pd.isna(_fill_last_close(frame(), "SHOP", day, yf(190.0))["Close"].iloc[-1])
+    assert pd.isna(_fill_last_close(frame(), "SHOP", date(2026, 10, 21), yf(173.48))["Close"]
+                   .iloc[-1])                                    # not the session we need

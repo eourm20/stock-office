@@ -170,6 +170,22 @@ def last_close_day(market: str, until: date) -> date:
     return closed_sessions(Market(market), before, limit=1)[-1].day
 
 
+def _fill_last_close(f: Any, sym: str, need: date, yf: Any) -> Any:
+    """Yahoo's daily download sometimes leaves the newest session's close empty (high, low and
+    volume are there) for hours after the close. Fill it from the quote's last price, which is the
+    close once the market has closed, only when it lies inside that day's range."""
+    if not len(f) or f.index[-1].date() != need or f["Close"].iloc[-1] == f["Close"].iloc[-1]:
+        return f
+    try:
+        price = float(yf.Ticker(sym).fast_info.last_price)
+    except Exception:
+        return f
+    low, high = float(f["Low"].iloc[-1]), float(f["High"].iloc[-1])
+    if low <= price <= high:
+        f.loc[f.index[-1], "Close"] = price
+    return f
+
+
 def yahoo_bars(instrument_ids: list[str], until: date) -> dict[str, Bars]:
     """One year of daily bars per instrument from Yahoo: sessions before the target session
     `until`, each ending with the session just before it (stale instruments are left out; if
@@ -184,9 +200,10 @@ def yahoo_bars(instrument_ids: list[str], until: date) -> dict[str, Bars]:
     stale = 0
     for sym, iid in symbols.items():
         try:
-            f = frame[sym].dropna(subset=["Close"])
+            f = _fill_last_close(frame[sym].copy(), sym, need, yf)
         except KeyError:
             continue
+        f = f.dropna(subset=["Close"])
         f = f[[d.date() < until for d in f.index]]
         if len(f) and f.index[-1].date() < need:
             stale += 1
