@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     ta_llm_provider: str = "openai"
     ta_deep_think_llm: str | None = None
     ta_quick_think_llm: str | None = None
-    ta_analysts: str = "market,news,fundamentals"
+    ta_analysts: str = "market,social,news,fundamentals"   # all four (owner, 2026-10-21)
     # Reports and debate text. Upstream keeps the machine-read "**Rating**:" line in English.
     ta_output_language: str = "Korean"
     # economy: dev/test default, trims low-risk levers only. standard: upstream defaults,

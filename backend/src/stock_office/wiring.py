@@ -26,10 +26,16 @@ from stock_office.runs.service import RunService
 
 
 def build_service(settings: Settings) -> RunService:
+    holder: list[RunService] = []
+
+    def position(instrument_id: str) -> str | None:
+        inbox = holder[0].inbox if holder else None
+        return inbox.position_context(instrument_id) if inbox is not None else None
+
     def engines(name: EngineName) -> AnalysisEngine:
         if name == "demo":
             return DemoEngine()
-        return TradingAgentsEngine(settings)
+        return TradingAgentsEngine(settings, portfolio_for=position)
 
     def providers(name: EngineName) -> Sequence[MarketDataProvider]:
         if name == "demo":
@@ -54,6 +60,7 @@ def build_service(settings: Settings) -> RunService:
     service = RunService(repo, engines, providers,
                          max_paid_runs_per_day=settings.max_paid_runs_per_day, briefers=briefers,
                          monthly_budget_usd=settings.monthly_budget_usd)
+    holder.append(service)
     service.inbox = build_inbox(settings, repo)
     service.reporter = lambda run: service.inbox.file_run(run, service.clock())
     return service

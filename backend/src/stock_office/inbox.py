@@ -221,6 +221,19 @@ class Inbox:
                 "보고합니다 (공매도는 하지 않음)."
             )
             title += " · 미보유라 주문 없음"
+        if decision.action is DecisionAction.HOLD and position is not None and kiwoom:
+            change, notes = self._adjust_plan(run, inst.id, position)
+            if notes:
+                payload["note"] = " ".join(notes)
+            if change is not None:
+                kind, status = "approval", "PENDING"
+                expires = next_session_close(inst.market, decision.created_at)
+                if expires <= now:
+                    status = "EXPIRED"
+                    payload["filed_late"] = True
+                plan_body = {**change, "valid_until": _iso(expires)}
+                held_qty = format_qty(position.get("qty") or "0")
+                title = f"[결재] {name} 손절가·목표가 변경 (보유 {held_qty}주)"
         if decision.action is DecisionAction.BUY:
             plan_body, reasons = self._buy_plan(run, inst.market, decision.engine_rating, kiwoom)
             if plan_body is not None:
@@ -284,6 +297,108 @@ class Inbox:
         if status == "PENDING" and self.book.auto_approve() and self._books(run.demo):
             self.decide(item_id, "approve", AUTO_COMMENT, f"auto:{item_id}", now)
         return item_id
+
+    def _labels(self, run: AnalysisRun) -> Any:
+        reports = self.repo.get_reports(run.id)
+        if reports:
+            return parse_labels(reports.get("trader", ""), reports.get("portfolio_manager", ""))
+        decision = self.repo.get_decision(run.id)
+        return parse_labels("", decision.rationale if decision else "")
+
+    def _adjust_plan(self, run: AnalysisRun, instrument_id: str, position: dict[str, Any]
+                     ) -> tuple[dict[str, Any] | None, list[str]]:
+        """A held stock's meeting said 유지 and gave its own stop/target: a change plan, through
+        the rule that a stop only ever goes up (owner, 2026-10-21)."""
+        open_ = self.desks.position(instrument_id) if self.desks else None
+        if open_ is None:
+            return None, []
+        labels = self._labels(run)
+        price = Decimal(str(position.get("price") or 0))
+        stop, target = Decimal(open_["stop"]), Decimal(open_["target"])
+        new_stop = Decimal(str(labels.stop)) if labels.stop is not None else None
+        new_target = Decimal(str(labels.target)) if labels.target is not None else None
+        notes: list[str] = []
+        cur = open_["currency"]
+        if new_stop is not None and new_stop < stop:
+            notes.append(f"AI가 손절가를 {new_stop}로 낮추자고 했지만 손절가는 올리기만 허용해 "
+                         f"기존 {stop}를 유지합니다.")
+            new_stop = None
+        if new_stop is not None and price and new_stop >= price:
+            notes.append(f"AI 제시 손절가 {new_stop}가 현재가 {price} 이상이라 반영하지 않습니다.")
+            new_stop = None
+        if new_target is not None and price and new_target <= price:
+            notes.append(f"AI 제시 목표가 {new_target}가 현재가 {price} 이하라 반영하지 않습니다.")
+            new_target = None
+        if new_stop == stop:
+            new_stop = None
+        if new_target == target:
+            new_target = None
+        if new_stop is None and new_target is None:
+            return None, notes
+        return {"side": "ADJUST", "venue": "kiwoom_mock", "currency": cur,
+                "account_currency": cur, "stop_from": str(stop), "target_from": str(target),
+                "stop": str(new_stop or stop), "target": str(new_target or target),
+                "qty": position.get("qty"), "avg_price": open_.get("avg_price"),
+                "last_price": str(price), "policy_version": POLICY_V3.version,
+                "rule": "손절가는 올리기만 허용 (손절가 < 현재가 < 목표가)",
+                "execution": "승인되면 보유 중인 전체 수량의 손절가·목표가를 바꿉니다"}, notes
+
+    def position_context(self, instrument_id: str) -> str | None:
+        """What a held stock's meeting is told: the position now and our earlier plans with what
+        became of them. None when the stock is not held on its Kiwoom mock account."""
+        inst = get_instrument(instrument_id)
+        if self.desks is None or not self._kiwoom(inst.market, False):
+            return None
+        acc = self._account(inst.market)
+        if acc is None:
+            return None
+        held = [h for h in acc.get("holdings", [])
+                if h.get("code") == inst.symbol and Decimal(h.get("qty") or 0) > 0]
+        open_ = self.desks.position(instrument_id)
+        if not held or open_ is None:
+            return None
+        h, cur = held[0], open_["currency"]
+
+        def m(x: Any) -> str:
+            return "—" if x in (None, "") else (f"${Decimal(str(x)):,.2f}" if cur == "USD"
+                                                 else f"{Decimal(str(x)):,.0f}원")
+
+        nav = Decimal(str(acc.get("cash") or 0)) + Decimal(str(acc.get("total_value") or 0))
+        weight = (Decimal(str(h.get("value") or 0)) / nav * 100) if nav else Decimal(0)
+        lines = [
+            "## Stock Office 보유 현황 (키움 모의 계좌, 회의 시작 시점)",
+            f"- 보유 {h.get('qty')}주 · 평균 단가 {m(open_.get('avg_price'))} · 현재가 "
+            f"{m(h.get('price'))} · 평가 손익 {h.get('pnl_pct') or '—'}%",
+            f"- 손절가 {m(open_['stop'])} · 목표가 {m(open_['target'])}"
+            + (" · 손절가를 매수가로 올린 상태(본전 손절)" if open_.get("breakeven") else ""),
+            f"- 계좌 대비 비중 {weight:.1f}% (종목당 한도 20%) · 첫 체결 {open_.get('since', '—')}",
+            "",
+            "## 이전 결재안과 결과 (오래된 순)",
+        ]
+        for r in self.conn.execute(
+                "SELECT i.id, i.title, i.summary, i.created_at, i.status, p.body "
+                "FROM inbox_items i JOIN plans p ON p.item_id=i.id "
+                "WHERE i.instrument_id=? AND i.kind='approval' "
+                "ORDER BY i.id DESC LIMIT 3", (instrument_id,)).fetchall()[::-1]:
+            body = json.loads(r["body"])
+            orders = self.desks.orders(item_id=r["id"])
+            done = "; ".join(f"{o['role']} {o['status']}"
+                             + (f" @ {m(o['fill_price'])}" if o.get("fill_price") else "")
+                             for o in orders) or "주문 없음"
+            lines.append(f"- {r['created_at'][:10]} {r['title']} · 진입 {m(body.get('limit'))} / "
+                         f"손절 {m(body.get('stop'))} / 목표 {m(body.get('target'))} → {done}"
+                         + (f" · 근거: {r['summary'][:160]}" if r["summary"] else ""))
+        lines += [
+            "",
+            "## 지시",
+            "- 위 이전 판단은 참고 자료일 뿐이다. 오늘의 데이터로 처음부터 다시 판단하고, "
+            "이전 근거가 틀렸다면 그렇다고 분명히 말하라.",
+            "- 결론은 보유 기준으로: Buy/Overweight = 추가 매수, Hold = 유지, "
+            "Underweight/Sell = 전량 매도.",
+            "- 유지라면 지금 상황에 맞는 손절가(Stop Loss)와 목표가(Price Target)를 숫자로 "
+            "제시하라. 단, 회사 규칙상 손절가는 올리기만 할 수 있다.",
+        ]
+        return "\n".join(lines)
 
     def _buy_plan(
         self, run: AnalysisRun, market: Market, rating: str | None, kiwoom: bool = False
@@ -560,6 +675,8 @@ class Inbox:
         if body.get("venue") == "kiwoom_mock" and self.desks is not None:
             if row["side"] == "SELL":
                 self.desks.queue_exit(item_id, row["instrument_id"], row["expires_at"], now)
+            elif row["side"] == "ADJUST":
+                self.desks.adjust(item_id, row["instrument_id"], body, now)
             else:
                 self.desks.queue_entry(item_id, row["instrument_id"], body, row["expires_at"], now)
             return

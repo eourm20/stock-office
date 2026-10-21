@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getInbox, getKiwoomMock, getOfficeNow, type InboxItem, type MockAccount, type OfficeNow } from "../lib/api";
 import { MARKET_KO, itemMarket, marketOf, useMarket, type Market } from "../lib/market";
-import { groupActive, type ActiveStock, buyPlan, deadlineLabel, groupInbox, kstDateTime, mockLine, money, nextWorkLabel, paperLine, pnlTone, sellPlan, shares,
+import { adjustLine, adjustPlan, groupActive, type ActiveStock, buyPlan, deadlineLabel, groupInbox, kstDateTime, mockLine, money, nextWorkLabel, paperLine, pnlTone, sellPlan, shares,
          STATUS_KO, STATUS_TONE } from "../inbox/model";
 import ConveneButton from "./ConveneButton";
 import NavBar from "./NavBar";
@@ -151,6 +151,7 @@ function Stat({ label, value, sub, tone = "" }: { label: string; value: string; 
 function ApprovalCard({ item, now }: { item: InboxItem; now: number }) {
   const plan = buyPlan(item);
   const sell = sellPlan(item);
+  const adjust = adjustPlan(item);
   const a = plan?.allocation;
   const due = deadlineLabel(item.expires_at, now);
   const urgent = item.expires_at ? Date.parse(item.expires_at) - now < 3 * 3_600_000 : false;
@@ -167,6 +168,7 @@ function ApprovalCard({ item, now }: { item: InboxItem; now: number }) {
             <span className="text-[var(--muted)]"> · 손절 시 최대 {money(a.max_loss_krw, plan.account_currency ?? "KRW")}</span>
           </div>
         )}
+        {adjust && <div className="mt-1 text-sm text-[#c7d7ee]">{adjustLine(adjust)}</div>}
         {sell && (
           <div className="mt-1 text-sm text-[#c7d7ee]">
             {shares(sell.qty)} · 평가 {money(sell.value_krw, sell.account_currency ?? "KRW")}

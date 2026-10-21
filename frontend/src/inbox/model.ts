@@ -262,7 +262,34 @@ export function sellPlan(item: InboxItem | null): SellPlan | null {
 }
 
 export function buyPlan(item: InboxItem | null): ApprovalPlan | null {
-  return item?.plan && item.plan.side !== "SELL" ? (item.plan as ApprovalPlan) : null;
+  return item?.plan && item.plan.side !== "SELL" && item.plan.side !== "ADJUST"
+    ? (item.plan as ApprovalPlan) : null;
+}
+
+/** A held stock's stop/target change (the meeting said 유지 and gave new levels). */
+export interface AdjustPlan {
+  side: "ADJUST";
+  currency: "KRW" | "USD";
+  stop_from: string;
+  stop: string;
+  target_from: string;
+  target: string;
+  qty: string | null;
+  avg_price: string | null;
+  last_price: string | null;
+  rule: string;
+  execution: string;
+}
+
+export function adjustPlan(item: InboxItem | null): AdjustPlan | null {
+  return item?.plan && (item.plan.side as string) === "ADJUST" ? (item.plan as unknown as AdjustPlan) : null;
+}
+
+/** "손절가 $520.00 → $530.00 · 목표가 $580.00 → $600.00" (unchanged levels say so). */
+export function adjustLine(p: AdjustPlan): string {
+  const part = (label: string, from: string, to: string) =>
+    from === to ? `${label} ${money(to, p.currency)} 유지` : `${label} ${money(from, p.currency)} → ${money(to, p.currency)}`;
+  return `${part("손절가", p.stop_from, p.stop)} · ${part("목표가", p.target_from, p.target)}`;
 }
 
 /** "+12,300원" / "−4,500원" (whole won, explicit sign). */

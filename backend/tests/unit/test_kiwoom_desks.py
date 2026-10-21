@@ -207,6 +207,36 @@ def test_exit_v2_time_stop_after_ten_sessions_without_progress(tmp_path: Path) -
     assert sell["status"] == "SENT" and "시간 손절" in sell["reason"]
 
 
+def test_a_stop_target_change_applies_to_the_position_and_the_stop_only_goes_up(
+        tmp_path: Path) -> None:
+    desks, fake = setup(tmp_path)
+    approve(desks)                                   # stop 47,000 · target 56,000
+    desks.tick(KR_OPEN)
+    fake.fill("0000001")
+    desks.tick(KR_OPEN + timedelta(minutes=1))
+    assert desks.position(KR)["stop"] == "47000"
+    desks.adjust(201, KR, {"stop": "45000", "target": "58000"}, KR_OPEN)   # lower stop: kept
+    assert (desks.position(KR)["stop"], desks.position(KR)["target"]) == ("47000", "58000")
+    desks.adjust(202, KR, {"stop": "48500", "target": "58000"}, KR_OPEN)
+    assert desks.position(KR)["stop"] == "48500"
+    assert titles(desks)[-1] == "[손절가·목표가 변경] 삼성전자 손절가 47,000원→48,500원 · 목표가 58,000원→58,000원"
+
+
+def test_an_add_on_is_sized_on_the_whole_position_at_its_new_stop(tmp_path: Path) -> None:
+    desks, fake = setup(tmp_path)
+    approve(desks)                                   # 19 shares at 50,000
+    desks.tick(KR_OPEN)
+    fake.fill("0000001")
+    desks.tick(KR_OPEN + timedelta(minutes=1))
+    # Add-on at 52,000 with stop 47,000: the held 19 lose 19 × 3,000 = 57,000 at that stop, so
+    # only (100,000 − 57,000) / 5,000 = 8 more shares fit the 1% budget (10,000,000 account).
+    approve(desks, limit="52000", stop="47000", target="62000", item=902,
+            deadline=KR_OPEN + timedelta(hours=5))
+    fake.price = D(52_000)
+    desks.tick(KR_OPEN + timedelta(minutes=2))
+    assert fake.sent[-1][1]["ord_qty"] == "8"
+
+
 def test_target_and_unfilled_exit_is_replaced(tmp_path: Path) -> None:
     desks, fake = setup(tmp_path)
     approve(desks)

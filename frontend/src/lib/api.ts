@@ -170,7 +170,7 @@ export interface PlanAllocation {
 }
 
 export interface ApprovalPlan {
-  side?: "BUY" | "SELL";
+  side?: "BUY" | "SELL" | "ADJUST";
   /** "kiwoom_mock": sized on the desk's Kiwoom mock account (POLICY_V3); amounts in account_currency. */
   venue?: "kiwoom_mock";
   account_currency?: "KRW" | "USD";

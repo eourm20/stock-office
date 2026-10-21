@@ -4,8 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { decideInbox, getBriefing, getInboxItem, markRead, type Briefing, type InboxItem } from "../../../lib/api";
-import { approvalLine, buyPlan, deadlineLabel, kstDateTime, mockLine, MOCK_STATUS_KO, money, ORDER_STATUS_KO, paperLine, pnlTone, ROLE_KO,
-         sellPlan, shares, signedWon, STATUS_KO, STATUS_TONE } from "../../../inbox/model";
+import { approvalLine, buyPlan, deadlineLabel, kstDateTime, mockLine, MOCK_STATUS_KO, money, ORDER_STATUS_KO, paperLine, pnlTone, ROLE_KO, sellPlan, shares, signedWon, STATUS_KO, STATUS_TONE, adjustLine, adjustPlan } from "../../../inbox/model";
 import { FLAG_KO, RATING_KO } from "../../../office/explain";
 import { humanizeTickers } from "../../../office/names";
 import { itemMarket, MARKET_KO, marketOf, useMarket } from "../../../lib/market";
@@ -58,6 +57,7 @@ export default function InboxDocument() {
   const label = opinion ? OPINION_KO : ACT_KO;
   const p = buyPlan(item);
   const sp = sellPlan(item);
+  const adj = adjustPlan(item);
   const a = p?.allocation;
   const acct = p?.account_currency ?? "KRW";
 
@@ -91,6 +91,13 @@ export default function InboxDocument() {
           </header>
 
           {p && a && !a.blocked && <BuySummary p={p} a={a} acct={acct} expires={item.expires_at} />}
+          {adj && (
+            <section className="border-t border-[#d8d2c2] p-4 text-[13px]">
+              <h2 className="mb-2 text-sm font-bold">손절가·목표가 변경 <span className="font-normal text-[#6b6455]">(보유 {adj.qty ?? "—"}주 전체)</span></h2>
+              <p className="rounded bg-[#ece7da] px-2 py-1.5 font-semibold">{adjustLine(adj)}</p>
+              <p className="mt-1 text-[11px] text-[#6b6455]">평균 단가 {adj.avg_price ? money(adj.avg_price, adj.currency) : "—"} · 회의 때 현재가 {adj.last_price ? money(adj.last_price, adj.currency) : "—"} · 규칙: {adj.rule}. {adj.execution}</p>
+            </section>
+          )}
           {sp && (
             <section className="border-b border-[#d8d2c2] bg-[#fbf9f3] p-4">
               <div className="text-[11px] font-semibold text-[#6b6455]">핵심 요약 · 매도</div>

@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -68,8 +69,12 @@ class TradingAgentsEngine:
     name = "tradingagents"
     demo = False
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings,
+                 portfolio_for: Callable[[str], str | None] | None = None) -> None:
         self.settings = settings
+        # A held stock's position and earlier plans, as text for TradingAgents' portfolio input
+        # (trader, risk team, portfolio manager read it). None: the stock is not held.
+        self.portfolio_for = portfolio_for
         self.analysts = tuple(a.strip() for a in settings.ta_analysts.split(",") if a.strip())
 
     def version(self) -> str:
@@ -176,7 +181,11 @@ class TradingAgentsEngine:
             callbacks=[usage],
         )
         ticker = ctx.instrument.provider_symbols["yahoo"]
-        init_state = graph.create_run_state(ticker, ctx.trade_date)
+        position = self.portfolio_for(ctx.instrument.id) if self.portfolio_for else None
+        if position:
+            (Path(ctx.work_dir) / "portfolio_context.md").write_text(position, encoding="utf-8")
+        init_state = graph.create_run_state(
+            ticker, ctx.trade_date, portfolio=_Position(position) if position else None)
         args = graph.propagator.get_graph_args()
         args["stream_mode"] = ["tasks", "values"]
         args["subgraphs"] = True  # analysts' own graphs, for tool.called (names only)
@@ -208,3 +217,13 @@ class TradingAgentsEngine:
         outcome.token_usage = {k: dict(v) for k, v in usage.usage_metadata.items()}
         outcome.coverage_gaps = list(gaps.gaps)
         return outcome
+
+
+class _Position:
+    """TradingAgents' portfolio input: anything with render(company) -> str."""
+
+    def __init__(self, text: str) -> None:
+        self.text = text
+
+    def render(self, company_name: str) -> str:
+        return self.text

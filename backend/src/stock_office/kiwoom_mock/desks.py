@@ -463,6 +463,23 @@ class Desks:
                          limit=D(row["limit_price"]), stop=D(row["stop"]), fx_krw=D(1),
                          currency=cur, account_currency=cur)
         reason = reason or alloc.blocked
+        qty = alloc.qty
+        pos = self.position(row["instrument_id"])
+        if not reason and pos is not None:
+            # An add-on joins the position and the whole of it then follows this plan's stop:
+            # size it so the whole position loses at most 1% of the account at that stop.
+            held_qty = sum((D(h.qty or 0) for h in acc.holdings if h.code == code), D(0))
+            budget = self.policy.risk_per_trade * nav - held_qty * max(
+                D(0), D(pos["avg_price"]) - D(row["stop"]))
+            per_share = D(row["limit_price"]) - D(row["stop"])
+            cap = (budget / per_share).to_integral_value(rounding=ROUND_DOWN) \
+                if per_share > 0 else D(0)
+            if cap < qty:
+                qty = max(cap, D(0))
+                detail = {**detail, "whole_position_cap": str(qty)}
+            if qty <= 0:
+                reason = ("추가 매수 안 함: 보유분만으로 새 손절가에서의 손실이 계좌의 1% 한도에 "
+                          "닿음 (합친 포지션 기준)")
         if reason:
             with transaction(self.conn):
                 self._set(row["id"], status="REJECTED", closed_at=iso(now), reason=reason)
@@ -482,7 +499,7 @@ class Desks:
         with transaction(self.conn):
             self._set(row["id"], detail=json.dumps({**detail, "binding": alloc.binding,
                                                     "nav": str(nav), "cash": str(cash)}))
-        self._place(market, client, row, "BUY", alloc.qty, D(row["limit_price"]), now)
+        self._place(market, client, row, "BUY", qty, D(row["limit_price"]), now)
 
     def _precheck(self, market: str, client: KiwoomMockClient, row: sqlite3.Row,
                   detail: dict[str, Any]) -> str | None:
@@ -565,6 +582,51 @@ class Desks:
     def _cost(entry: sqlite3.Row) -> Decimal:
         d = json.loads(entry["detail"] or "{}")
         return D(d.get("avg_price") or entry["fill_price"] or entry["limit_price"])
+
+    def position(self, instrument_id: str) -> dict[str, Any] | None:
+        """The open position's governing entry (newest tranche): stop, target, average price."""
+        for r in self.conn.execute(
+                "SELECT * FROM km_orders WHERE instrument_id=? AND role='entry' "
+                "AND status='FILLED' ORDER BY id DESC", (instrument_id,)):
+            d = json.loads(r["detail"] or "{}")
+            if d.get("closed"):
+                continue
+            sold = self.conn.execute(
+                "SELECT 1 FROM km_orders WHERE parent_id=? AND side='SELL' AND status='FILLED'",
+                (r["id"],)).fetchone()
+            if sold:
+                return None
+            return {"id": r["id"], "stop": r["stop"], "target": r["target"],
+                    "currency": r["currency"], "avg_price": str(self._cost(r)),
+                    "breakeven": bool(d.get("breakeven")), "since": (r["closed_at"] or "")[:10]}
+        return None
+
+    def adjust(self, item_id: int, instrument_id: str, body: dict[str, Any],
+               now: datetime) -> None:
+        """An approved stop/target change for the whole position. The stop only goes up (owner,
+        2026-10-21): checked again here against the stop as it is now."""
+        pos = self.position(instrument_id)
+        if pos is None:
+            return
+        stop, target = D(pos["stop"]), D(pos["target"])
+        new_stop, new_target = max(stop, D(body["stop"])), D(body["target"])
+        if not new_stop < new_target or (new_stop, new_target) == (stop, target):
+            return
+        cur = pos["currency"]
+        with transaction(self.conn):
+            row = self.conn.execute("SELECT * FROM km_orders WHERE id=?", (pos["id"],)).fetchone()
+            d = json.loads(row["detail"] or "{}")
+            changes = [*d.get("adjustments", []), {"at": iso(now), "item_id": item_id,
+                                                   "stop": [str(stop), str(new_stop)],
+                                                   "target": [str(target), str(new_target)]}]
+            self._set(pos["id"], stop=str(new_stop), target=str(new_target),
+                      detail=json.dumps({**d, "adjustments": changes}))
+            self._notice({**dict(row), "item_id": item_id}, "execution",
+                         f"[손절가·목표가 변경] {display_name(instrument_id)} 손절가 "
+                         f"{money(stop, cur)}→{money(new_stop, cur)} · 목표가 "
+                         f"{money(target, cur)}→{money(new_target, cur)}",
+                         "보유 종목 회의 결과에 따라 전체 수량에 적용했습니다 (손절가는 올리기만).",
+                         f"adjust:{item_id}", now)
 
     def _breakeven(self, entry: sqlite3.Row, price: Decimal, now: datetime) -> sqlite3.Row:
         """Up by the stop distance: the stop moves to the buy price (once), so a gain that turns
