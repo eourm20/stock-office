@@ -87,17 +87,17 @@ def test_meeting_start_end_and_approval_only(tmp_path: Path) -> None:
         run("old", started=-90, done=-60),           # before notifications started
     ]
     repo.decisions = {"hold": "HOLD", "manual": "HOLD", "late": "BUY"}
-    doc(n, "hold", "daily", "[회의 결과] 삼성전자 · 보유 의견")
+    doc(n, "hold", "daily", "[회의 결과] 삼성전자 · 유지 의견")
     doc(n, "buy", "approval", "[결재] 삼성전자 매수 9주", "APPROVED")
     doc(n, "late", "approval", "[결재] 삼성전자 매수 1주", "EXPIRED")
-    doc(n, "manual", "daily", "[회의 결과] 삼성전자 · 보유 의견 2")
+    doc(n, "manual", "daily", "[회의 결과] 삼성전자 · 유지 의견 2")
     n.collect(T0 + timedelta(minutes=5))
     n.collect(T0 + timedelta(minutes=6))  # idempotent
     assert [k for k, *_ in queued(n)] == [
         "start:live", "start:hold", "end:hold", "start:buy", "approval:buy", "start:late",
         "end:late", "start:fail", "end:fail", "end:manual"]
     rows = {k: (c, t) for k, c, t in queued(n)}
-    assert rows["end:hold"] == ("meeting_end", "[회의 끝] 삼성전자 · 보유")
+    assert rows["end:hold"] == ("meeting_end", "[회의 끝] 삼성전자 · 유지")
     assert rows["approval:buy"] == ("approval", "[결재] 삼성전자 매수 9주")   # instead of "end"
     assert rows["end:late"] == ("meeting_end", "[회의 끝] 삼성전자 · 매수")  # expired request
     assert rows["end:fail"] == ("meeting_end", "[회의 끝] 삼성전자 · 실패")
@@ -120,11 +120,11 @@ def test_a_start_is_dropped_when_its_end_arrives_in_the_same_batch(tmp_path: Pat
     n.subscribe(APPLE, "p", "a", T0)
     repo.runs = [run("nvda")]
     repo.decisions = {"nvda": "HOLD"}
-    doc(n, "nvda", "daily", "[회의 결과] 삼성전자 · 보유 의견")      # a held stock: reported
+    doc(n, "nvda", "daily", "[회의 결과] 삼성전자 · 유지 의견")      # a held stock: reported
     night = datetime(2026, 10, 20, 21, 0, tzinfo=UTC)  # 06:00 KST, quiet hours
     n.tick(night)
     n.tick(datetime(2026, 10, 20, 22, 0, tzinfo=UTC))  # 07:00 KST
-    assert [m["title"] for _, m in sender.sent] == ["[회의 끝] 삼성전자 · 보유"]
+    assert [m["title"] for _, m in sender.sent] == ["[회의 끝] 삼성전자 · 유지"]
 
 
 def test_a_meeting_with_nothing_to_approve_says_so(tmp_path: Path) -> None:
@@ -134,7 +134,7 @@ def test_a_meeting_with_nothing_to_approve_says_so(tmp_path: Path) -> None:
     repo.runs, repo.decisions = [run("gild")], {"gild": "HOLD"}   # no inbox document
     n.tick(T0 + timedelta(minutes=5))
     assert [(m["title"], m["body"], m["url"]) for _, m in sender.sent] == [
-        ("[회의 끝] 삼성전자 · 보유", "보유 종목이 아니어서 결재 올릴 것이 없습니다.",
+        ("[회의 끝] 삼성전자 · 유지", "보유 종목이 아니어서 결재 올릴 것이 없습니다.",
          "/records/gild")]
 
 

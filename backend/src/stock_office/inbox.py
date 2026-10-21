@@ -33,7 +33,7 @@ from stock_office.runs.repository import RunRepository
 
 FxSource = Callable[[], tuple[Decimal, datetime] | None]  # KRW per USD and when it was observed
 
-ACTION_KO = {"BUY": "매수", "SELL": "매도", "HOLD": "보유", "REVIEW": "판단 보류"}
+ACTION_KO = {"BUY": "매수", "SELL": "매도", "HOLD": "유지", "REVIEW": "판단 보류"}
 AUTO_COMMENT = "자동 승인 (모의투자 기간: 결재안을 그대로 따름)"
 
 

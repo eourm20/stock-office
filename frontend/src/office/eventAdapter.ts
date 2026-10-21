@@ -3,7 +3,7 @@ import { bubbleText, shortSpeech } from "./explain";
 import { agentName, toolNames } from "./names";
 
 const ACTION_LABEL_KO: Record<string, string> = {
-  BUY: "매수", SELL: "매도", HOLD: "보유", REVIEW: "판단 보류",
+  BUY: "매수", SELL: "매도", HOLD: "유지", REVIEW: "판단 보류",
 };
 
 /** What an event means for the office, independent of any rendering. */

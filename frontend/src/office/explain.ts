@@ -23,7 +23,7 @@ const STAGES: { agents: string[]; text: string }[] = [
 export const ACTION_KO: Record<string, { label: string; plain: string }> = {
   BUY: { label: "매수", plain: "사는 쪽이 낫다는 의견이에요." },
   SELL: { label: "매도", plain: "파는(줄이는) 쪽이 낫다는 의견이에요." },
-  HOLD: { label: "보유", plain: "지금은 사지도 팔지도 말고 지켜보자는 의견이에요." },
+  HOLD: { label: "유지", plain: "지금은 사지도 팔지도 말고 지켜보자는 의견이에요." },
   REVIEW: { label: "판단 보류", plain: "근거가 부족하거나 결론을 읽을 수 없어서 사람이 확인해야 해요." },
 };
 
