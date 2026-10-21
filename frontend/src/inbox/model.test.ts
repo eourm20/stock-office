@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { InboxItem, PaperOrder, RecordRow } from "../lib/api";
-import { approvalLine, approvalNote, buyPlan, deadlineLabel, groupInbox, groupRecordsByDay, money, paperLine, sellPlan, shares, signedPct, signedWon } from "./model";
+import { approvalLine, approvalNote, buyPlan, deadlineLabel, groupActive, groupInbox, groupRecordsByDay, money, paperLine, sellPlan, shares, signedPct, signedWon } from "./model";
 
 function item(id: number, status: InboxItem["status"], extra: Partial<InboxItem> = {}): InboxItem {
   return { id, kind: status === "INFO" ? "daily" : "approval", run_id: `r${id}`, instrument_id: null,
@@ -136,5 +136,22 @@ describe("inbox sections (owner, 2026-10-21)", () => {
     expect(g.active.map((i) => i.id)).toEqual([2, 1]);
     expect(g.reports.map((i) => i.id)).toEqual([7]);
     expect(g.done.map((i) => i.id).sort()).toEqual([3, 4, 5]);
+  });
+});
+
+
+describe("진행 중: one card per stock", () => {
+  it("folds a held position and its waiting add-on into one line", () => {
+    const o = (status: string, extra: object) =>
+      ({ id: 1, role: "entry", side: "BUY", currency: "USD", status, detail: {}, ...extra }) as never;
+    const cards = groupActive([
+      item(1, "APPROVED", { instrument_id: "US:NASDAQ:MSFT", payload: { name: "마이크로소프트" },
+                            mock_orders: [o("FILLED", { filled_qty: "1", fill_price: "531.3" })] }),
+      item(2, "APPROVED", { instrument_id: "US:NASDAQ:MSFT", payload: { name: "마이크로소프트" },
+                            mock_orders: [o("WAITING", { qty: null, limit_price: "543.46" })] }),
+    ]);
+    expect(cards).toHaveLength(1);
+    expect(cards[0]!.item.id).toBe(2);
+    expect(cards[0]!.line).toBe("보유 1주 · 평균 $531.30 · 목표가·손절가 감시 · 추가 매수 지정가 $543.46 대기(장이 열리면 주문)");
   });
 });

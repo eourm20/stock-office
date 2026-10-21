@@ -171,6 +171,62 @@ export function mockLine(orders: MockOrder[] | undefined): string | null {
   }
 }
 
+export interface ActiveStock {
+  item: InboxItem;        // the newest plan for the stock (the card links to it)
+  plans: number;          // how many running plans are folded into this card
+  line: string;           // the stock's state now
+}
+
+/** 진행 중, one card per stock (owner, 2026-10-21): an add-on plan joins the held position when
+ *  it fills, so the card shows the position as it is now plus what is still waiting. */
+export function groupActive(items: InboxItem[]): ActiveStock[] {
+  const by = new Map<string, InboxItem[]>();
+  for (const i of items) {
+    const key = i.instrument_id ?? `#${i.id}`;
+    by.set(key, [...(by.get(key) ?? []), i]);
+  }
+  const out: ActiveStock[] = [];
+  for (const group of by.values()) {
+    const plans = [...group].sort((a, b) => t(a.created_at) - t(b.created_at));
+    const newest = plans[plans.length - 1]!;
+    if (plans.length === 1) {
+      out.push({ item: newest, plans: 1, line: mockLine(newest.mock_orders) ?? "" });
+      continue;
+    }
+    const parts: string[] = [];
+    let held = 0;
+    let cost = 0;
+    let cur: "KRW" | "USD" = "USD";
+    let breakeven = false;
+    for (const p of plans) {
+      for (const o of p.mock_orders ?? []) {
+        cur = o.currency;
+        if (o.role === "entry" && o.status === "FILLED" && !o.detail?.closed) {
+          held += Number(o.filled_qty);
+          cost += Number(o.filled_qty) * Number(o.fill_price ?? 0);
+          breakeven = breakeven || Boolean(o.detail?.breakeven);
+        }
+      }
+    }
+    if (held > 0) {
+      parts.push(`보유 ${shares(String(held))} · 평균 ${money(String(cost / held), cur)}`
+                 + (breakeven ? " · 손절가를 매수가로 올림" : " · 목표가·손절가 감시"));
+    }
+    for (const p of plans) {
+      for (const o of p.mock_orders ?? []) {
+        if (!["WAITING", "SENDING", "SENT", "REVIEW"].includes(o.status)) continue;
+        const what = o.side === "SELL" ? "매도" : held > 0 ? "추가 매수" : "매수";
+        const qty = o.qty ? ` ${shares(o.qty)}` : "";
+        const px = o.limit_price ? ` 지정가 ${money(o.limit_price, o.currency)}` : "";
+        const state = o.status === "WAITING" ? "대기(장이 열리면 주문)" : o.status === "REVIEW" ? "확인 필요" : "주문 중";
+        parts.push(`${what}${qty}${px} ${state}`);
+      }
+    }
+    out.push({ item: newest, plans: plans.length, line: parts.join(" · ") });
+  }
+  return out.sort((a, b) => t(b.item.created_at) - t(a.item.created_at));
+}
+
 /** "엔비디아 회의" / "국내 장 마감 정산": the next scheduled job, by kind. */
 export function nextWorkLabel(n: OfficeNow["next"][number], meeting = "회의"): string {
   return n.kind === "settle" || n.kind === "research" ? n.name : `${n.name} ${meeting}`;

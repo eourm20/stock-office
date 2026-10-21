@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getInbox, getKiwoomMock, getOfficeNow, type InboxItem, type MockAccount, type OfficeNow } from "../lib/api";
 import { MARKET_KO, itemMarket, marketOf, useMarket, type Market } from "../lib/market";
-import { buyPlan, deadlineLabel, groupInbox, kstDateTime, mockLine, money, nextWorkLabel, paperLine, pnlTone, sellPlan, shares,
+import { groupActive, type ActiveStock, buyPlan, deadlineLabel, groupInbox, kstDateTime, mockLine, money, nextWorkLabel, paperLine, pnlTone, sellPlan, shares,
          STATUS_KO, STATUS_TONE } from "../inbox/model";
 import ConveneButton from "./ConveneButton";
 import NavBar from "./NavBar";
@@ -84,7 +84,7 @@ export default function InboxPage() {
               <h2 className="mb-2 text-sm font-semibold">진행 중 <span className="text-[var(--muted)]">{g.active.length}</span>
                 <span className="ml-2 text-[11px] font-normal text-[var(--muted)]">자동 승인된 결재안 · 실제 주문 상태</span></h2>
               <ul className="divide-y divide-[var(--line)] overflow-hidden rounded-lg border border-sky-900 bg-[var(--panel)]">
-                {g.active.map((i) => <ReportRow key={i.id} item={i} strong />)}
+                {groupActive(g.active).map((a) => <ActiveRow key={a.item.id} stock={a} />)}
               </ul>
             </section>
           )}
@@ -178,6 +178,25 @@ function ApprovalCard({ item, now }: { item: InboxItem; now: number }) {
           <span>기안 PM · {item.status === "DEFERRED" ? "보류 중 · " : ""}{due}</span>
           <span aria-hidden="true">결재하기 →</span>
         </div>
+      </Link>
+    </li>
+  );
+}
+
+function ActiveRow({ stock }: { stock: ActiveStock }) {
+  const { item, plans, line } = stock;
+  const name = item.payload.name ?? item.title;
+  return (
+    <li>
+      <Link href={`/inbox/${item.id}`} className="flex items-start gap-2 px-3 py-2.5 hover:bg-[#1d2944]">
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium">{plans > 1 ? `${name} · 결재안 ${plans}건` : item.title}</span>
+          <span className="mt-0.5 block text-[13px] font-semibold text-sky-100">{line}</span>
+        </span>
+        <span className="shrink-0 text-right text-[11px] text-[var(--muted)]">
+          <span className={`inline-block rounded border px-1 ${STATUS_TONE[item.status]}`}>{item.auto_approved ? "자동 승인" : STATUS_KO[item.status]}</span>
+          <span className="mt-0.5 block">{kstDateTime(item.created_at)}</span>
+        </span>
       </Link>
     </li>
   );
