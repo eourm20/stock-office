@@ -2,7 +2,8 @@
 
 Five categories, nothing else (owner's choices, 2026-10-20):
 - meeting_start: a scheduled real meeting started (or could not start: budget hard stop).
-- meeting_end: a real meeting ended with its verdict, or failed.
+- meeting_end: a real meeting ended with its verdict, or failed. A meeting that filed nothing to
+  the inbox (no action on a stock not held) sends nothing.
 - approval: the meeting ended with an approval request (BUY/SELL), auto-approved or waiting;
   this replaces its "meeting_end" so one meeting never sends two end notifications.
 - order: what the Kiwoom mock desks did (order placed, filled, exit with P&L, unfilled and
@@ -136,13 +137,19 @@ class Notifier:
                     self.enqueue(f"approval:{run.id}", "approval", doc["title"], body,
                                  f"/inbox/{doc['id']}", now)
                     continue
+                if doc is None:
+                    # No inbox document: nothing to do on a stock not held (owner, 2026-10-20).
+                    # The phone stays quiet too (a start still waiting out quiet hours is
+                    # dropped); the minutes are in 기록.
+                    self.conn.execute(
+                        "UPDATE notifications SET sent_at=?, outcome='dropped:no-report' "
+                        "WHERE dedupe_key=? AND sent_at IS NULL", (_iso(now), f"start:{run.id}"))
+                    continue
                 decision = self.repo.get_decision(run.id)
                 verdict = (ACTION_KO.get(decision.action.value, decision.action.value)
                            if decision else "결론 없음")
                 self.enqueue(f"end:{run.id}", "meeting_end", f"[회의 끝] {name} · {verdict}",
-                             doc["summary"] if doc and doc["summary"]
-                             else "결재함에서 보고 확인" if doc else "주문 없음 · 회의록에서 확인",
-                             f"/inbox/{doc['id']}" if doc else f"/records/{run.id}", now)
+                             doc["summary"] or "결재함에서 보고 확인", f"/inbox/{doc['id']}", now)
 
     def _orders(self, since: str, now: datetime) -> None:
         """Reports the Kiwoom mock desks filed (dedupe `km:...`): one notification each."""

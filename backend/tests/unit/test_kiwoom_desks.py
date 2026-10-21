@@ -200,6 +200,21 @@ def test_unfilled_entry_is_cancelled_at_its_deadline(tmp_path: Path) -> None:
     assert titles(desks)[-1].startswith("[미체결] 삼성전자 매수 19주")
 
 
+def test_after_the_close_the_last_fills_are_read_and_the_rest_expire(tmp_path: Path) -> None:
+    close = KR_OPEN + timedelta(hours=5, minutes=30)                 # 15:30 KST
+    desks, fake = setup(tmp_path)
+    approve(desks, deadline=close)
+    approve(desks, "KR:KRX:000660", item=102, deadline=close)
+    desks.tick(KR_OPEN)
+    samsung = next(o for o in desks.orders() if o["instrument_id"] == KR)
+    fake.fill(samsung["ext_order_no"], D(50000))                     # in the last seconds
+    desks.tick(KR_CLOSED)                                            # 16:00: market closed
+    status = {o["instrument_id"]: o["status"] for o in desks.orders()}
+    assert status == {KR: "FILLED", "KR:KRX:000660": "EXPIRED"}
+    assert not [x for x in fake.sent if x[0] == "kt10003"]           # no cancel after the close
+    assert titles(desks)[-1].startswith("[미체결]")
+
+
 def test_waiting_order_past_its_deadline_never_goes_out(tmp_path: Path) -> None:
     desks, fake = setup(tmp_path)
     approve(desks, deadline=KR_OPEN - timedelta(hours=1))

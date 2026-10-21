@@ -159,10 +159,11 @@ class Desks:
         for market in ("KR", "US"):
             try:
                 self._expire_waiting(market, now)
-                if open_session(Market(market), now) is None:
-                    continue
                 client = self.clients(market)
                 if client is None:
+                    continue
+                if open_session(Market(market), now) is None:
+                    self._close_out(market, client, now)
                     continue
                 self._market_tick(market, client, now)
             except Exception:  # never stop the worker; the next tick tries again
@@ -334,22 +335,34 @@ class Desks:
                      "키움 모의 계좌 · 수수료·세금 제외 금액(키움 체결 내역 기준)",
                      f"fill:{row['id']}", now, {"pnl": str(pnl) if pnl is not None else None})
 
-    def _expire_sent(self, market: str, client: KiwoomMockClient, now: datetime) -> None:
+    def _close_out(self, market: str, client: KiwoomMockClient, now: datetime) -> None:
+        """After the close: orders whose deadline was the close are dead at Kiwoom. Read the day's
+        fills once more (a fill in the last seconds counts), then settle them without a cancel."""
+        due = [r for r in self._rows(market, "SENT")
+               if r["valid_until"] and r["valid_until"] <= iso(now)]
+        if not due:
+            return
+        self._sync(market, client, now)
+        self._expire_sent(market, client, now, cancel=False)
+
+    def _expire_sent(self, market: str, client: KiwoomMockClient, now: datetime,
+                     cancel: bool = True) -> None:
         for row in self._rows(market, "SENT"):
             deadline = row["valid_until"]
             stale_exit = (row["side"] == "SELL" and row["sent_at"]
                           and row["sent_at"] < iso(now - EXIT_RETRY))
             if not ((deadline and deadline <= iso(now)) or stale_exit):
                 continue
-            path, _, _, cancel = ORDER_API[market]
+            path, _, _, cancel_api = ORDER_API[market]
             code, exch = _code(row["instrument_id"])
             body = ({"dmst_stex_tp": "KRX", "orig_ord_no": row["ext_order_no"], "stk_cd": code,
                      "cncl_qty": "0"} if market == "KR"
                     else {"orig_ord_no": row["ext_order_no"], "stex_tp": exch, "stk_cd": code})
-            try:
-                client.send(path, cancel, body)
-            except KiwoomMockError as exc:  # already filled or gone: the next sync settles it
-                log.warning("cancel %s: %s", row["id"], exc)
+            if cancel:
+                try:
+                    client.send(path, cancel_api, body)
+                except KiwoomMockError as exc:  # already filled or gone: the next sync settles it
+                    log.warning("cancel %s: %s", row["id"], exc)
             filled = D(row["filled_qty"])
             with transaction(self.conn):
                 if filled > 0:
@@ -361,11 +374,14 @@ class Desks:
                               reason="체결되지 않아 새 가격으로 다시 주문")
                 else:
                     self._set(row["id"], status="EXPIRED", closed_at=iso(now),
-                              reason="기한까지 체결되지 않아 취소")
+                              reason="기한까지 체결되지 않아 취소" if cancel
+                              else "장 마감까지 체결되지 않아 주문 만료")
                     self._notice(row, "execution", f"[미체결] {display_name(row['instrument_id'])} "
                                  f"{ROLE_KO[row['role']]} {row['qty']}주 · 지정가 "
                                  f"{money(row['limit_price'], row['currency'])}",
-                                 "기한까지 가격이 닿지 않아 키움 모의 주문을 취소했습니다.",
+                                 ("기한까지 가격이 닿지 않아 키움 모의 주문을 취소했습니다."
+                                  if cancel else
+                                  "장 마감까지 지정가에 닿지 않아 주문이 만료됐습니다."),
                                  f"expired:{row['id']}", now)
 
     def _price(self, market: str, client: KiwoomMockClient, instrument_id: str) -> Decimal | None:

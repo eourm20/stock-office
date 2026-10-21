@@ -120,10 +120,24 @@ def test_a_start_is_dropped_when_its_end_arrives_in_the_same_batch(tmp_path: Pat
     n.subscribe(APPLE, "p", "a", T0)
     repo.runs = [run("nvda")]
     repo.decisions = {"nvda": "HOLD"}
+    doc(n, "nvda", "daily", "[회의 결과] 삼성전자 · 보유 의견")      # a held stock: reported
     night = datetime(2026, 10, 20, 21, 0, tzinfo=UTC)  # 06:00 KST, quiet hours
     n.tick(night)
     n.tick(datetime(2026, 10, 20, 22, 0, tzinfo=UTC))  # 07:00 KST
     assert [m["title"] for _, m in sender.sent] == ["[회의 끝] 삼성전자 · 보유"]
+
+
+def test_a_meeting_with_nothing_to_report_stays_off_the_phone(tmp_path: Path) -> None:
+    sender = FakeSender()
+    n, repo = setup(tmp_path, sender)
+    n.subscribe(APPLE, "p", "a", T0)
+    repo.runs = [run("gild", done=None)]                 # started during quiet hours
+    night = datetime(2026, 10, 20, 21, 0, tzinfo=UTC)
+    n.tick(night)
+    repo.runs, repo.decisions = [run("gild")], {"gild": "HOLD"}   # ended; no inbox document
+    n.tick(night + timedelta(minutes=5))
+    n.tick(datetime(2026, 10, 20, 22, 0, tzinfo=UTC))   # 07:00 KST
+    assert sender.sent == []
 
 
 def test_quiet_hours_hold_then_one_summary(tmp_path: Path) -> None:
