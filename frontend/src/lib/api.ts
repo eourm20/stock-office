@@ -392,7 +392,8 @@ export interface MockOrder {
   fill_price: string | null;
   valid_until: string | null;
   reason: string;
-  detail: { pnl?: string; closed?: boolean; trigger_price?: string; binding?: string };
+  detail: { pnl?: string; closed?: boolean; trigger_price?: string; binding?: string;
+            breakeven?: string; original_stop?: string };
   created_at: string;
   sent_at: string | null;
   closed_at: string | null;

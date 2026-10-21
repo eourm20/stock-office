@@ -118,3 +118,23 @@ describe("which desk an inbox document belongs to", () => {
     expect(itemMarket({ instrument_id: null, payload: {} })).toBeNull();
   });
 });
+
+describe("inbox sections (owner, 2026-10-21)", () => {
+  const mo = (role: string, status: string, extra: object = {}) =>
+    ({ id: 1, role, side: role === "entry" ? "BUY" : "SELL", status, detail: {}, ...extra }) as never;
+
+  it("keeps running plans in 진행 중, order news off the report list, finished plans in 처리됨", () => {
+    const g = groupInbox([
+      item(1, "APPROVED", { mock_orders: [mo("entry", "WAITING")] }),                  // waiting
+      item(2, "APPROVED", { mock_orders: [mo("entry", "FILLED")] }),                   // held
+      item(3, "APPROVED", { mock_orders: [mo("entry", "FILLED"), mo("stop", "FILLED")] }),  // sold
+      item(4, "APPROVED", { mock_orders: [mo("entry", "EXPIRED")] }),                  // not filled
+      item(5, "APPROVED", { mock_orders: [mo("entry", "FILLED", { detail: { closed: true } })] }),  // folded
+      item(6, "INFO", { kind: "execution" }),                                          // [체결] …
+      item(7, "INFO", { kind: "closing" }),
+    ]);
+    expect(g.active.map((i) => i.id)).toEqual([2, 1]);
+    expect(g.reports.map((i) => i.id)).toEqual([7]);
+    expect(g.done.map((i) => i.id).sort()).toEqual([3, 4, 5]);
+  });
+});

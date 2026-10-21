@@ -140,20 +140,14 @@ class ResearchTeam:
             if not cur.rowcount:
                 return []
             names = ", ".join(display_name(i) for i, _ in focus) or "없음"
-            lines = [f"{display_name(i)} — {w}" for i, w in focus]
-            top = ", ".join(f"{display_name(c.instrument_id)}({c.score})" for c in candidates[:5])
-            summary = (f"오늘 위원회: {names}. " + " / ".join(lines)
-                       + f" · 점수 상위: {top} · 관찰 {len(watch)}종목 · 유동성 통과 "
-                       f"{len(candidates)}/{len(ids)}")
+            title, summary, payload = report(
+                market, day.isoformat(), RULES_VERSION, [to_json(c) for c in candidates],
+                watch, [{"instrument_id": i, "why": w} for i, w in focus], len(candidates),
+                len(ids))
             self.conn.execute(
                 "INSERT OR IGNORE INTO inbox_items (kind, instrument_id, title, summary, payload, "
                 "status, dedupe_key, created_at) VALUES ('research', NULL, ?, ?, ?, 'INFO', ?, ?)",
-                (f"[리서치] {MARKET_KO[market]} {day.isoformat()} · "
-                 f"오늘 회의 {len(focus)}건: {names}",
-                 summary[:1500], json.dumps({"market": market, "session": day.isoformat(),
-                                            "focus": [i for i, _ in focus],
-                                            "watchlist": watch, "rules": RULES_VERSION},
-                                           ensure_ascii=False),
+                (title, summary, json.dumps(payload, ensure_ascii=False),
                  f"research:{market}:{day.isoformat()}", iso(now)))
         self._event(market, "completed",
                     f"{MARKET_KO[market]} 리서치 완료 · 오늘 회의 {len(focus)}건", names, now)
@@ -165,6 +159,62 @@ class ResearchTeam:
 # ---------------------------------------------------------------- live wiring
 class StaleBarsError(RuntimeError):
     """The close the research needs is not in the data yet."""
+
+
+RULES_KO = {"SCREEN_V1": "SCREEN_V1 · 추세·모멘텀·52주 고점 근처",
+            "SCREEN_V2": "SCREEN_V2 · 상승 추세 속 눌림목"}
+
+
+def report(market: str, session: str, rules: str, candidates: list[dict[str, Any]],
+           watch: list[str], focus: list[dict[str, str]], liquid: int, universe: int
+           ) -> tuple[str, str, dict[str, Any]]:
+    """The research report as (title, short summary, payload with titled sections), so the
+    inbox shows lists instead of a paragraph."""
+    by_id = {c["instrument_id"]: c for c in candidates}
+
+    def why(c: dict[str, Any]) -> str:
+        reasons = c["reasons"][1:] if rules == "SCREEN_V2" else c["reasons"]   # V2: skip the gate
+        return " · ".join(reasons[:4])
+
+    meetings = []
+    for f in focus:
+        c = by_id.get(f["instrument_id"])
+        name = display_name(f["instrument_id"])
+        meetings.append(f"{name} — {f['why']}" if c is None or f["why"] == "보유 종목 재점검"
+                        else f"{name} ({c['score']}점) — {why(c)}")
+    top = [f"{display_name(c['instrument_id'])} {c['score']}점" for c in candidates[:10]]
+    names = ", ".join(display_name(f["instrument_id"]) for f in focus) or "없음"
+    title = f"[리서치] {MARKET_KO[market]} {session} · 오늘 회의 {len(focus)}건: {names}"
+    summary = (f"{INDEX[market]} {universe}종목 중 거래대금 통과 {liquid} · "
+               f"관찰 {len(watch)}종목 · 규칙 {RULES_KO.get(rules, rules)}")
+    sections = [
+        {"title": "오늘 위원회 회의", "lines": meetings or ["없음"]},
+        {"title": "점수 상위 10", "lines": [" · ".join(top[:5]), " · ".join(top[5:])]
+         if len(top) > 5 else [" · ".join(top)] if top else ["없음"]},
+        {"title": f"관찰 종목 {len(watch)}",
+         "lines": [", ".join(display_name(i) for i in watch)] if watch else ["없음"]},
+    ]
+    payload = {"market": market, "session": session, "focus": [f["instrument_id"] for f in focus],
+               "watchlist": watch, "rules": rules, "sections": sections,
+               "note": "보유 종목은 점수와 관계없이 먼저 재점검합니다. 최근 5거래일 안에 회의한 "
+                       "종목(보유 제외)은 빼고 고릅니다."}
+    return title, summary, payload
+
+
+def reformat_reports(conn: sqlite3.Connection) -> int:
+    """Rewrite stored research reports in the sectioned form (same facts, from research_runs)."""
+    n = 0
+    with transaction(conn):
+        for r in list(conn.execute("SELECT * FROM research_runs")):
+            title, summary, payload = report(
+                r["market"], r["session"], r["rules_version"], json.loads(r["candidates"]),
+                json.loads(r["watchlist"]), json.loads(r["focus"]), r["liquid"],
+                len(UNIVERSE[INDEX[r["market"]]]))
+            n += conn.execute(
+                "UPDATE inbox_items SET title=?, summary=?, payload=? WHERE dedupe_key=?",
+                (title, summary, json.dumps(payload, ensure_ascii=False),
+                 f"research:{r['market']}:{r['session']}")).rowcount
+    return n
 
 
 def last_close_day(market: str, until: date) -> date:
@@ -250,8 +300,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     from stock_office.wiring import build_service
 
     args = list(sys.argv[1:] if argv is None else argv)
+    if args == ["reformat"]:   # stored research reports → sectioned form
+        settings = get_settings()
+        print(f"reformatted {reformat_reports(connect(settings.data_dir))} reports")
+        return 0
     if len(args) != 2 or args[0] not in ("run", "dry") or args[1] not in ("KR", "US"):
-        print("usage: python -m stock_office.research.team run|dry KR|US")
+        print("usage: python -m stock_office.research.team run|dry KR|US | reformat")
         return 2
     market = args[1]
     if args[0] == "dry":   # preview only: nothing stored, no meetings

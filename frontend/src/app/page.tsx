@@ -79,6 +79,16 @@ export default function InboxPage() {
             )}
           </section>
 
+          {g.active.length > 0 && (
+            <section aria-label="진행 중">
+              <h2 className="mb-2 text-sm font-semibold">진행 중 <span className="text-[var(--muted)]">{g.active.length}</span>
+                <span className="ml-2 text-[11px] font-normal text-[var(--muted)]">자동 승인된 결재안 · 실제 주문 상태</span></h2>
+              <ul className="divide-y divide-[var(--line)] overflow-hidden rounded-lg border border-sky-900 bg-[var(--panel)]">
+                {g.active.map((i) => <ReportRow key={i.id} item={i} strong />)}
+              </ul>
+            </section>
+          )}
+
           <section aria-label="보고">
             <h2 className="mb-2 text-sm font-semibold">보고 <span className="text-[var(--muted)]">{g.reports.length}</span></h2>
             {g.reports.length === 0 ? <p className="text-sm text-[var(--muted)]">아직 보고가 없습니다.</p> : (
@@ -173,7 +183,7 @@ function ApprovalCard({ item, now }: { item: InboxItem; now: number }) {
   );
 }
 
-function ReportRow({ item }: { item: InboxItem }) {
+function ReportRow({ item, strong = false }: { item: InboxItem; strong?: boolean }) {
   const action = item.payload.action;
   const realized = item.payload.realized_krw;
   const tone = realized !== undefined ? pnlTone(realized) : action ? ACTION_COLOR[action] ?? "" : "";
@@ -188,7 +198,9 @@ function ReportRow({ item }: { item: InboxItem }) {
             <span className={`truncate font-medium ${tone}`}>{item.title}</span>
             {item.payload.demo && <span className="rounded bg-amber-400 px-1 text-[10px] font-bold text-black">DEMO</span>}
           </span>
-          {(paper || item.summary) && <span className="mt-0.5 block line-clamp-1 text-[12px] text-[var(--muted)]">{paper ?? item.summary}</span>}
+          {(paper || item.summary) && (
+            <span className={`mt-0.5 block ${strong ? "text-[13px] font-semibold text-sky-100" : "line-clamp-1 text-[12px] text-[var(--muted)]"}`}>{paper ?? item.summary}</span>
+          )}
         </span>
         <span className="shrink-0 text-right text-[11px] text-[var(--muted)]">
           <span className={`inline-block rounded border px-1 ${STATUS_TONE[item.status]}`}>{item.auto_approved ? "자동 승인" : STATUS_KO[item.status]}</span>

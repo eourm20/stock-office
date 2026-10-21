@@ -92,6 +92,10 @@ def test_one_research_per_market_and_session_with_an_inbox_report(tmp_path: Path
         "SELECT title, payload FROM inbox_items WHERE kind='research'").fetchone()
     assert title == "[리서치] 해외장 2026-10-20 · 오늘 회의 2건: 엔비디아, 애플"
     assert json.loads(payload)["rules"] == "SCREEN_V2"
+    sections = {x["title"]: x["lines"] for x in json.loads(payload)["sections"]}
+    assert list(sections) == ["오늘 위원회 회의", "점수 상위 10", "관찰 종목 2"]
+    assert sections["오늘 위원회 회의"][0].startswith("엔비디아 (")      # name, score, reasons
+    assert "장기 상승 추세" not in sections["오늘 위원회 회의"][0]         # the gate is not news
     events = [(r[0], r[1]) for r in conn.execute(
         "SELECT kind, title FROM office_events WHERE desk='research' ORDER BY id")]
     assert events == [("started", "해외장 리서치 시작"),

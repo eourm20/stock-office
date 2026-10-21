@@ -174,6 +174,39 @@ def test_fill_then_stop_sells_at_a_marketable_limit_and_reports_the_loss(tmp_pat
     assert len([a for a, _ in fake.sent if a == "kt10001"]) == 1
 
 
+def test_exit_v2_moves_the_stop_to_the_buy_price_after_one_r(tmp_path: Path) -> None:
+    desks, fake = setup(tmp_path)
+    approve(desks)                                   # buy 50,000, stop 47,000: 1R = 3,000
+    desks.tick(KR_OPEN)
+    fake.fill("0000001")
+    desks.tick(KR_OPEN + timedelta(minutes=1))
+    fake.price = D(53_100)                           # up more than 1R
+    desks.tick(KR_OPEN + timedelta(minutes=2))
+    assert order(desks)["stop"] == "50000"
+    assert titles(desks)[-1] == "[손절가 조정] 삼성전자 손절가 47,000원 → 50,000원 (매수가)"
+    desks.tick(KR_OPEN + timedelta(minutes=3))       # once
+    assert sum(t.startswith("[손절가 조정]") for t in titles(desks)) == 1
+    fake.price = D(49_900)                           # the gain turned around: out near even
+    desks.tick(KR_OPEN + timedelta(minutes=4))
+    assert order(desks, "stop")["status"] == "SENT"
+
+
+def test_exit_v2_time_stop_after_ten_sessions_without_progress(tmp_path: Path) -> None:
+    desks, fake = setup(tmp_path)
+    approve(desks)
+    desks.tick(KR_OPEN)
+    fake.fill("0000001")
+    desks.tick(KR_OPEN + timedelta(minutes=1))
+    fake.price = D(50_500)                           # +0.17R
+    nine = datetime(2026, 11, 3, 1, 0, tzinfo=UTC)   # 9 full sessions later: keep
+    desks.tick(nine)
+    assert [o for o in desks.orders() if o["side"] == "SELL"] == []
+    eleven = datetime(2026, 11, 5, 1, 0, tzinfo=UTC)
+    desks.tick(eleven)
+    sell = order(desks, "exit")
+    assert sell["status"] == "SENT" and "시간 손절" in sell["reason"]
+
+
 def test_target_and_unfilled_exit_is_replaced(tmp_path: Path) -> None:
     desks, fake = setup(tmp_path)
     approve(desks)

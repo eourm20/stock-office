@@ -51,6 +51,11 @@ MAX_DRAWDOWN = D("0.10")            # IPS: no new buys once the account is 10% b
 BENCHMARK = {"KR": "^KS11", "US": "^NDX"}  # KOSPI, NASDAQ-100
 ROLE_KO = {"entry": "매수", "take_profit": "익절", "stop": "손절", "exit": "매도"}
 MOVE_STEPS = (D(3), D(5), D(10))      # C: report a watched stock's day move at ±3%, ±5%, ±10%
+# EXIT_V2 (owner's decision 2026-10-21, from 10/22): admit a wrong call early.
+EXIT_VERSION = "EXIT_V2"
+BREAKEVEN_AT_R = D(1)        # up by the stop distance (1R): the stop moves up to the buy price
+TIME_STOP_SESSIONS = 10      # held this many sessions without reaching the target ...
+TIME_STOP_MIN_R = D("0.5")   # ... and up less than half the stop distance: sell (time stop)
 GAP_LIMIT = D("0.05")   # pre-order check: skip when the price moved > 5% from the meeting's price
 
 
@@ -529,8 +534,14 @@ class Desks:
             price = self._price(market, client, entry["instrument_id"])
             if price is None:
                 continue
+            entry = self._breakeven(entry, price, now)
             role = ("stop" if price <= D(entry["stop"])
                     else "take_profit" if price >= D(entry["target"]) else None)
+            reason = ""
+            if role is None and self._time_stop(market, entry, price, now):
+                role = "exit"
+                reason = (f"{TIME_STOP_SESSIONS}거래일 동안 목표가에 못 가고 수익이 작아 정리 "
+                          f"(시간 손절, {EXIT_VERSION})")
             if role is None:
                 continue
             qty = held   # the newest open tranche carries the whole position
@@ -544,9 +555,50 @@ class Desks:
                     (entry["item_id"], entry["id"], market, entry["instrument_id"], role,
                      entry["currency"], f"km-{role}:{entry['id']}:{n}", iso(now),
                      json.dumps({"trigger_price": str(price)})))
+                if reason:
+                    self._set(int(cur.lastrowid or 0), reason=reason)
                 row = self.conn.execute("SELECT * FROM km_orders WHERE id=?",
                                         (cur.lastrowid,)).fetchone()
             self._place(market, client, row, "SELL", qty, marketable_sell(market, price), now)
+
+    @staticmethod
+    def _cost(entry: sqlite3.Row) -> Decimal:
+        d = json.loads(entry["detail"] or "{}")
+        return D(d.get("avg_price") or entry["fill_price"] or entry["limit_price"])
+
+    def _breakeven(self, entry: sqlite3.Row, price: Decimal, now: datetime) -> sqlite3.Row:
+        """Up by the stop distance: the stop moves to the buy price (once), so a gain that turns
+        around ends at about break-even instead of a loss."""
+        d = json.loads(entry["detail"] or "{}")
+        cost, stop = self._cost(entry), D(entry["stop"])
+        if d.get("breakeven") or stop >= cost or price < cost + BREAKEVEN_AT_R * (cost - stop):
+            return entry
+        cur = entry["currency"]
+        with transaction(self.conn):
+            self._set(entry["id"], stop=str(cost), detail=json.dumps(
+                {**d, "breakeven": iso(now), "original_stop": str(stop)}))
+            self._notice(entry, "execution",
+                         f"[손절가 조정] {display_name(entry['instrument_id'])} 손절가 "
+                         f"{money(stop, cur)} → {money(cost, cur)} (매수가)",
+                         f"현재가 {money(price, cur)}로 손절 폭만큼 올라, 되돌아와도 본전에 "
+                         f"팔도록 손절가를 올렸습니다 ({EXIT_VERSION}).",
+                         f"breakeven:{entry['id']}", now)
+        row: sqlite3.Row = self.conn.execute("SELECT * FROM km_orders WHERE id=?",
+                                             (entry["id"],)).fetchone()
+        return row
+
+    def _time_stop(self, market: str, entry: sqlite3.Row, price: Decimal, now: datetime) -> bool:
+        """Held TIME_STOP_SESSIONS full sessions and still up less than TIME_STOP_MIN_R."""
+        if not entry["closed_at"]:
+            return False
+        sessions = closed_sessions(Market(market), now, limit=TIME_STOP_SESSIONS)
+        if len(sessions) < TIME_STOP_SESSIONS or sessions[0].open < datetime.fromisoformat(
+                entry["closed_at"]):
+            return False
+        d = json.loads(entry["detail"] or "{}")
+        cost = self._cost(entry)
+        risk = cost - D(d.get("original_stop") or entry["stop"])
+        return risk > 0 and price < cost + TIME_STOP_MIN_R * risk
 
     # ---------------------------------------------------------------- C: intraday reports
     def _alerts(self, market: str, client: KiwoomMockClient, acc: MockAccount,

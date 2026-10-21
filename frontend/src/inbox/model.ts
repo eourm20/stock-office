@@ -17,8 +17,22 @@ export const STATUS_TONE: Record<InboxStatus, string> = {
 
 export interface InboxGroups {
   pending: InboxItem[];   // needs a decision, soonest deadline first
-  reports: InboxItem[];   // reports, unread first, newest first
+  active: InboxItem[];    // approved, and its orders are not finished (waiting, sent, held)
+  reports: InboxItem[];   // reports, unread first, newest first (order news lives on the cards)
   done: InboxItem[];      // decided or expired, newest first
+}
+
+const OPEN_ORDER = new Set(["WAITING", "SENDING", "SENT", "REVIEW"]);
+
+/** An approved plan whose Kiwoom orders are still going: waiting, sent, or a position held
+ *  (bought, not yet sold and not folded into a later add-on). */
+export function isActive(item: InboxItem): boolean {
+  if (item.kind !== "approval" || item.status !== "APPROVED") return false;
+  const orders = item.mock_orders ?? [];
+  if (orders.some((o) => OPEN_ORDER.has(o.status))) return true;
+  const entry = orders.find((o) => o.role === "entry" && o.status === "FILLED");
+  const sold = orders.some((o) => o.side === "SELL" && o.status === "FILLED");
+  return Boolean(entry && !entry.detail?.closed && !sold);
 }
 
 const t = (iso: string | null) => (iso ? Date.parse(iso) : Number.POSITIVE_INFINITY);
@@ -26,13 +40,18 @@ const t = (iso: string | null) => (iso ? Date.parse(iso) : Number.POSITIVE_INFIN
 export function groupInbox(items: InboxItem[]): InboxGroups {
   const pending = items.filter((i) => i.status === "PENDING" || i.status === "DEFERRED")
     .sort((a, b) => t(a.expires_at) - t(b.expires_at));
-  const reports = items.filter((i) => i.status === "INFO")
+  const active = items.filter(isActive)
+    .sort((a, b) => t(b.created_at) - t(a.created_at));
+  // Order news ([주문]·[체결]·[미체결]·[청산]) is shown on its plan's card and in the closing
+  // report, so the report list keeps the desk's reports only (owner, 2026-10-21).
+  const reports = items.filter((i) => i.status === "INFO" && i.kind !== "execution")
     .sort((a, b) => Number(Boolean(a.read_at)) - Number(Boolean(b.read_at)) ||
                     t(b.created_at) - t(a.created_at));
-  const done = items.filter((i) => ["APPROVED", "REJECTED", "EXPIRED"].includes(i.status))
+  const done = items.filter((i) => ["APPROVED", "REJECTED", "EXPIRED"].includes(i.status) &&
+                                   !isActive(i))
     .sort((a, b) => t(b.decided_at ?? b.expires_at ?? b.created_at) -
                     t(a.decided_at ?? a.expires_at ?? a.created_at));
-  return { pending, reports, done };
+  return { pending, active, reports, done };
 }
 
 function kstParts(ms: number): { day: string; time: string; md: string } {
@@ -136,7 +155,10 @@ export function mockLine(orders: MockOrder[] | undefined): string | null {
       const exit = orders?.find((o) => (o.role === "take_profit" || o.role === "stop") && o.status === "FILLED");
       const base = `키움 모의 ${what} 체결 ${shares(main.filled_qty)} @ ${money(main.fill_price ?? 0, main.currency)}`;
       if (exit?.fill_price) return `${base} → ${ROLE_KO[exit.role]} @ ${money(exit.fill_price, exit.currency)}`;
-      return main.role === "entry" ? `${base} · 보유 중 (목표가·손절가 감시)` : base;
+      if (main.role !== "entry") return base;
+      return main.detail?.breakeven
+        ? `${base} · 보유 중 · 손절가를 매수가로 올림`
+        : `${base} · 보유 중 (목표가·손절가 감시)`;
     }
     case "EXPIRED":
       return `미체결 · ${main.reason || "기한까지 가격이 닿지 않음"}`;
