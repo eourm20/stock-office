@@ -54,7 +54,7 @@ export function MarketProvider({ children }: { children: React.ReactNode }) {
       const count: Record<Market, number> = { KR: 0, US: 0 };
       for (const i of items) {
         const m = itemMarket(i);
-        if (m && (i.status === "PENDING" || i.status === "DEFERRED" || i.opinion_open)) count[m] += 1;
+        if (m && (i.status === "PENDING" || i.status === "DEFERRED")) count[m] += 1;  // real approvals only (owner, 2026-10-21)
       }
       setPending(count);
     }).catch(() => {});
