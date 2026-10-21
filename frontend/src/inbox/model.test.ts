@@ -109,3 +109,12 @@ describe("approvalNote", () => {
     expect(approvalNote(undefined, null, undefined)).toBe("");
   });
 });
+
+describe("which desk an inbox document belongs to", () => {
+  it("uses the stock's market, or the payload's market for desk-wide reports", async () => {
+    const { itemMarket } = await import("../lib/market");
+    expect(itemMarket({ instrument_id: "US:NASDAQ:MSFT", payload: {} })).toBe("US");
+    expect(itemMarket({ instrument_id: null, payload: { market: "KR" } })).toBe("KR");   // closing / research
+    expect(itemMarket({ instrument_id: null, payload: {} })).toBeNull();
+  });
+});

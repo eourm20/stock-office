@@ -14,6 +14,13 @@ export function marketOf(instrumentId: string | null | undefined): Market | null
   return head === "KR" || head === "US" ? head : null;
 }
 
+/** An inbox document's desk: its stock's market, or (research and closing reports, which are
+ *  about a whole desk) the market in its payload. */
+export function itemMarket(item: { instrument_id: string | null; payload: { market?: string } }): Market | null {
+  const m = item.payload.market;
+  return marketOf(item.instrument_id) ?? (m === "KR" || m === "US" ? m : null);
+}
+
 interface MarketState {
   market: Market;
   setMarket: (m: Market) => void;
@@ -46,7 +53,7 @@ export function MarketProvider({ children }: { children: React.ReactNode }) {
     getInbox().then((items) => {
       const count: Record<Market, number> = { KR: 0, US: 0 };
       for (const i of items) {
-        const m = marketOf(i.instrument_id);
+        const m = itemMarket(i);
         if (m && (i.status === "PENDING" || i.status === "DEFERRED" || i.opinion_open)) count[m] += 1;
       }
       setPending(count);

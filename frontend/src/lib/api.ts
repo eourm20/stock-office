@@ -289,7 +289,7 @@ export interface InboxItem {
   payload: { action?: string; rating?: string | null; risk_flags?: string[]; demo?: boolean;
              name?: string; trigger?: string; note?: string; review_reasons?: string[];
              filed_late?: boolean; role?: OrderRole; status?: OrderStatus; realized_krw?: string;
-             item_id?: number | null;
+             item_id?: number | null; market?: string;
              /** Closing report: titled lists (account, today's trades, holdings, meeting feedback). */
              sections?: { title: string; lines: string[] }[] };
   status: InboxStatus;

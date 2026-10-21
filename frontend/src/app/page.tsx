@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getInbox, getKiwoomMock, getOfficeNow, type InboxItem, type MockAccount, type OfficeNow } from "../lib/api";
-import { MARKET_KO, marketOf, useMarket, type Market } from "../lib/market";
+import { MARKET_KO, itemMarket, marketOf, useMarket, type Market } from "../lib/market";
 import { buyPlan, deadlineLabel, groupInbox, kstDateTime, mockLine, money, nextWorkLabel, paperLine, pnlTone, sellPlan, shares,
          STATUS_KO, STATUS_TONE } from "../inbox/model";
 import ConveneButton from "./ConveneButton";
@@ -33,7 +33,7 @@ export default function InboxPage() {
     return () => clearInterval(timer);
   }, [refreshPending]);
 
-  const mine = (items ?? []).filter((i) => marketOf(i.instrument_id) === market);
+  const mine = (items ?? []).filter((i) => itemMarket(i) === market);
   const g = groupInbox(mine);
   const unread = g.reports.filter((r) => !r.read_at).length;
   const next = now?.next.find((n) => n.market === market);
