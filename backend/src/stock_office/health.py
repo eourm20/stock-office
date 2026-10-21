@@ -20,6 +20,7 @@ import time
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from stock_office.db import transaction
 from stock_office.domain.instruments import display_name
@@ -34,6 +35,14 @@ MEETING_TOO_LONG = timedelta(minutes=30)
 RESEARCH_GRACE = timedelta(minutes=10)     # after the open
 NAV_GRACE = timedelta(hours=2)             # after the close
 MARKET_KO = {"KR": "국내장", "US": "해외장"}
+KST = ZoneInfo("Asia/Seoul")
+# Owner's reminders (sent once, at the given KST time; "system" category so the API sends them).
+REMINDERS: tuple[tuple[str, datetime, str, str, str], ...] = (
+    ("eval-end-2d", datetime(2026, 11, 17, 9, 0, tzinfo=KST),
+     "[알림] 한 달 모의투자 마감 2일 전",
+     "키움 모의 계좌가 11/19에 끝납니다. 평가 보고서 준비와 다음 단계(연장·새 계좌·실거래 검토)를 "
+     "정해 주세요.", "/portfolio"),
+)
 
 
 def iso(dt: datetime) -> str:
@@ -72,10 +81,16 @@ class Watchdog:
         with transaction(self.conn):
             self._worker(now)
             self._meetings(now)
+            self._reminders(now)
             for market in ("KR", "US"):
                 self._research(market, now)
                 if self.kiwoom:
                     self._nav(market, now)
+
+    def _reminders(self, now: datetime) -> None:
+        for key, at, title, body, url in REMINDERS:
+            if at <= now < at + timedelta(days=1):   # a server down at that hour still sends it
+                self._alert(f"reminder:{key}", title, body, url, now)
 
     def _worker(self, now: datetime) -> None:
         last = self._setting(HEARTBEAT_KEY)

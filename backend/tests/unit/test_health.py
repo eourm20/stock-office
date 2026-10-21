@@ -110,3 +110,15 @@ def test_system_rows_go_out_only_through_the_watchdog_notifier(tmp_path: Path) -
     worker.enqueue("system:x", "system", "[시스템 이상] 작업 서버가 멈춤", "", "/office", noon)
     assert worker.flush(noon) == 0
     assert api.flush(noon) == 1 and sent == ["[시스템 이상] 작업 서버가 멈춤"]
+
+
+def test_the_end_of_month_reminder_goes_out_once(tmp_path: Path) -> None:
+    before = kst("2026-11-17T08:59")
+    conn, _, dog = setup(tmp_path, before)
+    beat(conn, before)
+    dog.check(before)
+    assert "system:reminder:eval-end-2d" not in alerts(conn)
+    for t in ("2026-11-17T09:00", "2026-11-17T09:01", "2026-11-17T12:00"):
+        beat(conn, kst(t))
+        dog.check(kst(t))
+    assert alerts(conn).count("system:reminder:eval-end-2d") == 1
