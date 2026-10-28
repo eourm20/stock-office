@@ -352,6 +352,11 @@ def transaction(conn: sqlite3.Connection) -> Iterator[sqlite3.Connection]:
     if lock is not None:
         lock.acquire()   # other threads wait until this transaction ends
     try:
+        if conn.in_transaction:
+            # Called inside an open transaction (e.g. a desk step during an inbox decision): join
+            # it, so both commit or roll back together.
+            yield conn
+            return
         conn.execute("BEGIN IMMEDIATE")
         try:
             yield conn

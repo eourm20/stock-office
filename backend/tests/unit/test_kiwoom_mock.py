@@ -101,6 +101,18 @@ def test_domestic_account_snapshot() -> None:
     assert body == {"qry_tp": "1", "dmst_stex_tp": "KRX"}  # mock: KRX only
 
 
+def test_domestic_cash_is_the_d2_deposit() -> None:
+    """Bought today, settled in two days: `entr` still holds the money, `d2_entra` does not."""
+    fake = FakeKiwoom({
+        "kt00001": [(ok(entr="000000010000000", d2_entra="000000009814660",
+                        ord_alow_amt="000000009803469"), {})],
+        "kt00018": [(ok(tot_evlt_amt="000000000180800", acnt_evlt_remn_indv_tot=[]), {})],
+        "kt00007": [(ok(acnt_ord_cntr_prps_dtl=[]), {})],
+    })
+    acc = kr_account(client(fake))
+    assert (acc.cash, acc.orderable) == ("9814660", "9803469")
+
+
 def test_overseas_account_snapshot_and_empty_history() -> None:
     fake = FakeKiwoom({
         "ust21110": [(ok(krw_entra="0", result_list=[

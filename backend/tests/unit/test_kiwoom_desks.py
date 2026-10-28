@@ -222,6 +222,24 @@ def test_a_stop_target_change_applies_to_the_position_and_the_stop_only_goes_up(
     assert titles(desks)[-1] == "[손절가·목표가 변경] 삼성전자 손절가 47,000원→48,500원 · 목표가 58,000원→58,000원"
 
 
+def test_a_stop_target_change_inside_the_approval_transaction(tmp_path: Path) -> None:
+    """The inbox approves inside its own transaction; the change joins it (failed on every held-
+    stock meeting 2026-10-23..27: "cannot start a transaction within a transaction")."""
+    desks, fake = setup(tmp_path)
+    approve(desks)
+    desks.tick(KR_OPEN)
+    fake.fill("0000001")
+    desks.tick(KR_OPEN + timedelta(minutes=1))
+    with transaction(desks.conn):
+        desks.adjust(201, KR, {"stop": "48500", "target": "58000"}, KR_OPEN)
+    assert (desks.position(KR)["stop"], desks.position(KR)["target"]) == ("48500", "58000")
+    with pytest.raises(RuntimeError), transaction(desks.conn):   # outer fails: change undone
+        desks.adjust(202, KR, {"stop": "49000", "target": "59000"}, KR_OPEN)
+        raise RuntimeError("approval failed")
+    assert (desks.position(KR)["stop"], desks.position(KR)["target"]) == ("48500", "58000")
+    assert not desks.conn.in_transaction
+
+
 def test_an_add_on_is_sized_on_the_whole_position_at_its_new_stop(tmp_path: Path) -> None:
     desks, fake = setup(tmp_path)
     approve(desks)                                   # 19 shares at 50,000

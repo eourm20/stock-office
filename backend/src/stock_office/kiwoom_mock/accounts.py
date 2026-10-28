@@ -97,7 +97,10 @@ def kr_account(client: KiwoomMockClient) -> MockAccount:
     except KiwoomMockError as exc:
         acc.ok, acc.error = False, str(exc)
         return acc
-    acc.cash, acc.orderable = num(dep.get("entr")), num(dep.get("ord_alow_amt"))
+    # D+2 estimated deposit: KR trades settle two days later, and `entr` still holds the money of
+    # a stock bought today, which counted it twice in the account value (2026-10-23).
+    acc.cash = num(dep.get("d2_entra")) or num(dep.get("entr"))
+    acc.orderable = num(dep.get("ord_alow_amt"))
     acc.fields["kt00001"] = _fields(dep, [])
 
     def balance() -> None:

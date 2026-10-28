@@ -32,6 +32,8 @@ is not evaluated yet (criteria fixed in advance: `docs/evaluation-plan.md`).
 | Spend so far (October, as of 2026-10-20 evening) | $0.73 of a $7 budget (12 paid runs) | `/api/v1/budget` |
 | Research screening (NASDAQ-100, Yahoo daily bars, ARM server) | ≈ 20 s for 101 stocks | worker log 2026-10-20 |
 
+- Fixed 2026-10-28 from server logs: stop/target change approvals failed on every held-stock meeting 10/23–27 (nested SQLite transaction), and the KR account value double-counted unsettled buys (now D+2 deposit). Stored KR NAV for 10/23, 10/26, 10/27 is still the inflated value.
+
 ## Not yet achieved (do not present as results)
 - Kiwoom mock order results (first orders 2026-10-20 22:30 KST) and the one-month evaluation (2026-10-20 ~ 11-19, criteria in `docs/evaluation-plan.md`).
 - Learning from outcomes: off by design during the evaluation (decisions use fresh data but no reflection on past results).

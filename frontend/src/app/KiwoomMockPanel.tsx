@@ -57,7 +57,7 @@ function AccountBlock({ title, configured, acc }: { title: string; configured: b
       {!acc.ok ? <p className="mt-1 text-xs text-rose-300">{acc.error}</p> : (
         <>
           <dl className="mt-2 grid grid-cols-1 gap-y-0.5 text-[13px] sm:grid-cols-2 sm:gap-x-4">
-            <Fact label="예수금" value={acc.cash === null ? "—" : money(acc.cash, cur)} />
+            <Fact label={acc.market === "KR" ? "예수금 (D+2)" : "예수금"} value={acc.cash === null ? "—" : money(acc.cash, cur)} />
             <Fact label="주문 가능" value={acc.orderable === null ? "—" : money(acc.orderable, cur)} />
             <Fact label="보유 평가" value={acc.total_value === null ? "—" : money(acc.total_value, cur)} />
             <Fact label="보유 · 오늘 체결" value={`${acc.holdings.length}종목 · ${acc.fills_today ?? "—"}건`} />

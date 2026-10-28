@@ -129,7 +129,7 @@ function AccountCard({ market, acc }: { market: Market; acc: MockAccount | null 
           <>
             <div className="mt-0.5 text-xl font-bold">{total === null ? "—" : money(total, cur)}</div>
             <div className="text-xs text-[var(--muted)]">
-              예수금 {acc.cash === null ? "—" : money(acc.cash, cur)} · 보유 {acc.holdings.length}종목
+              {acc.market === "KR" ? "예수금(D+2)" : "예수금"} {acc.cash === null ? "—" : money(acc.cash, cur)} · 보유 {acc.holdings.length}종목
               {acc.fills_today ? ` · 오늘 체결 ${acc.fills_today}건` : ""}
             </div>
           </>
