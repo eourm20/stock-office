@@ -323,6 +323,15 @@ MIGRATIONS: list[str] = [
     """
     ALTER TABLE inbox_items ADD COLUMN hidden_at TEXT
     """,
+    # 13: what a stock is, in plain Korean (owner, 2026-11-06), made once per stock on first tap
+    """
+    CREATE TABLE stock_profiles (
+        instrument_id TEXT PRIMARY KEY,
+        body TEXT NOT NULL,
+        token_usage TEXT,
+        created_at TEXT NOT NULL
+    )
+    """,
 ]
 
 

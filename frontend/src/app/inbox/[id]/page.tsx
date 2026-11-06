@@ -62,6 +62,9 @@ export default function InboxDocument() {
   const adj = adjustPlan(item);
   const a = p?.allocation;
   const acct = p?.account_currency ?? "KRW";
+  // Stocks this document names: the research report's list, or the document's own stock.
+  const stocks = item?.payload.stocks ?? (item?.instrument_id && item.payload.name
+    ? { [item.payload.name]: item.instrument_id } : undefined);
 
   return (
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col">
@@ -98,19 +101,19 @@ export default function InboxDocument() {
               <h2 className="text-[12px] font-bold text-[#6b6455]">결재 내용 · 쉽게</h2>
               <ul className="mt-1 space-y-1.5 text-[15px] leading-relaxed">
                 {plainPlan(item, item.expires_at ? kstDateTime(item.expires_at) : "").map((line) => (
-                  <li key={line}><Explained text={line} /></li>
+                  <li key={line}><Explained text={line} stocks={stocks} /></li>
                 ))}
               </ul>
             </section>
           )}
           {briefing?.story && (
             <div className="border-b border-[#d8d2c2] p-4">
-              <EasyStory story={briefing.story} lines={briefing.story_lines} terms={briefing.terms} />
+              <EasyStory story={briefing.story} lines={briefing.story_lines} terms={briefing.terms} stocks={stocks} />
             </div>
           )}
           {!briefing?.story && item.payload.story_lines && item.payload.story_lines.length > 0 && (
             <div className="border-b border-[#d8d2c2] p-4">
-              <EasyStory story={item.payload.story_lines.map((l) => l.text).join(" ")} lines={item.payload.story_lines} />
+              <EasyStory story={item.payload.story_lines.map((l) => l.text).join(" ")} lines={item.payload.story_lines} stocks={stocks} />
             </div>
           )}
           {(item.payload.note || (item.payload.review_reasons?.length ?? 0) > 0) && (
@@ -151,7 +154,7 @@ export default function InboxDocument() {
               <div key={sec.title}>
                 <h2 className="mb-1 text-sm font-bold">{sec.title}</h2>
                 <ul className="space-y-1 text-[13px]">
-                  {sec.lines.map((line) => <li key={line} className="rounded bg-[#ece7da] px-2 py-1"><Explained text={line} /></li>)}
+                  {sec.lines.map((line) => <li key={line} className="rounded bg-[#ece7da] px-2 py-1"><Explained text={line} stocks={stocks} /></li>)}
                 </ul>
               </div>
             ))}

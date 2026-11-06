@@ -195,8 +195,12 @@ def report(market: str, session: str, rules: str, candidates: list[dict[str, Any
         {"title": f"관찰 종목 {len(watch)}",
          "lines": [", ".join(display_name(i) for i in watch)] if watch else ["없음"]},
     ]
+    named = [*watch, *(f["instrument_id"] for f in focus),
+             *(c["instrument_id"] for c in candidates[:10])]
     payload = {"market": market, "session": session, "focus": [f["instrument_id"] for f in focus],
                "watchlist": watch, "rules": rules, "sections": sections,
+               # name -> instrument id, so the app can explain any stock named in the report
+               "stocks": {display_name(i): i for i in named},
                "story_lines": story(market, rules, candidates, watch, focus, liquid, universe),
                "note": "보유 종목은 점수와 관계없이 먼저 재점검합니다. 최근 5거래일 안에 회의한 "
                        "종목(보유 제외)은 빼고 고릅니다."}

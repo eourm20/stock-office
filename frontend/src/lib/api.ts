@@ -320,7 +320,9 @@ export interface InboxItem {
              /** [속보]: importance (5 market-wide, 4 a held stock) and emergency meetings it called. */
              score?: number; meetings?: { instrument_id: string; name: string; run_id: string }[];
              /** Research report told plainly, each sentence with the expert wording it retells. */
-             story_lines?: { text: string; basis: string }[] };
+             story_lines?: { text: string; basis: string }[];
+             /** Research report: stock name → instrument id, so a named stock can be explained. */
+             stocks?: Record<string, string> };
   status: InboxStatus;
   expires_at: string | null;
   read_at: string | null;
@@ -366,6 +368,17 @@ export interface OfficeNow {
 }
 
 export const getInbox = () => getJson<InboxItem[]>("/api/v1/inbox");
+/** What a stock is, in plain Korean (made once by the server, then cached). */
+export interface StockProfile { name: string; kind?: string; what: string; themes?: string[]; industry?: string; source?: string }
+export async function getStockProfile(instrumentId: string): Promise<StockProfile> {
+  const resp = await fetch(`${API_BASE}/api/v1/stocks/${encodeURIComponent(instrumentId)}/profile`);
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({ detail: "" })) as { detail?: string };
+    throw new Error(body.detail || `HTTP ${resp.status}`);
+  }
+  return (await resp.json()) as StockProfile;
+}
+
 /** 뉴스 탭: market briefings, newest first. */
 export const getNews = (limit = 20) => getJson<InboxItem[]>(`/api/v1/news?limit=${limit}`);
 export const getInboxItem = (id: number | string) => getJson<InboxItem>(`/api/v1/inbox/${id}`);

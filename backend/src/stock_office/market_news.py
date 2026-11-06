@@ -453,14 +453,17 @@ def write(conn: sqlite3.Connection, market: str, day: date, now: datetime,
 
 
 def usages_in_month(conn: sqlite3.Connection, month: str) -> list[dict[str, Any]]:
-    """Token usage of this month's briefings and breaking-news polls (Korea time), for the
-    budget."""
+    """Token usage of this month's briefings, breaking-news polls and stock profiles (Korea
+    time), for the budget."""
     from stock_office.budget import month_key
 
     out: list[dict[str, Any]] = []
     for row in conn.execute("SELECT at, token_usage FROM news_polls WHERE token_usage IS NOT NULL"):
         if month_key(datetime.fromisoformat(row["at"])) == month:
             out.append(json.loads(row["token_usage"]))
+    from stock_office.stock_profiles import usages
+
+    out += usages(conn, month)
     for row in conn.execute("SELECT payload, created_at FROM inbox_items WHERE dedupe_key LIKE ?",
                             (f"{DEDUPE_PREFIX}%",)):
         if month_key(datetime.fromisoformat(row["created_at"])) != month:

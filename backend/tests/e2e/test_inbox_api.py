@@ -122,3 +122,18 @@ def test_the_ceo_clears_one_desks_sharp_move_and_review_reports(
     assert not titles & {"[급변] 삼성", "[급변] 하이닉스", "[검토 필요] 삼성전자 매수 제안"}
     assert conn.execute("SELECT COUNT(*) FROM inbox_items WHERE hidden_at IS NOT NULL"
                         ).fetchone()[0] == 3                  # hidden, not deleted
+
+
+def test_stock_profile_route_serves_the_cache_and_says_when_it_cannot(
+        client: TestClient, settings: object) -> None:
+    import json
+
+    from stock_office.db import connect
+
+    assert client.get("/api/v1/stocks/KR:KRX:999999/profile").status_code == 404
+    assert client.get("/api/v1/stocks/KR:KRX:005930/profile").status_code == 503  # no engine
+    conn = connect(settings.data_dir)  # type: ignore[attr-defined]
+    conn.execute("INSERT INTO stock_profiles (instrument_id, body, created_at) VALUES (?,?,?)",
+                 ("KR:KRX:005930", json.dumps({"name": "삼성전자", "what": "전자 회사예요."}),
+                  datetime.now(UTC).isoformat()))
+    assert client.get("/api/v1/stocks/KR:KRX:005930/profile").json()["what"] == "전자 회사예요."

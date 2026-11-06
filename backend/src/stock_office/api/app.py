@@ -160,6 +160,24 @@ def create_app(
         inbox.expire_due(service.clock())
         return inbox.list()
 
+    @app.get("/api/v1/stocks/{instrument_id}/profile")
+    def stock_profile(instrument_id: str) -> dict[str, object]:
+        """What a stock is, in plain Korean (made once with the quick model, then cached)."""
+        from stock_office import stock_profiles
+
+        now = service.clock()
+        hit = stock_profiles.cached(inbox.conn, instrument_id, now)
+        if hit is not None:
+            return hit
+        try:
+            return stock_profiles.profile(inbox.conn, instrument_id, now,
+                                          stock_profiles.writer_for(service, settings))
+        except LookupError:
+            raise HTTPException(404, "unknown stock") from None
+        except Exception as exc:
+            raise HTTPException(503, str(exc) if isinstance(exc, RuntimeError)
+                                else "설명을 만들지 못했어요. 잠시 뒤 다시 눌러 주세요.") from None
+
     @app.get("/api/v1/news")
     def list_news(limit: int = 20) -> list[InboxItem]:
         """The news tab: market briefings ([시장 브리핑]), newest first."""
