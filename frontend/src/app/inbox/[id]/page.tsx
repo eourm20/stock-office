@@ -9,6 +9,7 @@ import { FLAG_KO, RATING_KO } from "../../../office/explain";
 import { humanizeTickers } from "../../../office/names";
 import { itemMarket, MARKET_KO, marketOf, useMarket } from "../../../lib/market";
 import NewsCards from "../../../news/NewsCards";
+import { EasyStory, Explained } from "../../Explained";
 import NavBar from "../../NavBar";
 
 type Act = "approve" | "defer" | "reject";
@@ -92,11 +93,16 @@ export default function InboxDocument() {
             )}
           </header>
 
+          {briefing?.story && (
+            <div className="border-b border-[#d8d2c2] p-4">
+              <EasyStory story={briefing.story} lines={briefing.story_lines} terms={briefing.terms} />
+            </div>
+          )}
           {p && a && !a.blocked && <BuySummary p={p} a={a} acct={acct} expires={item.expires_at} />}
           {adj && (
             <section className="border-t border-[#d8d2c2] p-4 text-[13px]">
               <h2 className="mb-2 text-sm font-bold">손절가·목표가 변경 <span className="font-normal text-[#6b6455]">(보유 {adj.qty ?? "—"}주 전체)</span></h2>
-              <p className="rounded bg-[#ece7da] px-2 py-1.5 font-semibold">{adjustLine(adj)}</p>
+              <p className="rounded bg-[#ece7da] px-2 py-1.5 font-semibold"><Explained text={adjustLine(adj)} /></p>
               <p className="mt-1 text-[11px] text-[#6b6455]">평균 단가 {adj.avg_price ? money(adj.avg_price, adj.currency) : "—"} · 회의 때 현재가 {adj.last_price ? money(adj.last_price, adj.currency) : "—"} · 규칙: {adj.rule}. {adj.execution}</p>
             </section>
           )}
@@ -110,37 +116,41 @@ export default function InboxDocument() {
 
           <section className="space-y-3 p-4">
             {(item.summary || briefing?.headline) && (
-              <p className="border-l-4 border-[#c9bfa6] pl-3 text-[15px] font-semibold leading-snug">{humanizeTickers(briefing?.headline || item.summary)}</p>
+              <p className="border-l-4 border-[#c9bfa6] pl-3 text-[15px] font-semibold leading-snug"><Explained text={humanizeTickers(briefing?.headline || item.summary)} extra={briefing?.terms} /></p>
             )}
             {(item.payload.type === "market_briefing" || item.payload.type === "breaking") && <MarketBriefing item={item} />}
             {item.payload.sections?.map((sec) => (
               <div key={sec.title}>
                 <h2 className="mb-1 text-sm font-bold">{sec.title}</h2>
                 <ul className="space-y-1 text-[13px]">
-                  {sec.lines.map((line) => <li key={line} className="rounded bg-[#ece7da] px-2 py-1">{line}</li>)}
+                  {sec.lines.map((line) => <li key={line} className="rounded bg-[#ece7da] px-2 py-1"><Explained text={line} /></li>)}
                 </ul>
               </div>
             ))}
-            {item.payload.note && <p className="rounded bg-[#ece7da] p-2 text-sm">{item.payload.note}</p>}
+            {item.payload.note && <p className="rounded bg-[#ece7da] p-2 text-sm"><Explained text={item.payload.note} /></p>}
             {item.payload.review_reasons && item.payload.review_reasons.length > 0 && (
               <div className="rounded border border-amber-600 bg-amber-50 p-2 text-sm">
                 <div className="font-semibold text-amber-800">검토 필요 · 결재할 수 없음</div>
                 <ul className="mt-1 list-disc pl-5">{item.payload.review_reasons.map((r) => <li key={r}>{r}</li>)}</ul>
               </div>
             )}
-            {briefing && (
-              <>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Points title="이유" items={briefing.key_reasons} tone="text-[#2f6b3d]" />
-                  <Points title="위험" items={briefing.risks} tone="text-[#9b2f3a]" />
-                </div>
-                {briefing.watch_next.length > 0 && (
-                  <Fold title={`확인할 것 ${briefing.watch_next.length}`}>
-                    <ul className="space-y-1 text-[13px] leading-snug">{briefing.watch_next.map((x) => <li key={x}>· {humanizeTickers(x)}</li>)}</ul>
-                  </Fold>
-                )}
-              </>
-            )}
+            {briefing && (() => {
+              const expert = (
+                <>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Points title="이유" items={briefing.key_reasons} tone="text-[#2f6b3d]" terms={briefing.terms} />
+                    <Points title="위험" items={briefing.risks} tone="text-[#9b2f3a]" terms={briefing.terms} />
+                  </div>
+                  {briefing.watch_next.length > 0 && (
+                    <Fold title={`확인할 것 ${briefing.watch_next.length}`}>
+                      <ul className="space-y-1 text-[13px] leading-snug">{briefing.watch_next.map((x) => <li key={x}>· <Explained text={humanizeTickers(x)} extra={briefing.terms} /></li>)}</ul>
+                    </Fold>
+                  )}
+                </>
+              );
+              // With the story on top, the committee's own wording is the expert view, folded.
+              return briefing.story ? <Fold title="자세히 보기 (AI 위원회 요약)" hint="이유·위험·확인할 것">{expert}</Fold> : expert;
+            })()}
           </section>
 
           {p && a && (
@@ -318,12 +328,12 @@ function MarketBriefing({ item }: { item: InboxItem }) {
   );
 }
 
-function Points({ title, items, tone }: { title: string; items: string[]; tone: string }) {
+function Points({ title, items, tone, terms }: { title: string; items: string[]; tone: string; terms?: Record<string, string> }) {
   if (items.length === 0) return null;
   return (
     <div>
       <h3 className={`mb-1 text-xs font-bold ${tone}`}>{title}</h3>
-      <ul className="space-y-1 text-[13px] leading-snug">{items.map((x) => <li key={x}>· {humanizeTickers(x)}</li>)}</ul>
+      <ul className="space-y-1 text-[13px] leading-snug">{items.map((x) => <li key={x}>· <Explained text={humanizeTickers(x)} extra={terms} /></li>)}</ul>
     </div>
   );
 }

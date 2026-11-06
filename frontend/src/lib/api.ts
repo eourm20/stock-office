@@ -148,6 +148,12 @@ export interface Briefing {
   agents: Record<string, string>;
   agent_points?: Record<string, string[]>;
   debate: Record<string, string>;
+  /** The meeting as a plain-Korean story; each sentence may carry the expert wording it retells
+   *  (found in the meeting's own records). Older briefings have none. */
+  story?: string;
+  story_lines?: { text: string; basis: string }[];
+  /** Hard terms that came up in this meeting, each in one plain line. */
+  terms?: Record<string, string>;
   model: string;
   generated_at: string | null;
   demo: boolean;

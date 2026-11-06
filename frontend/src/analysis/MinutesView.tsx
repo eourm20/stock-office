@@ -13,6 +13,7 @@ import { humanizeTickers, PHASE_KO } from "../office/names";
 import { ACTION_COLOR, DecisionCard, EvidenceTab, FactsTab, FINISHED, kst, type Loaded, ReportsTab }
   from "./AnalysisView";
 import DebateChat from "./DebateChat";
+import { EasyStory } from "../app/Explained";
 import { debateTranscript, formatDuration, summarizeAgents } from "./model";
 
 const FlowGraph = dynamic(() => import("./FlowGraph"), { ssr: false });
@@ -76,7 +77,7 @@ export default function MinutesView({ runId }: { runId: string }) {
             <dl className="mt-3 grid grid-cols-[4.5rem_1fr] gap-x-3 gap-y-1.5 text-sm">
               <dt className="text-[var(--muted)]">일시</dt>
               <dd>{kst(data.run.started_at ?? data.run.requested_at)} · {formatDuration(data.run.latency_ms ?? 0)}
-                {data.run.trigger === "schedule" ? " · 정기 회의" : " · 소집 회의"}
+                {data.run.trigger === "schedule" ? " · 정기 회의" : data.run.trigger === "breaking" ? " · 긴급 회의 (속보)" : " · 소집 회의"}
                 {data.run.demo && <span className="ml-1 rounded bg-amber-400 px-1 text-[10px] font-bold text-black">DEMO</span>}</dd>
               <dt className="text-[var(--muted)]">참석</dt>
               <dd>{attended.join(" · ") || "—"}</dd>
@@ -101,6 +102,12 @@ export default function MinutesView({ runId }: { runId: string }) {
               </dd>
             </dl>
           </header>
+
+          {data.briefing?.story && (
+            <div className="mx-3 mb-3">
+              <EasyStory story={data.briefing.story} lines={data.briefing.story_lines} terms={data.briefing.terms} dark />
+            </div>
+          )}
 
           <nav aria-label="회의록 목차" className="sticky top-0 z-10 flex gap-1 overflow-x-auto border-y border-[var(--line)] bg-[#0b1020]/95 px-3 py-2 backdrop-blur">
             {SECTIONS.map(([id, label], i) => (

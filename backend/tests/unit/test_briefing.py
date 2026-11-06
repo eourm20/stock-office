@@ -85,3 +85,21 @@ def test_a_failed_model_call_is_stored_as_failed_not_raised(tmp_path: Path) -> N
     assert briefing is not None and briefing.status == "FAILED" and briefing.error == "TimeoutError"
     stored = repo.get_briefing("r1")
     assert stored is not None and stored["status"] == "FAILED" and stored["headline"] == ""
+
+
+def test_story_and_terms_are_kept_clipped_and_capped() -> None:
+    from stock_office.briefing import MAX_TERMS, STORY_CHARS, StoryLine, Term
+
+    draft = BriefingDraft(
+        headline="매수", key_reasons=[], risks=[], watch_next=[],
+        story=[StoryLine(text="비유하자면 과일 가게가 " + "가" * 2000),
+               StoryLine(text="요즘 기세가 좋아요.", basis="trend up"),
+               StoryLine(text="지어낸 근거", basis="RSI 99 폭등")],
+        terms=[Term(term=f"용어{n}", meaning="쉬운 풀이") for n in range(MAX_TERMS + 3)]
+        + [Term(term=" ", meaning="빈 용어")],
+    )
+    b = finalize(draft, PAYLOAD, model="m", demo=False, usage=None, now=NOW)
+    assert b.story.startswith("비유하자면") and len(b.story) <= STORY_CHARS + 20
+    assert list(b.terms) == [f"용어{n}" for n in range(MAX_TERMS)]
+    assert [x["basis"] for x in b.story_lines] == ["", "trend up", ""]   # only real wording
+    assert "이야기처럼" in build_prompt(PAYLOAD)
