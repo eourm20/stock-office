@@ -701,6 +701,20 @@ class Desks:
                              f"move:{instrument_id}:{day}:{'up' if move > 0 else 'down'}{step}",
                              now, prefix="watch")
 
+    def _mood(self, now: datetime) -> str | None:
+        """The market's mood for the closing report: the latest market briefing written in the
+        last 18 hours, or else today's newest breaking news (both already written, no new AI)."""
+        since = (now - timedelta(hours=18)).isoformat()
+        row = self.conn.execute(
+            "SELECT summary, payload FROM inbox_items WHERE dedupe_key LIKE 'market-briefing:%' "
+            "AND created_at >= ? ORDER BY id DESC LIMIT 1", (since,)).fetchone()
+        if row and json.loads(row["payload"]).get("briefing_status") == "OK" and row["summary"]:
+            return str(row["summary"])
+        row = self.conn.execute(
+            "SELECT title FROM inbox_items WHERE dedupe_key LIKE 'breaking:%' AND created_at >= ? "
+            "ORDER BY id DESC LIMIT 1", (since,)).fetchone()
+        return f"속보 — {str(row['title']).removeprefix('[속보] ')}" if row else None
+
     # ================================================================ evaluation (E)
     def record_nav(self, now: datetime) -> None:
         """One account snapshot per closed session (after the close), with the benchmark close."""
@@ -783,7 +797,7 @@ class Desks:
         title, summary, sections = compose(market, day, money(nav, cur), nav,
                                            D(prev["nav"]) if prev else None,
                                            self.start_equity(market), bench_move, trades,
-                                           holdings, meetings, waiting)
+                                           holdings, meetings, waiting, self._mood(now))
         with transaction(self.conn):
             done = self.conn.execute(
                 "INSERT OR IGNORE INTO inbox_items (kind, run_id, instrument_id, title, summary, "
