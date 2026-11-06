@@ -226,7 +226,8 @@ function ReportRow({ item, strong = false }: { item: InboxItem; strong?: boolean
   const realized = item.payload.realized_krw;
   const tone = realized !== undefined ? pnlTone(realized) : action ? ACTION_COLOR[action] ?? "" : "";
   const paper = item.kind === "approval" ? (mockLine(item.mock_orders) ?? paperLine(item.paper)) : null;
-  const href = item.kind === "approval" ? `/inbox/${item.id}` : item.run_id ? `/records/${item.run_id}` : `/inbox/${item.id}`;
+  // Always the inbox document (its plain version first); the minutes are linked from inside it.
+  const href = `/inbox/${item.id}`;
   return (
     <li>
       <Link href={href} className="flex items-start gap-2 px-3 py-2.5 hover:bg-[#1d2944]">
