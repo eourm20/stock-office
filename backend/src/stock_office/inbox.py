@@ -259,9 +259,12 @@ class Inbox:
                 payload["review_reasons"] = reasons
         if (kiwoom and position is None and kind != "approval"
                 and decision.action is not DecisionAction.BUY):
-            # Nothing to do (no holding, not a buy): the minutes stay in the records, the inbox
-            # stays for decisions and things that happened (owner's choice, 2026-10-20).
-            return None
+            # Nothing to do (no holding, not a buy). Still reported (owner, 2026-11-06, replacing
+            # 2026-10-20's records-only): what the company looked at and why it passed.
+            payload.setdefault("note", "보유하지 않은 종목이고 매수 의견이 아니라 주문은 없습니다. "
+                                       "검토 내용은 회의록에 있습니다.")
+            if decision.action is not DecisionAction.SELL:
+                title += " · 주문 없음"
         with transaction(self.conn):
             cur = self.conn.execute(
                 "INSERT INTO inbox_items (kind, run_id, instrument_id, title, summary, payload, "

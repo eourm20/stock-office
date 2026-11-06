@@ -279,6 +279,20 @@ export interface CompanySettings {
 
 export type InboxStatus = "PENDING" | "APPROVED" | "REJECTED" | "DEFERRED" | "EXPIRED" | "INFO";
 
+export interface MarketNews {
+  rank: number;
+  title: string;
+  summary: string;
+  /** An everyday analogy for someone who knows nothing about stocks. */
+  story: string;
+  why: string;
+  markets: ("KR" | "US")[];
+  sectors: string[];
+  direction: "좋음" | "나쁨" | "엇갈림";
+  /** From the collected headlines, never written by the model. */
+  sources: { title: string; publisher: string; url: string; lang: "en" | "ko"; published: string }[];
+}
+
 export interface InboxItem {
   id: number;
   kind: "approval" | "daily" | "adhoc" | "execution" | "closing" | "research";
@@ -291,7 +305,10 @@ export interface InboxItem {
              filed_late?: boolean; role?: OrderRole; status?: OrderStatus; realized_krw?: string;
              item_id?: number | null; market?: string;
              /** Closing report: titled lists (account, today's trades, holdings, meeting feedback). */
-             sections?: { title: string; lines: string[] }[] };
+             sections?: { title: string; lines: string[] }[];
+             /** [시장 브리핑]: AI summary of market-moving headlines, shown on both desks. */
+             type?: "market_briefing"; briefing_status?: string; news?: MarketNews[];
+             candidates?: number; model?: string };
   status: InboxStatus;
   expires_at: string | null;
   read_at: string | null;

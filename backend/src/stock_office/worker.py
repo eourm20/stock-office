@@ -18,6 +18,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from typing import Any
 
+from stock_office import market_news
 from stock_office.config import Settings, get_settings
 from stock_office.db import connect
 from stock_office.domain.models import AnalysisRun, CreateRunRequest
@@ -139,6 +140,10 @@ def main(clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> None:
             schedule_tick(service, clock(), notifier)
             if team is not None:
                 research_tick(team, service, clock(), notifier)
+            try:
+                market_news.tick(service, settings, clock())
+            except Exception:
+                log.exception("market briefing failed")
             if settler is not None:
                 for result in settler.tick(clock()):
                     log.info("settle %s %s -> %s (%d fills) %s", result.market, result.session,

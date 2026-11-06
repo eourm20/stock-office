@@ -21,6 +21,13 @@ export function itemMarket(item: { instrument_id: string | null; payload: { mark
   return marketOf(item.instrument_id) ?? (m === "KR" || m === "US" ? m : null);
 }
 
+/** Whether a document belongs on this desk. The market briefing is about both desks (news moves
+ *  both markets), so it is shown on each. */
+export function onDesk(item: { instrument_id: string | null; payload: { market?: string; type?: string } },
+                       market: Market): boolean {
+  return item.payload.type === "market_briefing" || itemMarket(item) === market;
+}
+
 interface MarketState {
   market: Market;
   setMarket: (m: Market) => void;

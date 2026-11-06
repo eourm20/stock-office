@@ -94,10 +94,13 @@ class RunService:
     def budget(self) -> Any:
         """This month's LLM spend against the budget (None when no budget is configured)."""
         from stock_office.budget import budget_status
+        from stock_office.market_news import usages_in_month
 
         if self.monthly_budget_usd is None:
             return None
-        return budget_status(self.repo, self.clock(), self.monthly_budget_usd)
+        conn = self.inbox.conn if self.inbox is not None else None
+        return budget_status(self.repo, self.clock(), self.monthly_budget_usd,
+                             extra_usages=(lambda m: usages_in_month(conn, m)) if conn else None)
 
     def brief(self, run: AnalysisRun) -> Any:
         """Write the run's briefing (AI summary of stored reports). Never raises."""

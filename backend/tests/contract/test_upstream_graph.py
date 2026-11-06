@@ -293,3 +293,57 @@ def test_upstream_analysts_run_tools_in_their_own_graph(tmp_path: Path,
     nodes = set(graph.graph.get_graph(xray=1).nodes)
     for analyst in ("Market Analyst", "News Analyst", "Fundamentals Analyst"):
         assert f"{analyst}:tools" in nodes, sorted(nodes)
+
+
+def test_global_news_vendors_spread_topics_and_add_korean_market_mood(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """get_global_news: every topic gets a headline (upstream stopped at the first query), no
+    article after the trade date, and KRX stocks read Korean market headlines first."""
+    from tradingagents.dataflows.config import run_config
+    from tradingagents.dataflows.router import route_to_vendor
+
+    from stock_office.domain.instruments import get_instrument
+    from stock_office.engine.ta_extensions import (
+        GLOBAL_NEWS_QUERIES,
+        GLOBAL_NEWS_VENDOR,
+        KR_GLOBAL_NEWS_VENDOR,
+        register_global_news_vendors,
+    )
+    from stock_office.providers.naver import NaverNewsProvider
+
+    def article(title: str, day: str) -> dict[str, object]:
+        return {"content": {"title": title, "summary": "s", "provider": {"displayName": "P"},
+                            "canonicalUrl": {"url": f"https://y.example/{title}"},
+                            "pubDate": f"{day}T12:00:00Z"}}
+
+    def yahoo(query: str, count: int) -> list[dict[str, object]]:
+        n = GLOBAL_NEWS_QUERIES.index(query)
+        return [article(f"T{n}-a", "2026-10-15"), article(f"T{n}-b", "2026-10-14"),
+                article(f"T{n}-future", "2026-10-20")][:count]
+
+    def naver_api(_url: str, params: dict[str, object], _h: dict[str, str]) -> dict[str, object]:
+        return {"items": [{"title": f"{params['query']} 하락", "description": "외국인 매도",
+                           "originallink": f"https://n.example/{params['query']}",
+                           "pubDate": "Thu, 15 Oct 2026 15:40:00 +0900"}]}
+
+    register_global_news_vendors(lambda: NaverNewsProvider("id", "secret", http_get=naver_api),
+                                 search=yahoo)
+    engine = TradingAgentsEngine(Settings(data_dir=tmp_path, naver_client_id="id",  # type: ignore[call-arg]
+                                          naver_client_secret="secret", _env_file=None))
+    work = tmp_path / "runs" / "r1"
+    work.mkdir(parents=True)
+    kr = engine.build_config(work, get_instrument("KR:KRX:005930"))
+    us = engine.build_config(work, get_instrument("US:NASDAQ:NVDA"))
+    assert kr["tool_vendors"]["get_global_news"] == KR_GLOBAL_NEWS_VENDOR
+    assert us["tool_vendors"]["get_global_news"] == GLOBAL_NEWS_VENDOR
+    assert us["global_news_queries"] == list(GLOBAL_NEWS_QUERIES)
+
+    with run_config(us):
+        text = route_to_vendor("get_global_news", "2026-10-16", None, None)
+    assert all(f"T{n}-a" in text for n in range(len(GLOBAL_NEWS_QUERIES)))
+    assert "future" not in text and "Korean stock market" not in text
+    with run_config(kr):
+        text = route_to_vendor("get_global_news", "2026-10-16", None, None)
+    assert text.index("Korean stock market headlines") < text.index("Global market news")
+    assert "코스피 증시 하락" in text and "외국인 순매도 하락" in text

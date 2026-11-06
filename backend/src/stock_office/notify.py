@@ -1,6 +1,6 @@
 """Phone notifications: only what the CEO should not miss, as Web Push to the installed web app.
 
-Five categories, nothing else (owner's choices, 2026-10-20):
+Six categories, nothing else (owner's choices, 2026-10-20; briefing 2026-11-06):
 - meeting_start: a scheduled real meeting started (or could not start: budget hard stop).
 - meeting_end: a real meeting ended with its verdict, or failed. A meeting that filed nothing to
   the inbox (no action on a stock not held) says "보유 종목이 아니어서 결재 올릴 것이 없습니다".
@@ -10,6 +10,7 @@ Five categories, nothing else (owner's choices, 2026-10-20):
   cancelled, refused by the risk policy or by Kiwoom).
 - system: the company stopped working (worker down, meeting stuck, no research, no account value);
   checked and sent by the API process (`health.py`), so it still arrives when the worker is down.
+- briefing: the market briefing is ready (twice a day, before each market opens; `market_news`).
 The internal paper book's settlement and DEMO meetings are inbox/portfolio only.
 
 The worker collects new events into an outbox (`notifications`, one row per event, idempotent)
@@ -48,7 +49,7 @@ PUSH_HOSTS = ("push.apple.com", "fcm.googleapis.com", "push.services.mozilla.com
               "notify.windows.com")
 DIGEST_LINES = 6
 NOTHING_TO_APPROVE = "보유 종목이 아니어서 결재 올릴 것이 없습니다."
-WORKER_CATEGORIES = ("meeting_start", "meeting_end", "approval", "order")
+WORKER_CATEGORIES = ("meeting_start", "meeting_end", "approval", "order", "briefing")
 
 
 class Sender(Protocol):
@@ -111,6 +112,7 @@ class Notifier:
         with transaction(self.conn):
             since = self._since(now)
             self._orders(since, now)
+            self._briefings(since, now)
             for run in self.repo.list_runs():
                 if run.demo:
                     continue
@@ -158,6 +160,17 @@ class Notifier:
             item = json.loads(r["payload"]).get("item_id")
             self.enqueue(f"inbox:{r['id']}", "order", r["title"], r["summary"] or "",
                          f"/inbox/{item}" if item else "/portfolio", now)
+
+    def _briefings(self, since: str, now: datetime) -> None:
+        """A written market briefing: its title, and the day's mood as the body."""
+        for r in self.conn.execute(
+                "SELECT id, title, summary, payload FROM inbox_items WHERE created_at > ? "
+                "AND dedupe_key LIKE 'market-briefing:%' ORDER BY id", (since,)):
+            if json.loads(r["payload"]).get("briefing_status") != "OK":
+                continue
+            self.enqueue(f"inbox:{r['id']}", "briefing", r["title"],
+                         r["summary"] or "오늘 주식에 영향을 줄 소식을 정리했습니다.",
+                         f"/inbox/{r['id']}", now)
 
     def budget_skipped(self, slot_key: str, instrument_id: str, now: datetime) -> None:
         with transaction(self.conn):

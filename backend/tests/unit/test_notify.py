@@ -228,3 +228,18 @@ def test_kiwoom_desk_reports_become_order_notifications(tmp_path: Path) -> None:
     assert [tuple(r) for r in rows] == [
         ("order", "[주문] 삼성전자 매수 19주 · 지정가 50,000원", "/inbox/7"),
         ("order", "[청산] 삼성전자 손절 19주 @ 46,000원 · −76,000원", "/portfolio")]
+
+
+def test_a_written_market_briefing_is_notified_a_failed_one_is_not(tmp_path: Path) -> None:
+    n, _ = setup(tmp_path)
+    at = (T0 + timedelta(minutes=1)).isoformat(timespec="microseconds")
+    for key, status in (("market-briefing:KR:2026-11-06", "OK"),
+                        ("market-briefing:US:2026-11-06", "FAILED")):
+        n.conn.execute(
+            "INSERT INTO inbox_items (kind, title, summary, payload, status, dedupe_key, "
+            "created_at) "
+            "VALUES ('daily', '[시장 브리핑] 11/6(금)', '반도체 걱정', ?, 'INFO', ?, ?)",
+            (json.dumps({"type": "market_briefing", "briefing_status": status}), key, at))
+    n.collect(T0 + timedelta(minutes=2))
+    rows = [tuple(r) for r in n.conn.execute("SELECT category, title, body FROM notifications")]
+    assert rows == [("briefing", "[시장 브리핑] 11/6(금)", "반도체 걱정")]

@@ -65,3 +65,18 @@ def test_not_configured_or_us_stock_does_not_apply() -> None:
     empty = NaverNewsProvider("id", "s", http_get=lambda *_: {"items": []})
     got = empty.fetch_range(get_instrument("KR:KRX:005930"), date(2026, 10, 9), date(2026, 10, 16))
     assert got.snapshots == [] and got.coverage_gaps
+
+
+def test_search_takes_any_query_and_files_it_under_the_subject() -> None:
+    calls: list[dict[str, object]] = []
+
+    def api(_url: str, params: dict[str, object], _h: dict[str, str]) -> dict[str, object]:
+        calls.append(params)
+        return ITEMS
+
+    p = NaverNewsProvider("id", "secret", http_get=api)
+    got = p.search("코스피 증시", "KR:MARKET", date(2026, 10, 9), date(2026, 10, 16), limit=10)
+    assert calls[0]["query"] == "코스피 증시" and calls[0]["display"] == 10
+    assert [s.instrument_id for s in got.snapshots] == ["KR:MARKET"]
+    assert NaverNewsProvider("", "").search("코스피", "KR:MARKET", date(2026, 10, 9),
+                                            date(2026, 10, 16)).coverage_gaps

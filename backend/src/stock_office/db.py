@@ -267,6 +267,24 @@ MIGRATIONS: list[str] = [
     DROP TABLE notifications;
     ALTER TABLE notifications_v9 RENAME TO notifications
     """,
+    # 10: the market briefing (owner's request, 2026-11-06): a sixth outbox category, "briefing"
+    """
+    CREATE TABLE notifications_v10 (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        dedupe_key TEXT NOT NULL UNIQUE,
+        category TEXT NOT NULL CHECK (category IN ('meeting_start', 'meeting_end', 'approval',
+                                                    'order', 'system', 'briefing')),
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        url TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        sent_at TEXT,
+        outcome TEXT
+    );
+    INSERT INTO notifications_v10 SELECT * FROM notifications;
+    DROP TABLE notifications;
+    ALTER TABLE notifications_v10 RENAME TO notifications
+    """,
 ]
 
 

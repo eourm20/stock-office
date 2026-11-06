@@ -26,8 +26,7 @@ def test_economy_is_the_default(tmp_path: Path) -> None:
 
 
 def test_economy_trims_only_low_risk_levers() -> None:
-    assert set(COST_PROFILES["economy"]) == {
-        "max_tool_rounds", "news_article_limit", "global_news_article_limit"}
+    assert set(COST_PROFILES["economy"]) == {"max_tool_rounds", "news_article_limit"}
     assert COST_PROFILES["standard"] == {}
     # Upstream requires 2 * max_tool_rounds + 2 < max_recur_limit (default 100).
     assert 2 * COST_PROFILES["economy"]["max_tool_rounds"] + 2 < 100

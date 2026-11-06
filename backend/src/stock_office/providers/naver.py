@@ -3,7 +3,8 @@
 Only what the API returns is used: title, short description, links and publication time. Article
 bodies are never fetched. Each item becomes a `news` snapshot whose observed/available time is the
 publication time, so the point-in-time guard applies as for any other source. The query is the
-company's Korean name. Without credentials the provider reports that it does not apply.
+company's Korean name, or a market-wide query via `search`. Without credentials the provider
+reports that it does not apply.
 
 API: GET https://openapi.naver.com/v1/search/news.json (X-Naver-Client-Id / -Secret headers).
 """
@@ -74,7 +75,14 @@ class NaverNewsProvider:
             return ProviderResult(
                 coverage_gaps=[f"{self.name}: not configured for {instrument.id}"]
             )
-        query = display_name(instrument.id)
+        return self.search(display_name(instrument.id), instrument.id, start, end, limit)
+
+    def search(
+        self, query: str, subject_id: str, start: date, end: date, limit: int = 30
+    ) -> ProviderResult:
+        """Headlines for any query (e.g. market-wide "코스피"), filed under `subject_id`."""
+        if not self.configured:
+            return ProviderResult(coverage_gaps=[f"{self.name}: not configured for {query}"])
         try:
             data = self.http_get(
                 NAVER_NEWS_URL,
@@ -109,7 +117,7 @@ class NaverNewsProvider:
             snapshots.append(
                 MarketSnapshot(
                     id=f"naver-{hashlib.sha256(key.encode()).hexdigest()[:16]}",
-                    instrument_id=instrument.id,
+                    instrument_id=subject_id,
                     source=self.name,
                     kind="news",
                     observed_at=published,

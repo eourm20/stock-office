@@ -75,3 +75,13 @@ def test_engine_config_runs_two_debate_rounds(tmp_path: object) -> None:
     engine = TradingAgentsEngine(Settings(data_dir=Path(str(tmp_path)), _env_file=None))  # type: ignore[call-arg]
     overrides = engine._overrides()
     assert overrides["max_debate_rounds"] == 2 and overrides["max_risk_discuss_rounds"] == 2
+
+
+def test_interleave_gives_every_topic_a_turn_before_any_gets_two() -> None:
+    from stock_office.engine.ta_extensions import interleave
+
+    groups = [["fed1", "fed2", "fed3"], ["ai1", "fed1"], [], ["chip1", "chip2"]]
+    assert interleave(groups, 4, key=lambda s: s) == ["fed1", "ai1", "chip1", "fed2"]
+    assert interleave(groups, 10, key=lambda s: s) == [
+        "fed1", "ai1", "chip1", "fed2", "chip2", "fed3"]   # duplicate fed1 dropped
+    assert interleave([], 5, key=lambda s: s) == []

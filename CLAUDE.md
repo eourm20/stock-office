@@ -54,7 +54,8 @@ Build **Stock Office**, a personal AI investment-office simulator that analyzes 
 - Game-like pixel-art office for *observing* the AI company: characters and animation are encouraged (moving between desks and meeting rooms, sitting at computers, debating with speech bubbles, delivering reports). Financial data, reports, sources and performance are shown in readable, professional UI panels, not inside the game art.
 - Desktop-first with responsive fallbacks, accessible keyboard interactions and `prefers-reduced-motion` support (reduced motion: characters switch places instead of walking, no ambient motion). The canvas always has a text equivalent (Activity Feed and agent panels) for screen readers.
 - Show who decided what, sourced market facts, model/version/config, potential risks, and whether a trade was *proposed* vs *mock-executed* and where (internal book or Kiwoom mock).
-- Phone notifications (web push) only for: scheduled meeting started, meeting ended, approval request, and what the Kiwoom mock desks did with orders; quiet hours 23:00–07:00 KST.
+- The company gathers and explains the news for the CEO (user decision 2026-11-06): a **[시장 브리핑]** before each market opens with up to 10 market-moving stories (Korean or foreign), translated, summarised and explained in plain Korean with an everyday analogy; sources only from collected headlines, labelled AI summary, never advice and never an order input.
+- Phone notifications (web push) only for: scheduled meeting started, meeting ended, approval request, what the Kiwoom mock desks did with orders, system alerts, and the market briefing; quiet hours 23:00–07:00 KST.
 
 ## Delivery / change protocol
 1. Review task, relevant files and plan. Briefly state scope and dependencies.

@@ -30,9 +30,13 @@ from .adapter import (
     outcome_from_state,
 )
 from .ta_extensions import (
+    GLOBAL_NEWS_QUERIES,
+    GLOBAL_NEWS_VENDOR,
+    KR_GLOBAL_NEWS_VENDOR,
     KR_NEWS_VENDOR,
     PREDICTION_OFF_VENDOR,
     collect_upstream_data_gaps,
+    register_global_news_vendors,
     register_kr_news_vendor,
     register_prediction_markets_off,
 )
@@ -53,7 +57,8 @@ COST_PROFILES: dict[str, dict[str, Any]] = {
     "economy": {
         "max_tool_rounds": 6,             # upstream 20; a ceiling, rarely reached
         "news_article_limit": 10,         # upstream 20
-        "global_news_article_limit": 5,   # upstream 10
+        # global_news_article_limit stays at upstream 10 (owner, 2026-11-06: market-wide news
+        # matters; 5 left room for about one topic).
     },
 }
 
@@ -89,6 +94,7 @@ class TradingAgentsEngine:
             # in both debates instead of one statement each (upstream default 1).
             "max_debate_rounds": self.settings.ta_debate_rounds,
             "max_risk_discuss_rounds": self.settings.ta_debate_rounds,
+            "global_news_queries": list(GLOBAL_NEWS_QUERIES),
         }
         if self.settings.ta_deep_think_llm:
             overrides["deep_think_llm"] = self.settings.ta_deep_think_llm
@@ -154,6 +160,12 @@ class TradingAgentsEngine:
             # Yahoo first; OpenDART disclosures when Yahoo has no company news for a KRX stock.
             config["tool_vendors"] = {**config.get("tool_vendors", {}),
                                       "get_news": f"{KR_NEWS_VENDOR},yfinance"}
+        kr_market = (instrument is not None and instrument.market is Market.KR
+                     and self._naver_provider().configured)
+        config["tool_vendors"] = {
+            **config.get("tool_vendors", {}),
+            "get_global_news": KR_GLOBAL_NEWS_VENDOR if kr_market else GLOBAL_NEWS_VENDOR,
+        }
         if not self.settings.ta_prediction_markets:
             config["tool_vendors"] = {**config.get("tool_vendors", {}),
                                       "get_prediction_markets": PREDICTION_OFF_VENDOR}
@@ -172,6 +184,7 @@ class TradingAgentsEngine:
 
         if self.kr_news_enabled:
             register_kr_news_vendor(self._dart_provider, self._naver_provider)
+        register_global_news_vendors(self._naver_provider)
         if not self.settings.ta_prediction_markets:
             register_prediction_markets_off()
         usage = UsageMetadataCallbackHandler()

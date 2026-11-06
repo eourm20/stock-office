@@ -1,13 +1,15 @@
 """Monthly LLM budget: spend from stored token usage × a configurable price table, and a hard stop.
 
 The month is the calendar month in Korea (the owner's time zone). Spend counts every real-engine
-run of the month (its analysis tokens and its briefing tokens). Runs that are queued or running have
-no token count yet, so each is reserved at `PENDING_RUN_ESTIMATE_USD`; this keeps several runs
-started together from overshooting the budget. Prices change: they live in settings, not code.
+run of the month (its analysis tokens and its briefing tokens) and the market briefings. Runs
+that are queued or running have no token count yet, so each is reserved at
+`PENDING_RUN_ESTIMATE_USD`; this keeps several runs started together from overshooting the
+budget. Prices change: they live in settings, not code.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
@@ -73,10 +75,15 @@ def _q(x: Decimal) -> Decimal:
 
 
 def budget_status(repo: RunRepository, now: datetime, budget_usd: Decimal,
-                  table: dict[str, tuple[str, str, str]] = DEFAULT_PRICES) -> BudgetStatus:
+                  table: dict[str, tuple[str, str, str]] = DEFAULT_PRICES,
+                  extra_usages: Callable[[str], Iterable[dict[str, Any]]] | None = None,
+                  ) -> BudgetStatus:
+    """`extra_usages(month)`: token usage of paid calls outside runs (market briefings)."""
     month = month_key(now)
     spent = reserved = Decimal(0)
     unpriced: set[str] = set()
+    for extra in extra_usages(month) if extra_usages else ():
+        spent += usage_cost(extra, table, unpriced)
     runs: list[AnalysisRun] = [r for r in repo.list_runs()
                                if not r.demo and month_key(r.requested_at) == month]
     for run in runs:

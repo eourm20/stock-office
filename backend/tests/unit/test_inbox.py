@@ -86,3 +86,19 @@ def test_documents_before_operations_started_are_kept_but_not_listed(
     assert inbox.list() == []                                    # the test period is hidden
     assert [i.id for i in inbox.list(include_test=True)] == [item_id]
     assert inbox.get(item_id) is not None                         # and still there
+
+
+def test_a_meeting_that_orders_nothing_is_still_reported(
+    make_service: Callable[..., RunService], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Kiwoom desk connected, stock not held, HOLD: no order, but the CEO gets the result
+    (owner, 2026-11-06; before, such meetings reached the records only)."""
+    service = make_service(demo_engine=DemoEngine(rating="Hold"))
+    monkeypatch.setattr(service.inbox, "_kiwoom", lambda market, demo: True)
+    monkeypatch.setattr(service.inbox, "accounts", lambda market: {"ok": True, "holdings": []})
+    run = service.create_run(CreateRunRequest(instrument_id="KR:KRX:005930", engine="demo"))
+    service.execute(run.id)
+    [item] = service.inbox.list()
+    assert item.kind == "daily" and item.status == "INFO" and item.plan is None
+    assert item.title.endswith("유지 의견 · 주문 없음")
+    assert "주문은 없습니다" in item.payload["note"]
