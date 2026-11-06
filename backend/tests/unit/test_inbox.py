@@ -104,15 +104,32 @@ def test_a_meeting_that_orders_nothing_is_still_reported(
     assert "주문은 없습니다" in item.payload["note"]
 
 
-def test_an_emergency_meeting_never_adds_to_a_position(
+def test_an_emergency_meeting_adds_only_on_good_news_once_a_day(
         make_service: Callable[..., RunService]) -> None:
+    """Owner, 2026-11-06: an emergency meeting's BUY becomes an add-on only when the alert was
+    good news, at most one a day; otherwise it is reported without an order."""
+    import json
+
     service = make_service(demo_engine=DemoEngine(rating="Buy"))
-    run = service.create_run(CreateRunRequest(instrument_id="KR:KRX:005930", engine="demo"),
-                             trigger="breaking", schedule_slot="breaking:1")
-    service.execute(run.id)
-    [item] = service.inbox.list()
-    assert item.kind == "daily" and item.plan is None
-    assert item.title.endswith("긴급 회의 (추가 매수 안 함)")
+    conn = service.inbox.conn
+
+    def alert(n: int, direction: str) -> int:
+        cur = conn.execute(
+            "INSERT INTO inbox_items (kind, title, payload, status, dedupe_key, created_at) "
+            "VALUES ('adhoc', '[속보] x', ?, 'INFO', ?, ?)",
+            (json.dumps({"type": "breaking", "news": [{"direction": direction}]}),
+             f"breaking:t{n}", service.clock().isoformat()))
+        return int(cur.lastrowid or 0)
+
+    def meet(iid: str, alert_id: int) -> str:
+        run = service.create_run(CreateRunRequest(instrument_id=iid, engine="demo"),
+                                 trigger="breaking", schedule_slot=f"breaking:{alert_id}")
+        service.execute(run.id)
+        return next(i.title for i in service.inbox.list() if i.run_id == run.id)
+
+    assert meet("KR:KRX:005930", alert(1, "나쁨")).endswith("긴급 회의 (추가 매수 안 함)")
+    assert meet("US:NASDAQ:NVDA", alert(2, "좋음")).startswith("[결재]")     # the one add-on
+    assert meet("KR:KRX:005930", alert(3, "좋음")).endswith("긴급 회의 (추가 매수 안 함)")
 
 
 def test_emergency_meetings_are_capped_and_spaced(

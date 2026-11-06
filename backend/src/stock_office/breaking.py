@@ -19,7 +19,8 @@ Every 30 minutes, day and night (the US desk trades at night in Korea), the news
    "breaking"; at most `MAX_EMERGENCY_PER_DAY` a day, none if the stock met in the last 6 hours).
    The meeting is told which alert called it (`Inbox.position_context`). Its result follows the
    normal held-stock rules (sell all, or a stop/target change, through the same risk policy and
-   auto-approval); an emergency meeting never adds to a position.
+   auto-approval). An add-on buy only on good news ("좋음"), at most one a day, under the normal
+   add-on rules (20% per stock, 1% loss at the stop, the ±5% pre-order check).
 
 Model usage of every poll is stored (`news_polls`) and counted in the monthly budget; polls stop
 while the budget is below the briefing reserve, so meetings come first.
@@ -280,6 +281,14 @@ def alerts_for(conn: sqlite3.Connection, instrument_id: str, now: datetime,
                         "at": r["created_at"],
                         "sources": [s["title"] for s in card["sources"]]})
     return out
+
+
+def emergency_buys_today(conn: sqlite3.Connection, now: datetime) -> int:
+    """Add-on buy requests filed today (Korea time) by emergency meetings."""
+    rows = conn.execute("SELECT i.payload FROM inbox_items i JOIN plans p ON p.item_id=i.id "
+                        "WHERE i.kind='approval' AND p.side='BUY' AND i.created_at >= ?",
+                        (_day_start(now),)).fetchall()
+    return sum(1 for r in rows if json.loads(r["payload"]).get("trigger") == "breaking")
 
 
 # ---------------------------------------------------------------------------- live wiring

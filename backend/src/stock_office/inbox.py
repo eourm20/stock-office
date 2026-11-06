@@ -234,10 +234,11 @@ class Inbox:
                 plan_body = {**change, "valid_until": _iso(expires)}
                 held_qty = format_qty(position.get("qty") or "0")
                 title = f"[결재] {name} 손절가·목표가 변경 (보유 {held_qty}주)"
-        if decision.action is DecisionAction.BUY and run.trigger == "breaking":
-            # An emergency meeting guards a held stock; it never adds to the position.
-            payload["note"] = ("속보로 연 긴급 회의는 보유 종목 점검용이라 추가 매수는 하지 "
-                               "않습니다. 다음 정기 회의에서 다시 판단합니다.")
+        refused = (self._emergency_buy_refused(run, now)
+                   if decision.action is DecisionAction.BUY and run.trigger == "breaking"
+                   else None)
+        if refused:
+            payload["note"] = refused
             title += " · 긴급 회의 (추가 매수 안 함)"
         elif decision.action is DecisionAction.BUY:
             plan_body, reasons = self._buy_plan(run, inst.market, decision.engine_rating, kiwoom)
@@ -350,6 +351,24 @@ class Inbox:
                 "last_price": str(price), "policy_version": POLICY_V3.version,
                 "rule": "손절가는 올리기만 허용 (손절가 < 현재가 < 목표가)",
                 "execution": "승인되면 보유 중인 전체 수량의 손절가·목표가를 바꿉니다"}, notes
+
+    def _emergency_buy_refused(self, run: AnalysisRun, now: datetime) -> str | None:
+        """An emergency meeting may add to a held stock only on good news, once a day (owner,
+        2026-11-06); then the normal add-on rules apply. Returns why not, or None."""
+        from stock_office.breaking import emergency_buys_today
+
+        alert_id = (run.schedule_slot or "").removeprefix("breaking:")
+        row = self.conn.execute("SELECT payload FROM inbox_items WHERE id=?",
+                                (int(alert_id) if alert_id.isdigit() else -1,)).fetchone()
+        news = (json.loads(row["payload"]).get("news") or [{}]) if row else [{}]
+        direction = news[0].get("direction")
+        if direction != "좋음":
+            return ("속보가 좋은 소식이 아니라 긴급 회의에서는 추가 매수하지 않습니다"
+                    "(좋은 소식일 때만, 하루 1건). 다음 정기 회의에서 다시 판단합니다.")
+        if emergency_buys_today(self.conn, now) >= 1:
+            return ("오늘 이미 긴급 회의 추가 매수가 1건 있어 더 하지 않습니다(하루 1건). "
+                    "다음 정기 회의에서 다시 판단합니다.")
+        return None
 
     def position_context(self, instrument_id: str) -> str | None:
         """What a held stock's meeting is told: the position now and our earlier plans with what
