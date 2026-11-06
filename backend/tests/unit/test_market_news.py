@@ -136,3 +136,39 @@ def test_finalize_caps_picks_and_never_reuses_a_source() -> None:
     _, news = finalize(MarketBriefingDraft(mood="m", picks=picks), cands)
     assert len(news) == 10
     assert [s["url"] for s in news[1]["sources"]] == ["u2"]    # e1 already used by the first
+
+
+def test_our_held_and_watched_stocks_are_read_and_tagged(tmp_path: Path) -> None:
+    """Held stocks and the watchlist are searched by name (KR) / ticker (US); a story is tagged
+    only with names from our own list."""
+    from stock_office.market_news import our_stocks
+
+    conn = connect(tmp_path)
+    conn.execute(
+        "INSERT INTO research_runs (market, session, rules_version, universe, screened, liquid, "
+        "candidates, watchlist, focus, created_at) VALUES ('US', '2026-11-06', 'SCREEN_V2', "
+        "'NASDAQ100', 1, 1, '[]', ?, '[]', ?)",
+        (json.dumps(["US:NASDAQ:MSFT", "US:NASDAQ:NVDA", "US:NASDAQ:NOPE"]), NOW.isoformat()))
+    stocks = our_stocks(conn, lambda m: ["KR:KRX:005930"] if m == "KR" else ["US:NASDAQ:MSFT"])
+    assert stocks == [("KR:KRX:005930", "보유"), ("US:NASDAQ:MSFT", "보유"),
+                      ("US:NASDAQ:NVDA", "관심")]                 # unknown ticker dropped
+    searched: list[str] = []
+
+    def search(query: str, count: int) -> list[dict[str, Any]]:
+        searched.append(query)
+        if " " in query:                                           # a market-wide topic
+            return yahoo(query, count)
+        return [article(f"{query} news", "2026-11-05T20:00:00Z")]  # a ticker
+
+    pick = NewsPick(source_ids=["s1"], title="삼성전자 소식", summary="요약", story="", why="",
+                    markets=["KR"], direction="좋음", our_stocks=["삼성전자", "애플"])
+    writer = Writer(picks=[pick])
+    item_id = write(conn, "KR", date(2026, 11, 6), NOW, naver(), writer, search=search,
+                    stocks=stocks)
+    payload = json.loads(conn.execute("SELECT payload FROM inbox_items WHERE id=?",
+                                      (item_id,)).fetchone()["payload"])
+    assert {"MSFT", "NVDA"} <= set(searched)
+    prompt = writer.prompts[0]
+    assert "보유: 삼성전자, 마이크로소프트" in prompt and "관심: 엔비디아" in prompt
+    assert '"about": "보유: 삼성전자"' in prompt and '"about": "관심: 엔비디아"' in prompt
+    assert payload["news"][0]["our_stocks"] == [{"name": "삼성전자", "role": "보유"}]

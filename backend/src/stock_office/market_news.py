@@ -11,6 +11,9 @@ NYSE open), the briefing desk:
 2. has the engine's cheap "quick" model pick up to 10 by impact on stocks, merge stories about the
    same event, and write each in Korean: what happened, an everyday analogy, why it matters, which
    market/sectors and in which direction;
+   Headlines about the company's own stocks (all held, top 10 of each watchlist) are collected
+   too, and the model is asked to favour news on them and on their sectors/themes, tagging which
+   of our stocks each story touches (only names from our list are kept);
 3. files one inbox report shown on both desks. Sources (title, publisher, link) come from the
    collected list, never from the model; picks citing unknown sources are dropped.
 
@@ -35,6 +38,7 @@ from zoneinfo import ZoneInfo
 from pydantic import BaseModel, Field
 
 from stock_office.db import transaction
+from stock_office.domain.instruments import REGISTRY, display_name
 from stock_office.domain.models import Market
 from stock_office.engine.ta_extensions import (
     GLOBAL_NEWS_QUERIES,
@@ -54,11 +58,15 @@ SLOT_KO = {"KR": "아침 · 국내장 개장 전", "US": "저녁 · 해외장 �
 LOOKBACK_DAYS = 1
 YAHOO_POOL = 24
 # The Korean market, Korean economy and politics/policy (owner, 2026-11-06), and what Korean press
-# says about the US market and the big sectors.
+# says about the US market. No fixed sector: sectors come from the company's own stocks below.
 NAVER_QUERIES = ("코스피 증시", "코스닥 증시", "외국인 순매도", "원달러 환율", "뉴욕증시",
-                 "반도체 업황", "한국은행 기준금리", "수출 실적", "정부 증시 정책",
-                 "국회 법안 기업", "경제 정책 발표")
+                 "한국은행 기준금리", "수출 실적", "정부 증시 정책", "국회 법안 기업",
+                 "경제 정책 발표")
 NAVER_PER_QUERY = 4
+# The company's own stocks (owner, 2026-11-06: "갖고 있는 종목, 관심 종목 기사도, 그 테마도"):
+# every held stock and the top of each market's latest watchlist, a few newest headlines each.
+WATCH_PER_MARKET = 10
+STOCK_HEADLINES = 3
 SUMMARY_IN_PROMPT = 280
 MIN_CANDIDATES = 3
 MAX_PICKS = 10
@@ -82,9 +90,62 @@ def dedupe_key(market: str, day: date) -> str:
 
 # ------------------------------------------------------------------------------- collect
 
+Stock = tuple[str, str]   # (instrument id, "보유" | "관심")
+
+
+def our_stocks(conn: sqlite3.Connection, held: Callable[[str], list[str]]) -> list[Stock]:
+    """Held stocks first, then the top of each market's latest watchlist (known instruments)."""
+    out: dict[str, str] = {}
+    for market in ("KR", "US"):
+        for iid in held(market):
+            out.setdefault(iid, "보유")
+    for market in ("KR", "US"):
+        row = conn.execute("SELECT watchlist FROM research_runs WHERE market=? ORDER BY id DESC "
+                           "LIMIT 1", (market,)).fetchone()
+        for iid in json.loads(row["watchlist"])[:WATCH_PER_MARKET] if row else []:
+            out.setdefault(iid, "관심")
+    return [(iid, role) for iid, role in out.items() if iid in REGISTRY]
+
+
+def stock_headlines(stocks: Sequence[Stock], as_of: str, naver: NaverNewsProvider | None,
+                    search: YahooSearch) -> list[dict[str, Any]]:
+    """Newest headlines about each stock: Naver by Korean name, Yahoo by ticker."""
+    end = date.fromisoformat(as_of)
+    start = end - timedelta(days=LOOKBACK_DAYS)
+    out: list[dict[str, Any]] = []
+    for iid, role in stocks:
+        inst = REGISTRY[iid]
+        about = f"{role}: {display_name(iid)}"
+        try:
+            if inst.market is Market.KR:
+                if naver is None or not naver.configured:
+                    continue
+                snaps = sorted(naver.fetch_range(inst, start, end, limit=10).snapshots,
+                               key=lambda s: s.observed_at, reverse=True)[:STOCK_HEADLINES]
+                out += [{"lang": "ko", "publisher": "", "about": about,
+                         "published": s.observed_at.astimezone(KST).strftime("%m-%d %H:%M"),
+                         "title": s.payload["title"],
+                         "summary": s.payload.get("description") or "",
+                         "url": s.payload.get("link") or ""} for s in snaps]
+            else:
+                arts = yahoo_global_articles(as_of, LOOKBACK_DAYS, STOCK_HEADLINES,
+                                             [inst.provider_symbols["yahoo"]], search)
+                out += [{"lang": "en", "publisher": a.get("publisher") or "", "about": about,
+                         "published": (a["pub_date"].astimezone(KST).strftime("%m-%d %H:%M")
+                                       if a.get("pub_date") else ""),
+                         "title": a["title"], "summary": str(a.get("summary") or ""),
+                         "url": a.get("link") or ""} for a in arts]
+        except Exception as exc:
+            log.warning("stock news for %s failed: %s", iid, type(exc).__name__)
+    for n, row in enumerate(out, start=1):
+        row["id"] = f"s{n}"
+    return out
+
+
 def collect(as_of: str, naver: NaverNewsProvider | None, search: YahooSearch = _yahoo_search,
-            ) -> list[dict[str, Any]]:
-    """Candidate headlines, numbered: e1.. (Yahoo, English), k1.. (Naver, Korean)."""
+            stocks: Sequence[Stock] = ()) -> list[dict[str, Any]]:
+    """Candidate headlines, numbered: e1.. (Yahoo, English), k1.. (Naver, Korean), s1.. (about the
+    company's own stocks; `about` says which)."""
     out: list[dict[str, Any]] = []
     articles = yahoo_global_articles(as_of, LOOKBACK_DAYS, YAHOO_POOL, GLOBAL_NEWS_QUERIES, search)
     for n, a in enumerate(articles, start=1):
@@ -102,7 +163,7 @@ def collect(as_of: str, naver: NaverNewsProvider | None, search: YahooSearch = _
                         "published": s.observed_at.astimezone(KST).strftime("%m-%d %H:%M"),
                         "title": p["title"], "summary": p.get("description") or "",
                         "url": p.get("link") or ""})
-    return out
+    return out + stock_headlines(stocks, as_of, naver, search)
 
 
 # --------------------------------------------------------------------------------- model
@@ -116,6 +177,8 @@ class NewsPick(BaseModel):
     markets: list[Literal["KR", "US"]] = Field(description="영향받는 시장")
     sectors: list[str] = Field(default_factory=list, description="영향받는 업종·대표 기업 최대 4개")
     direction: Literal["좋음", "나쁨", "엇갈림"] = Field(description="그 업종·시장에 미칠 방향")
+    our_stocks: list[str] = Field(
+        default_factory=list, description="이 소식이 영향을 주는 우리 회사 종목 이름 (목록 그대로)")
 
 
 class MarketBriefingDraft(BaseModel):
@@ -128,14 +191,19 @@ PROMPT = """너는 주식을 전혀 모르는 사장님께 시장 소식을 들�
 
 할 일:
 1. 한국 주식이나 미국 주식에 영향을 줄 만한 소식을 중요한 순서로 최대 10개 골라라.
-   같은 사건을 다룬 기사는 하나로 묶고 source_ids에 함께 적어라.
-   연예·스포츠·광고성 기사, 작은 회사 하나의 홍보 기사는 빼라.
-2. 각 소식마다 title, summary, story, why, markets, sectors, direction을 써라.
+   - 시장 전체를 흔드는 큰 소식(경제, 정치, 정부 정책, 금리, 환율 등)을 먼저 본다.
+   - 우리 회사 종목(아래 목록)에 영향을 주는 소식을 우선한다. 보유 종목에 중요한 소식이 있으면
+     꼭 넣는다. 그 종목 자체의 기사(about이 있는 기사)뿐 아니라 그 종목이 속한 업종·테마의
+     소식도 본다. 예) 보유 종목이 화장품 회사면 중국 소비 소식, 은행이면 금리 소식.
+   - 같은 사건을 다룬 기사는 하나로 묶고 source_ids에 함께 적어라.
+   - 연예·스포츠·광고성 기사, 관계없는 작은 회사의 홍보 기사는 빼라.
+2. 각 소식마다 title, summary, story, why, markets, sectors, direction, our_stocks를 써라.
    - story는 동네 가게, 학교, 마을, 집안 살림 같은 일상 비유로 쓴 짧은 이야기다.
      "비유하자면" 또는 "마치 ~처럼"으로 비유임을 드러내라.
      예) 금리 인상: 비유하자면 동네 은행이 대출 이자를 올리자, 가게 주인들이 새 가게를 내기를
      망설이고 손님들도 지갑을 닫는 것과 같아요.
-   - why에는 어떤 회사나 업종이 왜 영향을 받는지 써라.
+   - why에는 어떤 회사나 업종이 왜 영향을 받는지 써라. 우리 회사 종목이 관련되면 그 이유도.
+   - our_stocks에는 이 소식이 영향을 주는 우리 회사 종목 이름만 목록 그대로 적어라(없으면 빈 목록).
 3. mood: 오늘 시장 분위기를 한 문장으로.
 
 규칙:
@@ -146,16 +214,23 @@ PROMPT = """너는 주식을 전혀 모르는 사장님께 시장 소식을 들�
 - 쉬운 존댓말(~요)로 써라. 전문 용어는 괄호로 풀어라. 예: 금리(돈을 빌리는 값)
 - 영어 기사는 자연스러운 한국어로 옮겨라.
 
-입력:
+우리 회사 종목:
+{stocks}
+
+기사:
 {payload}
 """
 
 
-def build_prompt(candidates: Sequence[dict[str, Any]]) -> str:
+def build_prompt(candidates: Sequence[dict[str, Any]], stocks: Sequence[Stock] = ()) -> str:
     rows = [{"id": c["id"], "lang": c["lang"], "publisher": c["publisher"],
              "published": c["published"], "title": c["title"],
-             "summary": c["summary"][:SUMMARY_IN_PROMPT]} for c in candidates]
-    return PROMPT.format(payload=json.dumps(rows, ensure_ascii=False, indent=0))
+             "summary": c["summary"][:SUMMARY_IN_PROMPT],
+             **({"about": c["about"]} if c.get("about") else {})} for c in candidates]
+    held = ", ".join(display_name(i) for i, r in stocks if r == "보유") or "없음"
+    watched = ", ".join(display_name(i) for i, r in stocks if r == "관심") or "없음"
+    return PROMPT.format(stocks=f"보유: {held}\n관심: {watched}",
+                         payload=json.dumps(rows, ensure_ascii=False, indent=0))
 
 
 class Writer(Protocol):
@@ -195,10 +270,12 @@ def _clip(text: str, limit: int) -> str:
     return redact_text(text if len(text) <= limit else text[: limit - 1] + "…", limit=limit + 20)
 
 
-def finalize(draft: MarketBriefingDraft, candidates: Sequence[dict[str, Any]]
-             ) -> tuple[str, list[dict[str, Any]]]:
-    """Keep picks that cite collected headlines; sources come from the collected list only."""
+def finalize(draft: MarketBriefingDraft, candidates: Sequence[dict[str, Any]],
+             stocks: Sequence[Stock] = ()) -> tuple[str, list[dict[str, Any]]]:
+    """Keep picks that cite collected headlines; sources come from the collected list only, and
+    only the company's own stocks are tagged."""
     by_id = {c["id"]: c for c in candidates}
+    roles = {display_name(i): r for i, r in stocks}
     news: list[dict[str, Any]] = []
     used: set[str] = set()
     for pick in draft.picks:
@@ -215,6 +292,8 @@ def finalize(draft: MarketBriefingDraft, candidates: Sequence[dict[str, Any]]
             "markets": sorted(set(pick.markets)),
             "sectors": [_clip(s, 24) for s in pick.sectors if s.strip()][:4],
             "direction": pick.direction,
+            "our_stocks": [{"name": n, "role": roles[n]}
+                           for n in dict.fromkeys(pick.our_stocks) if n in roles],
             "sources": [{"title": by_id[i]["title"], "publisher": by_id[i]["publisher"],
                          "url": by_id[i]["url"], "lang": by_id[i]["lang"],
                          "published": by_id[i]["published"]} for i in ids],
@@ -238,7 +317,7 @@ def title_for(market: str, day: date) -> str:
 def write(conn: sqlite3.Connection, market: str, day: date, now: datetime,
           naver: NaverNewsProvider | None, writer: Writer | None,
           budget_ok: Callable[[], bool] = lambda: True,
-          search: YahooSearch = _yahoo_search) -> int | None:
+          search: YahooSearch = _yahoo_search, stocks: Sequence[Stock] = ()) -> int | None:
     """Collect, summarise and file this slot's briefing once. Returns the inbox id (None when it
     was already filed). Failures are filed as such, never raised."""
     key = dedupe_key(market, day)
@@ -248,12 +327,13 @@ def write(conn: sqlite3.Connection, market: str, day: date, now: datetime,
                                "session": day.isoformat(), "news": [], "briefing_status": "OK"}
     summary = ""
     try:
-        candidates = collect(now.astimezone(KST).date().isoformat(), naver, search)
+        candidates = collect(now.astimezone(KST).date().isoformat(), naver, search, stocks)
     except Exception as exc:
         log.exception("market briefing %s: collecting failed", key)
         candidates = []
         payload["error"] = redact_text(type(exc).__name__, limit=100)
     payload["candidates"] = len(candidates)
+    payload["stocks"] = [{"name": display_name(i), "role": r} for i, r in stocks]
     if len(candidates) < MIN_CANDIDATES:
         payload["briefing_status"] = "INSUFFICIENT_DATA"
         payload["note"] = f"모은 기사가 {len(candidates)}건뿐이라 이번 브리핑은 쓰지 않았습니다."
@@ -266,9 +346,9 @@ def write(conn: sqlite3.Connection, market: str, day: date, now: datetime,
     else:
         payload["model"] = writer.model
         try:
-            draft, usage = writer(build_prompt(candidates))
+            draft, usage = writer(build_prompt(candidates, stocks))
             payload["token_usage"] = usage
-            summary, payload["news"] = finalize(draft, candidates)
+            summary, payload["news"] = finalize(draft, candidates, stocks)
             if not payload["news"]:
                 payload["briefing_status"] = "FAILED"
                 payload["note"] = "AI 요약이 수집한 기사와 맞지 않아 버렸습니다."
@@ -318,7 +398,21 @@ def tick(service: Any, settings: Any, now: datetime) -> None:
                                       (dedupe_key(market, day),)).fetchone():
             continue
         write(service.inbox.conn, market, day, now, naver_from(settings),
-              writer_for(service, settings, market, day), lambda: _budget_ok(service))
+              writer_for(service, settings, market, day), lambda: _budget_ok(service),
+              stocks=our_stocks(service.inbox.conn, lambda m: held_by(service.inbox, m)))
+
+
+def held_by(inbox: Any, market: str) -> list[str]:
+    """Held instruments on this market's Kiwoom mock account (none when it cannot be read)."""
+    try:
+        acc = inbox.accounts(market) if inbox.accounts else None
+    except Exception:
+        return []
+    if not acc or not acc.get("ok"):
+        return []
+    prefix = "KR:KRX:" if market == "KR" else "US:NASDAQ:"
+    return [prefix + str(h["code"]) for h in acc.get("holdings", [])
+            if h.get("code") and float(h.get("qty") or 0) > 0]
 
 
 def _budget_ok(service: Any) -> bool:
@@ -358,7 +452,8 @@ def main(argv: list[str]) -> int:
         day = (now.astimezone(KST).date() if market == "NOW"
                else first_session_opening_after(Market(market), now).day)
         item = write(service.inbox.conn, market, day, now, naver_from(settings),
-                     writer_for(service, settings, market, day), lambda: _budget_ok(service))
+                     writer_for(service, settings, market, day), lambda: _budget_ok(service),
+                     stocks=our_stocks(service.inbox.conn, lambda m: held_by(service.inbox, m)))
         print(f"{market} {day}: {'filed #' + str(item) if item else 'already filed'}")
     return 0
 

@@ -289,6 +289,8 @@ export interface MarketNews {
   markets: ("KR" | "US")[];
   sectors: string[];
   direction: "좋음" | "나쁨" | "엇갈림";
+  /** The company's own stocks this story touches (held or on the watchlist). */
+  our_stocks?: { name: string; role: "보유" | "관심" }[];
   /** From the collected headlines, never written by the model. */
   sources: { title: string; publisher: string; url: string; lang: "en" | "ko"; published: string }[];
 }

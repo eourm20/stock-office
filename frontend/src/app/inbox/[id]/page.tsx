@@ -319,8 +319,8 @@ function MarketBriefing({ item }: { item: InboxItem }) {
   return (
     <div className="space-y-3">
       <p className="text-[12px] leading-snug text-[#6b6455]">
-        AI가 지난 하루 국내외 경제 기사 {item.payload.candidates ?? "여러"}건의 제목과 요약을 읽고, 주식에 영향이 큰 소식을
-        골라 쉽게 풀었습니다. 영어 기사는 번역했습니다. 비유는 이해를 돕기 위한 것이고, 투자 권유가 아닙니다.
+        AI가 지난 하루 국내외 경제 기사 {item.payload.candidates ?? "여러"}건(우리 보유·관심 종목 기사 포함)의 제목과 요약을 읽고,
+        주식에 영향이 큰 소식을 골라 쉽게 풀었습니다. 영어 기사는 번역했습니다. 비유는 이해를 돕기 위한 것이고, 투자 권유가 아닙니다.
       </p>
       <ol className="space-y-3">
         {news.map((n) => (
@@ -330,6 +330,9 @@ function MarketBriefing({ item }: { item: InboxItem }) {
               <h2 className="min-w-0 flex-1 text-[15px] font-bold leading-snug">{n.title}</h2>
             </div>
             <div className="mt-1.5 flex flex-wrap gap-1 pl-8 text-[11px]">
+              {n.our_stocks?.map((s) => (
+                <span key={s.name} className={`rounded px-1.5 font-semibold ${s.role === "보유" ? "bg-amber-200 text-amber-900" : "bg-[#dde8f3] text-[#2b5c8a]"}`}>{s.role} {s.name}</span>
+              ))}
               <span className={`rounded px-1.5 font-semibold ${DIRECTION_TONE[n.direction]}`}>{n.direction}</span>
               {n.markets.map((m) => <span key={m} className="rounded bg-[#dde8f3] px-1.5 text-[#2b5c8a]">{MARKET_KO[m]}</span>)}
               {n.sectors.map((s) => <span key={s} className="rounded bg-[#efe9da] px-1.5 text-[#6b6455]">{s}</span>)}
