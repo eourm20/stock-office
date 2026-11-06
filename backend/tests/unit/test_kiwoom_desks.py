@@ -418,7 +418,7 @@ def test_approving_a_kiwoom_plan_queues_it_without_any_network(tmp_path: Path) -
     assert len(desks.orders()) == 1
 
 
-def test_sharp_moves_are_reported_once(tmp_path: Path) -> None:
+def test_sharp_moves_are_reported_once_and_only_for_held_stocks(tmp_path: Path) -> None:
     desks, fake = setup(tmp_path)
     with transaction(desks.conn):   # the research team put Samsung on today's focus
         desks.conn.execute(
@@ -427,10 +427,13 @@ def test_sharp_moves_are_reported_once(tmp_path: Path) -> None:
             "'SCREEN_V1', 'KOSPI200', 1, 1, '[]', ?, ?, 'x')",
             (json.dumps([KR]), json.dumps([{"instrument_id": KR, "why": "test"}])))
     fake.move = "-3.40"
-    desks.tick(KR_OPEN)
-    desks.tick(KR_OPEN + timedelta(minutes=1))       # same move: nothing new
+    desks.tick(KR_OPEN)                               # a meeting stock, not held: no report
+    assert titles(desks) == []
+    fake.holdings["005930"] = (D(7), D(48_000))       # now held on the mock account
+    desks.tick(KR_OPEN + timedelta(minutes=1))
+    desks.tick(KR_OPEN + timedelta(minutes=2))       # same move: nothing new
     fake.move = "-5.10"
-    desks.tick(KR_OPEN + timedelta(minutes=2))
+    desks.tick(KR_OPEN + timedelta(minutes=3))
     fake.move = "-4.00"                               # back above −5%: nothing new
     desks.tick(KR_OPEN + timedelta(minutes=12))
     assert titles(desks) == ["[급변] 삼성전자 −3.4%", "[급변] 삼성전자 −5.1%"]

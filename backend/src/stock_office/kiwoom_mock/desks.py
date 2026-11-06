@@ -665,15 +665,14 @@ class Desks:
     # ---------------------------------------------------------------- C: intraday reports
     def _alerts(self, market: str, client: KiwoomMockClient, acc: MockAccount,
                 now: datetime) -> None:
-        """Watched and held stocks: a report when the day's move crosses ±3/5/10%, so the CEO knows
-        what is happening. Inbox reports only (`watch:` keys, not order alerts); no trading effect.
-        Filings are not watched here (owner, 2026-10-21): meetings read DART and news themselves."""
-        row = self.conn.execute("SELECT focus FROM research_runs WHERE market=? ORDER BY id "
-                                "DESC LIMIT 1", (market,)).fetchone()
-        watched = {f["instrument_id"] for f in json.loads(row["focus"])} if row else set()
-        held = {r["instrument_id"] for r in self._rows(market, "FILLED") if r["role"] == "entry"}
+        """Held stocks only (owner, 2026-11-06; before, today's meeting stocks too): a report when
+        the day's move crosses ±3/5/10%, so the CEO knows what is happening. Held = a positive
+        quantity on the Kiwoom mock account now. Inbox reports only (`watch:` keys, not order
+        alerts); no trading effect. Filings are not watched here (owner, 2026-10-21)."""
+        prefix = "KR:KRX:" if market == "KR" else "US:NASDAQ:"
+        held = {prefix + h.code for h in acc.holdings if h.code and D(h.qty or 0) > 0}
         day = datetime.now(KST).date() if market == "KR" else now.date()
-        for instrument_id in sorted(watched | held):
+        for instrument_id in sorted(held):
             code, exch = _code(instrument_id)
             try:
                 page = (client.query("/api/dostk/stkinfo", "ka10001", {"stk_cd": code})[0]
