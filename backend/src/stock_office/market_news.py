@@ -53,10 +53,12 @@ LEADS = {"KR": timedelta(minutes=100), "US": timedelta(minutes=90)}
 SLOT_KO = {"KR": "아침 · 국내장 개장 전", "US": "저녁 · 해외장 개장 전", "NOW": "수시"}
 LOOKBACK_DAYS = 1
 YAHOO_POOL = 24
-# The Korean market plus what Korean press says about the US market and the big sectors.
+# The Korean market, Korean economy and politics/policy (owner, 2026-11-06), and what Korean press
+# says about the US market and the big sectors.
 NAVER_QUERIES = ("코스피 증시", "코스닥 증시", "외국인 순매도", "원달러 환율", "뉴욕증시",
-                 "반도체 업황", "금리 경기")
-NAVER_PER_QUERY = 5
+                 "반도체 업황", "한국은행 기준금리", "수출 실적", "정부 증시 정책",
+                 "국회 법안 기업", "경제 정책 발표")
+NAVER_PER_QUERY = 4
 SUMMARY_IN_PROMPT = 280
 MIN_CANDIDATES = 3
 MAX_PICKS = 10

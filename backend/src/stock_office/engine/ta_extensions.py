@@ -49,9 +49,14 @@ GLOBAL_NEWS_QUERIES = (
     "semiconductor chips export controls",
     "tariffs trade war geopolitical risk",
     "oil energy commodities prices",
+    "South Korea economy exports won",
+    "China economy government policy stimulus",
+    "ECB Bank of Japan central bank policy",
 )
-# Korean market mood (Naver news, newest first), read before the global headlines for KRX stocks.
-KR_MARKET_QUERIES = ("코스피 증시", "코스닥 증시", "외국인 순매도", "원달러 환율")
+# Korean market mood and Korean economy/policy (owner, 2026-11-06: "우리나라 경제랑 정치는 안봐?"),
+# Naver news, newest first, read before the global headlines for KRX stocks.
+KR_MARKET_QUERIES = ("코스피 증시", "코스닥 증시", "외국인 순매도", "원달러 환율",
+                     "한국은행 기준금리", "정부 증시 정책")
 KR_MARKET_LIMIT = 10
 KR_MARKET_SUBJECT = "KR:MARKET"
 
