@@ -182,6 +182,12 @@ def create_app(
         except DecisionError as exc:
             raise HTTPException(exc.status, str(exc)) from None
 
+    @app.post("/api/v1/inbox/hide")
+    def hide_reports(market: str, what: str) -> dict[str, int]:
+        """The CEO clears a desk's [급변] (what=moves) or [검토 필요] (what=reviews) reports from
+        the inbox. Kept in the database, only hidden."""
+        return {"hidden": inbox.hide_reports(market, what, service.clock())}
+
     @app.post("/api/v1/inbox/{item_id}/read")
     def mark_read(item_id: int) -> dict[str, bool]:
         inbox.mark_read(item_id, service.clock())

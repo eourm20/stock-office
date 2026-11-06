@@ -336,3 +336,40 @@ export function paperLine(orders: PaperOrder[] | undefined): string | null {
       return `${ORDER_STATUS_KO[main.status]} · ${main.reason}`;
   }
 }
+
+/** The approval in plain words, from the plan's own numbers (owner, 2026-11-06: the approval
+ *  document is the easy version; the expert plan stays below as the record). No model. */
+export function plainPlan(item: InboxItem, deadline = ""): string[] {
+  const name = item.payload.name ?? "이 종목";
+  const buy = buyPlan(item);
+  const sell = sellPlan(item);
+  const adj = adjustPlan(item);
+  if (adj) {
+    const line = (what: string, from: string, to: string) =>
+      from === to ? `'${what}' 선은 ${money(to, adj.currency)} 그대로 둬요.`
+                  : `'${what}' 선을 ${money(from, adj.currency)}에서 ${money(to, adj.currency)}${adj.currency === "KRW" ? "으로" : "로"} 바꿔요.`;
+    return [`${name}을(를) 계속 갖고 가요.`, line("여기까지 떨어지면 판다", adj.stop_from, adj.stop),
+            line("여기까지 오르면 판다", adj.target_from, adj.target),
+            "회사 규칙상 '떨어지면 판다' 선은 올리기만 해요. 손해 볼 수 있는 폭을 줄이는 쪽으로만 움직여요."];
+  }
+  if (sell) {
+    const acct = sell.account_currency ?? "KRW";
+    return [`${name} 갖고 있는 ${shares(sell.qty)}를 전부 팔아요.`,
+            `지금 값어치는 약 ${money(sell.value_krw, acct)}이고, 평균 ${money(sell.avg_price, sell.currency)}에 샀어요.`,
+            sell.venue === "kiwoom_mock" ? "장이 열려 있는 동안 지금 가격 근처로 팔아요." : "다음 장이 열릴 때 팔아요."];
+  }
+  if (!buy) return [];
+  const a = buy.allocation;
+  const acct = buy.account_currency ?? "KRW";
+  if (a.blocked) return [`${name}을(를) 사자는 의견이었지만, 이번에는 살 수 없어요: ${a.blocked}`];
+  const up = ((Number(buy.target) / Number(buy.limit)) - 1) * 100;
+  const down = Number(buy.stop_distance) * 100;
+  const addOn = (item.plan as { add_on?: boolean; held_qty?: string } | null);
+  return [
+    `${name} ${shares(a.qty)}를 한 주에 ${money(buy.limit, buy.currency)} 이하로 사요. 모두 ${money(a.notional_krw, acct)}이에요.`
+      + (addOn?.add_on ? ` 이미 ${shares(addOn.held_qty ?? "0")}를 갖고 있어서 조금 더 사는 거예요.` : ""),
+    `${money(buy.target, buy.currency)}까지 오르면 팔아서 이익을 챙겨요(산 값보다 약 ${up.toFixed(1)}% 위).`,
+    `${money(buy.stop, buy.currency)}까지 떨어지면 팔아서 손해를 막아요(약 ${down.toFixed(1)}% 아래). 그때 손해는 최대 ${money(a.max_loss_krw, acct)}이에요.`,
+    ...(deadline ? [`${deadline}까지 그 가격에 사지 못하면 주문은 취소돼요.`] : []),
+  ];
+}

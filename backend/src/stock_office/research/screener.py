@@ -137,6 +137,39 @@ def _score(m: dict[str, float], strong: bool) -> tuple[int, list[str]]:
     return score, why
 
 
+def plain(m: dict[str, Any], strong: bool) -> str:
+    """The same reasons as `_score`, in plain Korean for the CEO (owner, 2026-11-06), from the
+    same numbers: no model, nothing added."""
+    out: list[str] = []
+    pb = m.get("pullback")
+    if pb is not None:
+        if pb < 3:
+            out.append("최근 20일 중 가장 비쌌던 가격 근처에 있어요")
+        elif pb <= 20:
+            out.append(f"최근 20일 중 가장 비쌌던 가격보다 {pb:.1f}% 내려와 잠깐 쉬는 중이에요")
+        else:
+            out.append(f"최근 20일 중 가장 비쌌던 가격보다 {pb:.1f}%나 내려와 많이 떨어졌어요")
+    rsi = m.get("rsi14")
+    if rsi is not None:
+        out.append("너무 달아오르지도 식지도 않은 상태예요" if 35 <= rsi <= 55 else
+                   "많이 식은 상태예요" if rsi < 35 else
+                   "살짝 달아오른 상태예요" if rsi <= 60 else "꽤 달아오른 상태예요")
+    if m.get("close") and m.get("sma50"):
+        if m["close"] >= 0.97 * m["sma50"]:
+            out.append("최근 50일 평균 가격 근처나 그 위에서 버티고 있어요")
+        elif m["close"] < 0.92 * m["sma50"]:
+            out.append("최근 50일 평균 가격보다 꽤 아래로 내려왔어요")
+    if strong and m.get("mom63") is not None:
+        out.append(f"지난 3개월 동안 다른 종목들보다 많이 올랐어요({m['mom63']:+.1f}%)")
+    if m.get("vol5_ratio") is not None and m["vol5_ratio"] < 0.8:
+        out.append("쉬는 동안 거래가 줄어서 서둘러 파는 사람은 많지 않아 보여요")
+    if m.get("close") and m.get("prev_close") and m["close"] > m["prev_close"]:
+        out.append("어제는 다시 올랐어요")
+    if m.get("atr_pct") is not None and m["atr_pct"] > 6:
+        out.append("다만 하루에 가격이 크게 출렁이는 편이에요")
+    return ", ".join(out) + "." if out else ""
+
+
 def pick(candidates: list[Candidate], held: list[str], recent: set[str],
          watch_size: int = WATCH_SIZE, focus_size: int = FOCUS_SIZE
          ) -> tuple[list[str], list[tuple[str, str]]]:

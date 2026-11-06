@@ -318,7 +318,9 @@ export interface InboxItem {
              type?: "market_briefing" | "breaking"; briefing_status?: string; news?: MarketNews[];
              candidates?: number; model?: string;
              /** [속보]: importance (5 market-wide, 4 a held stock) and emergency meetings it called. */
-             score?: number; meetings?: { instrument_id: string; name: string; run_id: string }[] };
+             score?: number; meetings?: { instrument_id: string; name: string; run_id: string }[];
+             /** Research report told plainly, each sentence with the expert wording it retells. */
+             story_lines?: { text: string; basis: string }[] };
   status: InboxStatus;
   expires_at: string | null;
   read_at: string | null;
@@ -481,6 +483,13 @@ export async function setAutoApprove(enabled: boolean): Promise<boolean> {
 
 export async function markRead(id: number): Promise<void> {
   await fetch(`${API_BASE}/api/v1/inbox/${id}/read`, { method: "POST" });
+}
+
+/** Clear a desk's [급변] (moves) or [검토 필요] (reviews) reports from the inbox (kept on the server). */
+export async function hideReports(market: "KR" | "US", what: "moves" | "reviews"): Promise<number> {
+  const resp = await fetch(`${API_BASE}/api/v1/inbox/hide?market=${market}&what=${what}`, { method: "POST" });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  return ((await resp.json()) as { hidden: number }).hidden;
 }
 
 /** CEO decision; the request id makes a double tap harmless. Throws with the server message. */

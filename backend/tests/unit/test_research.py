@@ -142,3 +142,26 @@ def test_an_empty_newest_close_is_filled_from_the_quote_inside_the_day_range() -
     assert pd.isna(_fill_last_close(frame(), "SHOP", day, yf(190.0))["Close"].iloc[-1])
     assert pd.isna(_fill_last_close(frame(), "SHOP", date(2026, 10, 21), yf(173.48))["Close"]
                    .iloc[-1])                                    # not the session we need
+
+
+def test_the_research_report_is_also_told_plainly() -> None:
+    from stock_office.research.screener import plain
+    from stock_office.research.team import report
+
+    m = {"pullback": 6.5, "rsi14": 52, "close": 100, "sma50": 99, "mom63": 12.3,
+         "vol5_ratio": 0.7, "prev_close": 98, "atr_pct": 2}
+    text = plain(m, strong=True)
+    assert "6.5% 내려와 잠깐 쉬는 중" in text and "달아오르지도 식지도" in text
+    assert "+12.3%" in text and "RSI" not in text
+    cand = {"instrument_id": "KR:KRX:005930", "score": 7, "metrics": m,
+            "reasons": ["장기 상승 추세", "눌림 6.5% (20일 고점 대비)", "과열 해소 (RSI 52)",
+                        "50일선 지지", "3개월 수익률 상위 1/3 (+12.3%)"]}
+    _, _, payload = report("KR", "2026-11-09", "SCREEN_V2", [cand], ["KR:KRX:005930"],
+                           [{"instrument_id": "KR:KRX:005930", "why": "점수 7"},
+                            {"instrument_id": "KR:KRX:000660", "why": "보유 종목 재점검"}],
+                           150, 199)
+    lines = payload["story_lines"]
+    assert lines[0]["basis"] == "KOSPI200 199종목 중 거래대금 통과 150"
+    samsung = next(x for x in lines if "삼성전자" in x["text"])
+    assert samsung["basis"].startswith("7점 — 눌림 6.5%") and "RSI" not in samsung["text"]
+    assert any("이미 갖고 있어서" in x["text"] for x in lines)

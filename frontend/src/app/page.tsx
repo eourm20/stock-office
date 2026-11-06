@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { getInbox, getKiwoomMock, getOfficeNow, type InboxItem, type MockAccount, type OfficeNow } from "../lib/api";
+import { getInbox, getKiwoomMock, getOfficeNow, hideReports, type InboxItem, type MockAccount, type OfficeNow } from "../lib/api";
 import { MARKET_KO, marketOf, onDesk, useMarket, type Market } from "../lib/market";
 import { adjustLine, adjustPlan, groupActive, type ActiveStock, buyPlan, deadlineLabel, groupInbox, kstDateTime, mockLine, money, nextWorkLabel, paperLine, pnlTone, sellPlan, shares,
          STATUS_KO, STATUS_TONE } from "../inbox/model";
@@ -22,6 +22,7 @@ export default function InboxPage() {
   const [error, setError] = useState<string | null>(null);
   const [clock, setClock] = useState(() => Date.now());
 
+  const [reload, setReload] = useState(0);
   useEffect(() => {
     const load = () => Promise.all([getInbox(), getOfficeNow()]).then(([i, n]) => {
       setItems(i); setNow(n); setClock(Date.now()); setError(null);
@@ -31,11 +32,19 @@ export default function InboxPage() {
     void load();
     const timer = setInterval(() => void load(), 60_000);
     return () => clearInterval(timer);
-  }, [refreshPending]);
+  }, [refreshPending, reload]);
 
   const mine = (items ?? []).filter((i) => onDesk(i, market));
   const g = groupInbox(mine);
   const unread = g.reports.filter((r) => !r.read_at).length;
+  const moves = g.reports.filter((r) => r.title.startsWith("[급변]")).length;
+  const reviews = g.reports.filter((r) => r.title.startsWith("[검토 필요]")).length;
+  const clear = async (what: "moves" | "reviews", n: number) => {
+    const label = what === "moves" ? "급변" : "검토 필요";
+    if (!window.confirm(`${MARKET_KO[market]} [${label}] 보고 ${n}건을 결재함에서 지울까요? (서버 기록은 남아요)`)) return;
+    try { await hideReports(market, what); setReload((x) => x + 1); }
+    catch (e) { setError(`지우지 못했습니다: ${(e as Error).message}`); }
+  };
   const next = now?.next.find((n) => n.market === market);
   const active = now?.active;
   const activeHere = active && marketOf(active.instrument_id) === market;
@@ -90,7 +99,15 @@ export default function InboxPage() {
           )}
 
           <section aria-label="보고">
-            <h2 className="mb-2 text-sm font-semibold">보고 <span className="text-[var(--muted)]">{g.reports.length}</span></h2>
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <h2 className="text-sm font-semibold">보고 <span className="text-[var(--muted)]">{g.reports.length}</span></h2>
+              <span className="ml-auto flex gap-1.5">
+                {moves > 0 && <button type="button" onClick={() => void clear("moves", moves)}
+                                      className="rounded border border-[var(--line)] px-2 py-0.5 text-[11px] text-[var(--muted)]">급변 {moves}건 지우기</button>}
+                {reviews > 0 && <button type="button" onClick={() => void clear("reviews", reviews)}
+                                        className="rounded border border-[var(--line)] px-2 py-0.5 text-[11px] text-[var(--muted)]">검토 필요 {reviews}건 지우기</button>}
+              </span>
+            </div>
             {g.reports.length === 0 ? <p className="text-sm text-[var(--muted)]">아직 보고가 없습니다.</p> : (
               <ul className="divide-y divide-[var(--line)] overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--panel)]">
                 {g.reports.map((i) => <ReportRow key={i.id} item={i} />)}

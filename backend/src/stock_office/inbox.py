@@ -613,6 +613,7 @@ class Inbox:
         rows = self.conn.execute(
             "SELECT * FROM inbox_items WHERE created_at >= ? "
             "AND dedupe_key NOT LIKE 'market-briefing:%' AND dedupe_key NOT LIKE 'breaking:%' "
+            "AND hidden_at IS NULL "
             "ORDER BY created_at DESC, id DESC LIMIT ?", (start or "", limit)
         )
         return [self._row(r) for r in rows]
@@ -644,6 +645,22 @@ class Inbox:
         return out
 
     # ---------------------------------------------------------------- CEO actions
+    # Reports the CEO may clear (owner, 2026-11-06): sharp moves ([급변]) and buy opinions whose
+    # plan failed a check ([검토 필요]). Neither ever placed an order.
+    CLEARABLE = {"moves": "dedupe_key LIKE 'watch:move:%'",
+                 "reviews": "kind='daily' AND title LIKE '[검토 필요]%'"}
+
+    def hide_reports(self, market: str, what: str, now: datetime) -> int:
+        """Clear one desk's reports of a kind from the inbox. They stay in the database (hidden,
+        not deleted)."""
+        if market not in ("KR", "US") or what not in self.CLEARABLE:
+            return 0
+        with transaction(self.conn):
+            return int(self.conn.execute(
+                f"UPDATE inbox_items SET hidden_at=? WHERE hidden_at IS NULL "
+                f"AND {self.CLEARABLE[what]} AND instrument_id LIKE ?",
+                (_iso(now), f"{market}:%")).rowcount)
+
     def mark_read(self, item_id: int, now: datetime) -> None:
         self.conn.execute(
             "UPDATE inbox_items SET read_at=COALESCE(read_at, ?) WHERE id=?", (_iso(now), item_id)

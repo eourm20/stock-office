@@ -318,6 +318,11 @@ MIGRATIONS: list[str] = [
     DROP TABLE notifications;
     ALTER TABLE notifications_v11 RENAME TO notifications
     """,
+    # 12: the CEO can clear reports from the inbox (owner, 2026-11-06: sharp-move reports); kept in
+    # the database, only hidden
+    """
+    ALTER TABLE inbox_items ADD COLUMN hidden_at TEXT
+    """,
 ]
 
 

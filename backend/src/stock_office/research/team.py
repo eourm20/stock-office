@@ -30,6 +30,7 @@ from stock_office.research.screener import (
     Bars,
     Candidate,
     pick,
+    plain,
     screen,
     to_json,
 )
@@ -196,9 +197,39 @@ def report(market: str, session: str, rules: str, candidates: list[dict[str, Any
     ]
     payload = {"market": market, "session": session, "focus": [f["instrument_id"] for f in focus],
                "watchlist": watch, "rules": rules, "sections": sections,
+               "story_lines": story(market, rules, candidates, watch, focus, liquid, universe),
                "note": "보유 종목은 점수와 관계없이 먼저 재점검합니다. 최근 5거래일 안에 회의한 "
                        "종목(보유 제외)은 빼고 고릅니다."}
     return title, summary, payload
+
+
+def story(market: str, rules: str, candidates: list[dict[str, Any]], watch: list[str],
+          focus: list[dict[str, str]], liquid: int, universe: int) -> list[dict[str, str]]:
+    """The research report told plainly (owner, 2026-11-06), each sentence with the expert wording
+    it retells. Built from the screener's own numbers: no model."""
+    by_id = {c["instrument_id"]: c for c in candidates}
+    lines = [
+        {"text": f"오늘 리서치팀은 {INDEX[market]} {universe}종목을 살펴봤어요. 그중 하루에 충분히 "
+                 f"많이 거래되는 {liquid}종목만 남겼어요.",
+         "basis": f"{INDEX[market]} {universe}종목 중 거래대금 통과 {liquid}"},
+    ]
+    if rules == "SCREEN_V2":
+        lines.append({"text": "길게 보면 오르고 있는데 요즘 잠깐 쉬어 가는 종목에 점수를 줬어요. "
+                              "비유하자면 계단을 잘 오르던 사람이 잠깐 숨을 고르는 순간을 찾는 "
+                              "거예요.", "basis": RULES_KO["SCREEN_V2"]})
+    for f in focus:
+        name, c = display_name(f["instrument_id"]), by_id.get(f["instrument_id"])
+        if c is None or f["why"] == "보유 종목 재점검":
+            lines.append({"text": f"{name}은(는) 이미 갖고 있어서 점수와 상관없이 오늘 회의에서 "
+                                  "다시 살펴봐요.", "basis": "보유 종목 재점검"})
+            continue
+        strong = any(r.startswith("3개월 수익률 상위") for r in c["reasons"])
+        lines.append({"text": f"오늘 회의에 부를 {name}: {plain(c.get('metrics', {}), strong)}",
+                      "basis": f"{c['score']}점 — " + " · ".join(
+                          (c["reasons"][1:] if rules == "SCREEN_V2" else c["reasons"])[:4])})
+    lines.append({"text": f"점수가 높은 {len(watch)}종목은 관심 목록에 올려 두고 계속 지켜봐요.",
+                  "basis": f"관찰 {len(watch)}종목"})
+    return lines
 
 
 def reformat_reports(conn: sqlite3.Connection) -> int:

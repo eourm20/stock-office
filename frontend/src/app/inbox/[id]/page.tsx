@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { decideInbox, getBriefing, getInboxItem, markRead, type Briefing, type InboxItem } from "../../../lib/api";
-import { approvalLine, buyPlan, deadlineLabel, kstDateTime, mockLine, MOCK_STATUS_KO, money, ORDER_STATUS_KO, paperLine, pnlTone, ROLE_KO, sellPlan, shares, signedWon, STATUS_KO, STATUS_TONE, adjustLine, adjustPlan } from "../../../inbox/model";
+import { approvalLine, buyPlan, deadlineLabel, kstDateTime, mockLine, MOCK_STATUS_KO, money, ORDER_STATUS_KO, paperLine, pnlTone, ROLE_KO, sellPlan, shares, signedWon, STATUS_KO, STATUS_TONE, adjustLine, adjustPlan, plainPlan } from "../../../inbox/model";
 import { FLAG_KO, RATING_KO } from "../../../office/explain";
 import { humanizeTickers } from "../../../office/names";
 import { itemMarket, MARKET_KO, marketOf, useMarket } from "../../../lib/market";
@@ -93,11 +93,39 @@ export default function InboxDocument() {
             )}
           </header>
 
+          {item.kind === "approval" && plainPlan(item, item.expires_at ? kstDateTime(item.expires_at) : "").length > 0 && (
+            <section aria-label="결재 내용" className="border-b border-[#d8d2c2] bg-[#fbf9f3] p-4">
+              <h2 className="text-[12px] font-bold text-[#6b6455]">결재 내용 · 쉽게</h2>
+              <ul className="mt-1 space-y-1.5 text-[15px] leading-relaxed">
+                {plainPlan(item, item.expires_at ? kstDateTime(item.expires_at) : "").map((line) => (
+                  <li key={line}><Explained text={line} /></li>
+                ))}
+              </ul>
+            </section>
+          )}
           {briefing?.story && (
             <div className="border-b border-[#d8d2c2] p-4">
               <EasyStory story={briefing.story} lines={briefing.story_lines} terms={briefing.terms} />
             </div>
           )}
+          {!briefing?.story && item.payload.story_lines && item.payload.story_lines.length > 0 && (
+            <div className="border-b border-[#d8d2c2] p-4">
+              <EasyStory story={item.payload.story_lines.map((l) => l.text).join(" ")} lines={item.payload.story_lines} />
+            </div>
+          )}
+          {(item.payload.note || (item.payload.review_reasons?.length ?? 0) > 0) && (
+            <section className="space-y-2 border-b border-[#d8d2c2] p-4">
+              {item.payload.review_reasons && item.payload.review_reasons.length > 0 && (
+                <div className="rounded border border-amber-600 bg-amber-50 p-3 text-[14px] leading-relaxed">
+                  <div className="font-semibold text-amber-800">검토 필요 · 결재할 수 없음</div>
+                  <p className="mt-1">AI 위원회는 {item.payload.name ?? "이 종목"}을(를) 사자는 의견이었지만, 회사 규칙에 걸려 결재안을 만들지 못했어요. 주문은 나가지 않아요.</p>
+                  <ul className="mt-1 list-disc pl-5">{item.payload.review_reasons.map((r) => <li key={r}><Explained text={r} /></li>)}</ul>
+                </div>
+              )}
+              {item.payload.note && <p className="rounded bg-[#ece7da] p-2 text-sm"><Explained text={item.payload.note} /></p>}
+            </section>
+          )}
+          <Record folded={item.kind === "approval" || Boolean(briefing?.story)} runId={item.run_id}>
           {p && a && !a.blocked && <BuySummary p={p} a={a} acct={acct} expires={item.expires_at} />}
           {adj && (
             <section className="border-t border-[#d8d2c2] p-4 text-[13px]">
@@ -127,13 +155,6 @@ export default function InboxDocument() {
                 </ul>
               </div>
             ))}
-            {item.payload.note && <p className="rounded bg-[#ece7da] p-2 text-sm"><Explained text={item.payload.note} /></p>}
-            {item.payload.review_reasons && item.payload.review_reasons.length > 0 && (
-              <div className="rounded border border-amber-600 bg-amber-50 p-2 text-sm">
-                <div className="font-semibold text-amber-800">검토 필요 · 결재할 수 없음</div>
-                <ul className="mt-1 list-disc pl-5">{item.payload.review_reasons.map((r) => <li key={r}>{r}</li>)}</ul>
-              </div>
-            )}
             {briefing && (() => {
               const expert = (
                 <>
@@ -191,6 +212,7 @@ export default function InboxDocument() {
             </section>
           )}
 
+          </Record>
           {item.mock_orders && item.mock_orders.length > 0 && (
             <section className="border-t border-[#d8d2c2] p-4">
               <h2 className="mb-2 text-sm font-bold">키움 모의 주문 <span className="font-normal text-[#6b6455]">({marketOf(item.instrument_id) === "US" ? "해외장" : "국내장"} 계좌 · 모의투자 서버)</span></h2>
@@ -325,6 +347,21 @@ function MarketBriefing({ item }: { item: InboxItem }) {
       <p className="text-[12px] text-[#6b6455]">뉴스 탭에서 하루 단위로 볼 수 있습니다. <Link href="/news" className="underline">뉴스 탭 →</Link></p>
       <NewsCards news={news} breaking={item.payload.type === "breaking"} />
     </div>
+  );
+}
+
+/** The original approval (numbers, sizing, the committee's own summary). On an approval document,
+ *  or a meeting report that has its plain story, it is only a folded reference at the bottom: the
+ *  document is the plain version and the minutes live in the records tab (owner, 2026-11-06). */
+function Record({ folded, runId, children }: { folded: boolean; runId: string | null; children: React.ReactNode }) {
+  if (!folded) return <>{children}</>;
+  return (
+    <section className="border-t border-[#d8d2c2] p-4">
+      <Fold title="참고 · 원래 결재안 기록" hint="숫자·비중 계산·AI 위원회 요약 (회의록은 기록 탭)">
+        <div className="-mx-4">{children}</div>
+        {runId && <Link href={`/records/${runId}`} className="mt-2 block text-[12px] text-[#2b5c8a] underline">기록 탭에서 회의록 전체 보기 →</Link>}
+      </Fold>
+    </section>
   );
 }
 

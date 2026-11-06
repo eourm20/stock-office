@@ -52,6 +52,7 @@ def test_api_exposes_no_order_routes(tmp_path: Path) -> None:
         "/api/v1/analysis-runs",
         "/api/v1/inbox/{item_id}/decision",
         "/api/v1/inbox/{item_id}/read",
+        "/api/v1/inbox/hide",            # hides [급변]/[검토 필요] reports on screen only
         "/api/v1/company/auto-approve",
         # Phone notifications: the owner's own push subscription (known push services only)
         # and a test message to it. Notification text is inbox titles only.

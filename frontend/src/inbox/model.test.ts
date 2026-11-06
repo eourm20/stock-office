@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { InboxItem, PaperOrder, RecordRow } from "../lib/api";
-import { approvalLine, approvalNote, buyPlan, deadlineLabel, groupActive, groupInbox, groupRecordsByDay, money, paperLine, sellPlan, shares, signedPct, signedWon } from "./model";
+import { approvalLine, approvalNote, buyPlan, deadlineLabel, plainPlan, groupActive, groupInbox, groupRecordsByDay, money, paperLine, sellPlan, shares, signedPct, signedWon } from "./model";
 
 function item(id: number, status: InboxItem["status"], extra: Partial<InboxItem> = {}): InboxItem {
   return { id, kind: status === "INFO" ? "daily" : "approval", run_id: `r${id}`, instrument_id: null,
@@ -153,5 +153,29 @@ describe("진행 중: one card per stock", () => {
     expect(cards).toHaveLength(1);
     expect(cards[0]!.item.id).toBe(2);
     expect(cards[0]!.line).toBe("보유 1주 · 평균 $531.30 · 목표가·손절가 감시 · 추가 매수 지정가 $543.46 대기(장이 열리면 주문)");
+  });
+});
+
+describe("plainPlan", () => {
+  const base = { kind: "approval", payload: { name: "삼성전자" } };
+  it("tells a buy in plain words from the plan's numbers", () => {
+    const item = { ...base, plan: {
+      side: "BUY", currency: "KRW", account_currency: "KRW", limit: "50000", target: "55000", stop: "47500",
+      stop_distance: "0.05", allocation: { qty: "19", notional_krw: "950000", max_loss_krw: "47500", blocked: null },
+    } } as unknown as InboxItem;
+    const lines = plainPlan(item, "11/7 15:30");
+    expect(lines[0]).toBe("삼성전자 19주를 한 주에 50,000원 이하로 사요. 모두 950,000원이에요.");
+    expect(lines[1]).toContain("55,000원까지 오르면");
+    expect(lines[1]).toContain("10.0% 위");
+    expect(lines[2]).toContain("최대 47,500원");
+    expect(lines[3]).toBe("11/7 15:30까지 그 가격에 사지 못하면 주문은 취소돼요.");
+  });
+  it("tells a sell and a stop/target change", () => {
+    const sell = { ...base, plan: { side: "SELL", currency: "KRW", qty: "7", avg_price: "48000", value_krw: "350000", venue: "kiwoom_mock" } } as unknown as InboxItem;
+    expect(plainPlan(sell)[0]).toBe("삼성전자 갖고 있는 7주를 전부 팔아요.");
+    const adj = { ...base, plan: { side: "ADJUST", currency: "KRW", stop_from: "47000", stop: "48500", target_from: "58000", target: "58000" } } as unknown as InboxItem;
+    expect(plainPlan(adj).slice(1, 3)).toEqual([
+      "'여기까지 떨어지면 판다' 선을 47,000원에서 48,500원으로 바꿔요.",
+      "'여기까지 오르면 판다' 선은 58,000원 그대로 둬요."]);
   });
 });

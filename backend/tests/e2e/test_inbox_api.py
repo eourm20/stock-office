@@ -96,3 +96,29 @@ def test_market_briefings_live_in_the_news_tab_not_the_inbox(
     news = client.get("/api/v1/news").json()
     assert [i["title"] for i in news] == ["[시장 브리핑] 1", "[시장 브리핑] 0"]   # newest first
     assert news[0]["payload"]["type"] == "market_briefing"
+
+
+def test_the_ceo_clears_one_desks_sharp_move_and_review_reports(
+        client: TestClient, settings: object) -> None:
+    from stock_office.db import connect
+
+    conn = connect(settings.data_dir)  # type: ignore[attr-defined]
+    for iid, title, key in (
+            ("KR:KRX:005930", "[급변] 삼성", "watch:move:KR:KRX:005930:2026-11-06:down3"),
+            ("KR:KRX:000660", "[급변] 하이닉스", "watch:move:KR:KRX:000660:2026-11-06:up5"),
+            ("US:NASDAQ:NVDA", "[급변] 엔비디아", "watch:move:US:NASDAQ:NVDA:2026-11-06:up3"),
+            ("KR:KRX:005930", "[검토 필요] 삼성전자 매수 제안", "run:x1"),
+            ("KR:KRX:005930", "[회의 결과] 삼성전자 · 유지 의견", "run:x2")):
+        conn.execute(
+            "INSERT INTO inbox_items (kind, instrument_id, title, status, dedupe_key, created_at) "
+            "VALUES (?, ?, ?, 'INFO', ?, '2026-11-06T01:00:00+00:00')",
+            ("daily" if key.startswith("run:") else "adhoc", iid, title, key))
+    hide = lambda what: client.post("/api/v1/inbox/hide",  # noqa: E731
+                                    params={"market": "KR", "what": what}).json()
+    assert hide("moves") == {"hidden": 2} and hide("reviews") == {"hidden": 1}
+    assert hide("everything") == {"hidden": 0}
+    titles = {i["title"] for i in client.get("/api/v1/inbox").json()}
+    assert {"[급변] 엔비디아", "[회의 결과] 삼성전자 · 유지 의견"} <= titles
+    assert not titles & {"[급변] 삼성", "[급변] 하이닉스", "[검토 필요] 삼성전자 매수 제안"}
+    assert conn.execute("SELECT COUNT(*) FROM inbox_items WHERE hidden_at IS NOT NULL"
+                        ).fetchone()[0] == 3                  # hidden, not deleted

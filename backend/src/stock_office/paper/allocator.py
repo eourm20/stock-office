@@ -49,10 +49,12 @@ POLICY = Policy()
 # V3 (2026-10-20, owner decision): two desks, each sized on its own Kiwoom mock account in its own
 # currency (국장 KRW, 미장 USD, no conversion). Whole shares on both (fractional US orders are not
 # confirmed through Kiwoom's API).
+# 2026-11-06 (owner: "don't set a minimum order amount"): no minimum; one whole share that fits
+# the other limits is enough (until then 100,000원 / $100, which held back e.g. a 농심 buy).
 POLICY_V3 = Policy(
     version="POLICY_V3",
     quantity_step=(("KRW", Decimal(1)), ("USD", Decimal(1))),
-    min_notional=(("KRW", Decimal(100_000)), ("USD", Decimal(100))),
+    min_notional=(("KRW", Decimal(0)), ("USD", Decimal(0))),
 )
 
 
@@ -116,7 +118,8 @@ def allocate(
     elif qty == 0 or notional_krw < policy.minimum(account_currency):
         least = policy.minimum(account_currency)
         least_text = f"${least:,.0f}" if account_currency == "USD" else f"{least:,.0f}원"
-        blocked = f"규정상 매수 가능 금액이 1주 가격 또는 최소 주문 금액 {least_text} 미만"
+        blocked = (f"규정상 매수 가능 금액이 1주 가격 또는 최소 주문 금액 {least_text} 미만"
+                   if least > 0 else "규정상 매수 가능 금액이 1주 가격보다 작음")
     return Allocation(
         qty=qty if not blocked else Decimal(0),
         notional=notional if not blocked else Decimal(0),
