@@ -13,6 +13,7 @@ import hashlib
 import json
 import os
 from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -35,10 +36,14 @@ from .ta_extensions import (
     KR_GLOBAL_NEWS_VENDOR,
     KR_NEWS_VENDOR,
     PREDICTION_OFF_VENDOR,
+    THEME_KEY,
+    ProfileFetch,
+    _yahoo_profile,
     collect_upstream_data_gaps,
     register_global_news_vendors,
     register_kr_news_vendor,
     register_prediction_markets_off,
+    theme_for,
 )
 
 _PROVIDER_KEY_ENV = {
@@ -81,6 +86,7 @@ class TradingAgentsEngine:
         # (trader, risk team, portfolio manager read it). None: the stock is not held.
         self.portfolio_for = portfolio_for
         self.analysts = tuple(a.strip() for a in settings.ta_analysts.split(",") if a.strip())
+        self.profile_fetch: ProfileFetch = _yahoo_profile
 
     def version(self) -> str:
         return f"tradingagents-{TRADINGAGENTS_VERSION}@{TRADINGAGENTS_COMMIT[:7]}"
@@ -109,6 +115,7 @@ class TradingAgentsEngine:
                            "cost_profile": self.settings.ta_cost_profile,
                            "upstream_env": _upstream_env_overrides(),
                            "kr_news_vendor": KR_NEWS_VENDOR if self.kr_news_enabled else None,
+                           "market_news": "v2-topics+kr+industry",   # 2026-11-06
                            "prediction_markets": self.settings.ta_prediction_markets,
                            "engine": self.version()}, sort_keys=True)
         return hashlib.sha256(blob.encode()).hexdigest()[:16]
@@ -138,6 +145,11 @@ class TradingAgentsEngine:
     def kr_news_enabled(self) -> bool:
         key = self.settings.dart_api_key
         return bool(key and key.get_secret_value().strip()) or self._naver_provider().configured
+
+    def theme(self, instrument: Instrument) -> dict[str, Any] | None:
+        """The stock's industry (Yahoo, cached 30 days) for the meeting's theme news."""
+        cache = Path(self.settings.data_dir) / "ta_cache" / "stockoffice_profiles.json"
+        return theme_for(instrument, cache, datetime.now(UTC), self.profile_fetch)
 
     def _naver_provider(self) -> NaverNewsProvider:
         s = self.settings
@@ -188,9 +200,13 @@ class TradingAgentsEngine:
         if not self.settings.ta_prediction_markets:
             register_prediction_markets_off()
         usage = UsageMetadataCallbackHandler()
+        config = self.build_config(Path(ctx.work_dir), ctx.instrument)
+        theme = self.theme(ctx.instrument)
+        if theme:
+            config[THEME_KEY] = theme   # the news tool adds the stock's industry headlines
         graph = TradingAgentsGraph(
             selected_analysts=self.analysts,
-            config=self.build_config(Path(ctx.work_dir), ctx.instrument),
+            config=config,
             callbacks=[usage],
         )
         ticker = ctx.instrument.provider_symbols["yahoo"]

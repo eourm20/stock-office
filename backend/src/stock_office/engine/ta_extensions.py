@@ -24,9 +24,10 @@ import re
 from collections.abc import Callable, Hashable, Iterator, Sequence
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta
+from pathlib import Path
 from typing import Any, TypeVar
 
-from stock_office.domain.instruments import REGISTRY
+from stock_office.domain.instruments import REGISTRY, display_name
 from stock_office.domain.models import Instrument, Market, MarketSnapshot
 from stock_office.engine.upstream import import_tradingagents
 from stock_office.events.sanitize import redact_text
@@ -59,6 +60,55 @@ KR_MARKET_QUERIES = ("코스피 증시", "코스닥 증시", "외국인 순매�
                      "한국은행 기준금리", "정부 증시 정책")
 KR_MARKET_LIMIT = 10
 KR_MARKET_SUBJECT = "KR:MARKET"
+
+# The meeting stock's own industry (owner, 2026-11-06: meetings should also read the news of the
+# stock's sector/theme). Yahoo's industry label, with a Korean press query for KRX stocks written
+# for how Korean press names that industry (Yahoo files shipbuilders under Aerospace & Defense,
+# batteries under Electrical Equipment, Samsung Electronics under Consumer Electronics).
+THEME_KEY = "stockoffice_theme"
+THEME_HEADLINES = 4
+INDUSTRY_KO = {
+    "Semiconductors": "반도체 업황", "Semiconductor Equipment & Materials": "반도체 장비 업황",
+    "Consumer Electronics": "반도체 전자 업황", "Electronic Components": "전자부품 업황",
+    "Electrical Equipment & Parts": "2차전지 전력기기", "Solar": "태양광 업계",
+    "Auto Manufacturers": "자동차 업계", "Auto Parts": "자동차 부품 업계",
+    "Aerospace & Defense": "방산 조선 수주", "Specialty Industrial Machinery": "조선 기계 수주",
+    "Farm & Heavy Construction Machinery": "건설기계 업황",
+    "Chemicals": "석유화학 업황", "Specialty Chemicals": "화학 소재 업황",
+    "Steel": "철강 업황", "Other Industrial Metals & Mining": "비철금속 업황",
+    "Metal Fabrication": "비철금속 업황", "Building Materials": "시멘트 건자재",
+    "Engineering & Construction": "건설 수주", "Oil & Gas Refining & Marketing": "정유 업황",
+    "Banks - Regional": "은행 금융지주", "Banks - Diversified": "은행 금융지주",
+    "Capital Markets": "증권사 업황", "Insurance - Life": "보험 업계",
+    "Insurance - Property & Casualty": "보험 업계", "Credit Services": "카드사 업계",
+    "Asset Management": "지주회사 주가", "Conglomerates": "지주회사 주가",
+    "Drug Manufacturers - General": "제약 업계",
+    "Drug Manufacturers - Specialty & Generic": "제약 업계", "Biotechnology": "바이오 업계",
+    "Medical Devices": "의료기기 업계", "Medical Distribution": "바이오 업계",
+    "Household & Personal Products": "화장품 업계", "Apparel Manufacturing": "의류 패션 업계",
+    "Textile Manufacturing": "섬유 업계", "Packaged Foods": "식품 업계",
+    "Confectioners": "식품 업계", "Food Distribution": "식품 유통",
+    "Beverages - Non-Alcoholic": "식품 음료 업계",
+    "Beverages - Wineries & Distilleries": "주류 업계",
+    "Tobacco": "담배 업계", "Department Stores": "유통 업계", "Discount Stores": "유통 업계",
+    "Grocery Stores": "편의점 유통", "Specialty Retail": "면세점 업계",
+    "Information Technology Services": "IT서비스 업계",
+    "Software - Infrastructure": "IT서비스 업계", "Internet Content & Information": "인터넷 플랫폼",
+    "Electronic Gaming & Multimedia": "게임 업계", "Entertainment": "엔터 업계",
+    "Advertising Agencies": "광고 업계", "Telecom Services": "통신 업계",
+    "Marine Shipping": "해운 업황", "Integrated Freight & Logistics": "물류 택배",
+    "Airlines": "항공 업계", "Railroads": "철도 업계", "Resorts & Casinos": "카지노 여행",
+    "Leisure": "여행 레저", "Utilities - Regulated Electric": "전기요금 한전",
+    "Utilities - Regulated Gas": "가스요금", "Utilities - Renewable": "재생에너지",
+    "Real Estate Services": "부동산 업계",
+}
+SECTOR_KO = {
+    "Technology": "IT 업종", "Healthcare": "제약 바이오", "Financial Services": "금융주",
+    "Consumer Cyclical": "소비 업종", "Consumer Defensive": "식품 생활용품",
+    "Industrials": "산업재 업종", "Energy": "에너지 업종", "Basic Materials": "소재 업종",
+    "Communication Services": "통신 미디어", "Utilities": "유틸리티 업종",
+    "Real Estate": "부동산 업계",
+}
 
 logger = logging.getLogger("tradingagents.stockoffice")   # collected as gaps with upstream's
 
@@ -243,6 +293,78 @@ def kr_market_section(naver: NaverNewsProvider, as_of: str, look_back_days: int)
     return "\n".join(lines)
 
 
+ProfileFetch = Callable[[str], dict[str, Any]]   # yahoo symbol -> {"sector", "industry"}
+PROFILE_DAYS = 30
+
+
+def _yahoo_profile(symbol: str) -> dict[str, Any]:
+    import yfinance as yf
+
+    info = yf.Ticker(symbol).info or {}
+    return {"sector": info.get("sector"), "industry": info.get("industry")}
+
+
+def theme_for(instrument: Instrument, cache: Path, now: datetime,
+              fetch: ProfileFetch = _yahoo_profile) -> dict[str, Any] | None:
+    """The stock's industry for the meeting's theme news (cached per stock for 30 days).
+    None when Yahoo has no industry for it."""
+    import json
+
+    try:
+        known: dict[str, Any] = json.loads(cache.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        known = {}
+    entry = known.get(instrument.id)
+    fresh = entry and now - datetime.fromisoformat(entry["at"]) < timedelta(days=PROFILE_DAYS)
+    if not fresh:
+        try:
+            entry = {**fetch(instrument.provider_symbols["yahoo"]), "at": now.isoformat()}
+        except Exception as exc:
+            logger.warning("industry lookup failed for %s: %s", instrument.id,
+                           type(exc).__name__)
+            return None
+        known[instrument.id] = entry
+        try:
+            cache.parent.mkdir(parents=True, exist_ok=True)
+            cache.write_text(json.dumps(known, ensure_ascii=False), encoding="utf-8")
+        except OSError:
+            pass
+    industry, sector = (entry or {}).get("industry"), (entry or {}).get("sector")
+    if not industry:
+        return None
+    return {"instrument_id": instrument.id, "name": display_name(instrument.id),
+            "market": instrument.market.value, "industry": industry, "sector": sector,
+            "kr_query": INDUSTRY_KO.get(industry) or SECTOR_KO.get(sector or "")}
+
+
+def theme_section(theme: dict[str, Any], as_of: str, look_back_days: int,
+                  naver: NaverNewsProvider | None, search: YahooSearch) -> str | None:
+    """Headlines about the meeting stock's industry: Korean press for KRX stocks, and the global
+    industry (peers, demand, regulation) from Yahoo for both markets."""
+    lines: list[str] = []
+    if theme["market"] == "KR" and theme.get("kr_query") and naver is not None \
+            and naver.configured:
+        for s in kr_market_headlines(naver, as_of, look_back_days, [theme["kr_query"]],
+                                     limit=THEME_HEADLINES):
+            p = s.payload
+            lines.append(f"- {s.observed_at:%Y-%m-%d %H:%M} | {p['title']} - {p['description']} "
+                         f"| {p['link']}")
+    for a in yahoo_global_articles(as_of, look_back_days, THEME_HEADLINES,
+                                   [f"{theme['industry']} stocks"], search):
+        when = f"{a['pub_date']:%Y-%m-%d %H:%M}" if a.get("pub_date") else "undated"
+        lines.append(f"- {when} | {a['title']} ({a['publisher']}) - {a['summary']} "
+                     f"| {a['link']}")
+    if not lines:
+        return None
+    kr = f" / Korean press query '{theme['kr_query']}'" if theme["market"] == "KR" else ""
+    return "\n".join([
+        f"## Industry and theme news for {theme['name']} ({theme['industry']}), up to {as_of}",
+        f"Source: Yahoo Finance search '{theme['industry']} stocks'{kr}. News about the "
+        "industry this company is in (peers, demand, prices, regulation); not about the company "
+        "itself unless it is named. Industry label from Yahoo, which can be approximate.",
+        "", *lines])
+
+
 def make_global_news_vendor(
     naver_factory: Callable[[], NaverNewsProvider] | None = None,
     search: YahooSearch = _yahoo_search,
@@ -266,6 +388,11 @@ def make_global_news_vendor(
                                      config["global_news_queries"], search)
         if world:
             sections.append(world)
+        theme = config.get(THEME_KEY)
+        if theme:
+            industry = theme_section(theme, curr_date, days, naver, search)
+            if industry:
+                sections.append(industry)
         if not sections:
             raise VendorUnavailableError("no market-wide headlines in the window")
         return "\n\n".join(sections)

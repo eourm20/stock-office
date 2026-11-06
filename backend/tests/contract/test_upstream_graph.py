@@ -347,3 +347,66 @@ def test_global_news_vendors_spread_topics_and_add_korean_market_mood(
         text = route_to_vendor("get_global_news", "2026-10-16", None, None)
     assert text.index("Korean stock market headlines") < text.index("Global market news")
     assert "코스피 증시 하락" in text and "외국인 순매도 하락" in text
+
+
+def test_meetings_read_their_stocks_industry_news(tmp_path: Path,
+                                                  monkeypatch: pytest.MonkeyPatch) -> None:
+    """The stock's industry (Yahoo, cached) rides in the run config; the news tool then adds
+    industry headlines: Korean press with a Korean industry query for KRX stocks, Yahoo for both."""
+    from datetime import UTC, datetime, timedelta
+
+    from tradingagents.dataflows.config import run_config
+    from tradingagents.dataflows.router import route_to_vendor
+    from tradingagents.graph.trading_graph import TradingAgentsGraph
+
+    from stock_office.domain.instruments import get_instrument
+    from stock_office.engine.ta_extensions import (
+        THEME_KEY,
+        register_global_news_vendors,
+        theme_for,
+    )
+    from stock_office.providers.naver import NaverNewsProvider
+
+    calls: list[str] = []
+
+    def profile(symbol: str) -> dict[str, object]:
+        calls.append(symbol)
+        return {"sector": "Industrials", "industry": "Aerospace & Defense"}
+
+    now = datetime(2026, 11, 6, tzinfo=UTC)
+    cache = tmp_path / "profiles.json"
+    ocean = get_instrument("KR:KRX:042660")
+    theme = theme_for(ocean, cache, now, profile)
+    assert theme is not None and theme["kr_query"] == "방산 조선 수주"
+    assert theme_for(ocean, cache, now + timedelta(days=3), profile) == theme
+    assert calls == ["042660.KS"]                                    # cached
+    theme_for(ocean, cache, now + timedelta(days=31), profile)
+    assert len(calls) == 2                                           # refreshed after 30 days
+    assert theme_for(get_instrument("US:NASDAQ:NVDA"), tmp_path / "x.json", now,
+                     lambda s: {"sector": None, "industry": None}) is None
+
+    def yahoo(query: str, count: int) -> list[dict[str, object]]:
+        return [{"content": {"title": f"{query} headline", "summary": "s",
+                             "provider": {"displayName": "P"},
+                             "canonicalUrl": {"url": "https://y.example/1"},
+                             "pubDate": "2026-11-05T12:00:00Z"}}]
+
+    def naver_api(_url: str, params: dict[str, object], _h: dict[str, str]) -> dict[str, object]:
+        return {"items": [{"title": f"{params['query']} 소식", "description": "요약",
+                           "originallink": f"https://n.example/{params['query']}",
+                           "pubDate": "Thu, 05 Nov 2026 15:40:00 +0900"}]}
+
+    register_global_news_vendors(lambda: NaverNewsProvider("id", "secret", http_get=naver_api),
+                                 search=yahoo)
+    engine = TradingAgentsEngine(Settings(data_dir=tmp_path, naver_client_id="id",  # type: ignore[call-arg]
+                                          naver_client_secret="secret", _env_file=None))
+    work = tmp_path / "runs" / "r1"
+    work.mkdir(parents=True)
+    config = engine.build_config(work, ocean)
+    config[THEME_KEY] = theme
+    with run_config(config):
+        text = route_to_vendor("get_global_news", "2026-11-06", None, None)
+    assert "Industry and theme news for 한화오션 (Aerospace & Defense)" in text
+    assert "방산 조선 수주 소식" in text and "Aerospace & Defense stocks headline" in text
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-not-a-real-key-000000")
+    TradingAgentsGraph(selected_analysts=engine.analysts, config=config)   # extra key accepted

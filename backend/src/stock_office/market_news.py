@@ -6,14 +6,14 @@ example." Twice a day, before each market opens (국내장 07:20 KST, 해외장 
 NYSE open), the briefing desk:
 
 1. collects headlines (title and the publisher's summary only, never article bodies): Yahoo
-   Finance searches over the same market-wide topics the meetings read, and Naver searches for
-   the Korean market;
-2. has the engine's cheap "quick" model pick up to 10 by impact on stocks, merge stories about the
-   same event, and write each in Korean: what happened, an everyday analogy, why it matters, which
-   market/sectors and in which direction;
-   Headlines about the company's own stocks (all held, top 10 of each watchlist) are collected
-   too, and the model is asked to favour news on them and on their sectors/themes, tagging which
-   of our stocks each story touches (only names from our list are kept);
+   Finance searches over the same market-wide topics the meetings read, Naver searches for the
+   Korean market, economy and policy; each index's biggest movers of the last session (why did
+   it move?); a fixed sweep of the main sectors (quiet sectors' big news); and the company's own
+   stocks (all held, top 10 of each watchlist);
+2. has the engine's cheap "quick" model pick up to 10 by impact on stocks, favouring our stocks
+   and their sectors/themes, merge stories about the same event, and write each in Korean: what
+   happened, an everyday analogy, why it matters, which market/sectors, in which direction, and
+   which of our stocks it touches (only names from our list are kept);
 3. files one inbox report shown on both desks. Sources (title, publisher, link) come from the
    collected list, never from the model; picks citing unknown sources are dropped.
 
@@ -67,10 +67,24 @@ NAVER_PER_QUERY = 4
 # every held stock and the top of each market's latest watchlist, a few newest headlines each.
 WATCH_PER_MARKET = 10
 STOCK_HEADLINES = 3
+# Wider than our own stocks (owner, 2026-11-06): what moved in each index in its last session
+# (biggest gainers and losers, at least 3%), and a sweep of the main sectors so a quiet sector's
+# big news (policy, orders) is not missed. Sectors are a fixed, balanced list, not a favourite.
+MOVERS_PER_SIDE = 3
+MOVER_MIN = 0.03
+MOVER_HEADLINES = 2
+SECTORS_KR = ("반도체 업황", "2차전지 배터리", "바이오 제약", "자동차 업계", "조선 수주",
+              "방산 수출", "은행 금융지주", "인터넷 게임", "정유 에너지", "화장품 소비재")
+SECTORS_US = ("semiconductor stocks", "biotech pharma stocks", "EV battery automakers",
+              "bank stocks financials", "software cloud stocks", "retail consumer stocks",
+              "energy oil stocks", "defense aerospace stocks")
+SECTOR_HEADLINES = 2
 SUMMARY_IN_PROMPT = 280
 MIN_CANDIDATES = 3
 MAX_PICKS = 10
-ESTIMATE_USD = Decimal("0.01")   # one call; measured runs replace this guess in the docs
+# Meetings come first: a briefing is written only while this much of the month's budget is left
+# (about a day of meetings), so the budget never runs out on a briefing.
+RESERVE_USD = Decimal("0.60")
 DEDUPE_PREFIX = "market-briefing:"
 
 
@@ -91,6 +105,29 @@ def dedupe_key(market: str, day: date) -> str:
 # ------------------------------------------------------------------------------- collect
 
 Stock = tuple[str, str]   # (instrument id, "보유" | "관심")
+Moves = Callable[[str], dict[str, float]]   # market -> {instrument id: last session's change}
+
+
+def _ko(snap: Any, about: str = "") -> dict[str, Any]:
+    p = snap.payload
+    return {"lang": "ko", "publisher": "", "about": about,
+            "published": snap.observed_at.astimezone(KST).strftime("%m-%d %H:%M"),
+            "title": p["title"], "summary": p.get("description") or "",
+            "url": p.get("link") or ""}
+
+
+def _en(a: dict[str, Any], about: str = "") -> dict[str, Any]:
+    pub = a.get("pub_date")
+    return {"lang": "en", "publisher": a.get("publisher") or "", "about": about,
+            "published": pub.astimezone(KST).strftime("%m-%d %H:%M") if pub else "",
+            "title": a["title"], "summary": str(a.get("summary") or ""),
+            "url": a.get("link") or ""}
+
+
+def _numbered(rows: list[dict[str, Any]], prefix: str) -> list[dict[str, Any]]:
+    for n, row in enumerate(rows, start=1):
+        row["id"] = f"{prefix}{n}"
+    return rows
 
 
 def our_stocks(conn: sqlite3.Connection, held: Callable[[str], list[str]]) -> list[Stock]:
@@ -107,63 +144,100 @@ def our_stocks(conn: sqlite3.Connection, held: Callable[[str], list[str]]) -> li
     return [(iid, role) for iid, role in out.items() if iid in REGISTRY]
 
 
-def stock_headlines(stocks: Sequence[Stock], as_of: str, naver: NaverNewsProvider | None,
-                    search: YahooSearch) -> list[dict[str, Any]]:
-    """Newest headlines about each stock: Naver by Korean name, Yahoo by ticker."""
+def stock_headlines(labelled: Sequence[tuple[str, str, int]], as_of: str,
+                    naver: NaverNewsProvider | None, search: YahooSearch) -> list[dict[str, Any]]:
+    """Newest headlines about each (instrument, label, count): Naver by Korean name, Yahoo by
+    ticker. The label (e.g. "보유: 삼성전자", "급등 +8.1%: 한화오션") travels as `about`."""
     end = date.fromisoformat(as_of)
     start = end - timedelta(days=LOOKBACK_DAYS)
     out: list[dict[str, Any]] = []
-    for iid, role in stocks:
+    for iid, about, count in labelled:
         inst = REGISTRY[iid]
-        about = f"{role}: {display_name(iid)}"
         try:
             if inst.market is Market.KR:
                 if naver is None or not naver.configured:
                     continue
                 snaps = sorted(naver.fetch_range(inst, start, end, limit=10).snapshots,
-                               key=lambda s: s.observed_at, reverse=True)[:STOCK_HEADLINES]
-                out += [{"lang": "ko", "publisher": "", "about": about,
-                         "published": s.observed_at.astimezone(KST).strftime("%m-%d %H:%M"),
-                         "title": s.payload["title"],
-                         "summary": s.payload.get("description") or "",
-                         "url": s.payload.get("link") or ""} for s in snaps]
+                               key=lambda s: s.observed_at, reverse=True)[:count]
+                out += [_ko(s, about) for s in snaps]
             else:
-                arts = yahoo_global_articles(as_of, LOOKBACK_DAYS, STOCK_HEADLINES,
+                arts = yahoo_global_articles(as_of, LOOKBACK_DAYS, count,
                                              [inst.provider_symbols["yahoo"]], search)
-                out += [{"lang": "en", "publisher": a.get("publisher") or "", "about": about,
-                         "published": (a["pub_date"].astimezone(KST).strftime("%m-%d %H:%M")
-                                       if a.get("pub_date") else ""),
-                         "title": a["title"], "summary": str(a.get("summary") or ""),
-                         "url": a.get("link") or ""} for a in arts]
+                out += [_en(a, about) for a in arts]
         except Exception as exc:
             log.warning("stock news for %s failed: %s", iid, type(exc).__name__)
-    for n, row in enumerate(out, start=1):
-        row["id"] = f"s{n}"
+    return out
+
+
+def movers(moves: dict[str, float]) -> list[tuple[str, float]]:
+    """Biggest gainers then biggest losers of one index (each at least MOVER_MIN)."""
+    up = sorted(((i, c) for i, c in moves.items() if c >= MOVER_MIN), key=lambda x: -x[1])
+    down = sorted(((i, c) for i, c in moves.items() if c <= -MOVER_MIN), key=lambda x: x[1])
+    return up[:MOVERS_PER_SIDE] + down[:MOVERS_PER_SIDE]
+
+
+def yahoo_moves(market: str) -> dict[str, float]:
+    """Each index member's change over its last completed session (Yahoo daily closes)."""
+    import yfinance as yf
+
+    from stock_office.domain.instruments import UNIVERSE
+    from stock_office.research.team import INDEX
+
+    symbols = {REGISTRY[i].provider_symbols["yahoo"]: i
+               for i in UNIVERSE[INDEX[market]] if i in REGISTRY}
+    frame = yf.download(list(symbols), period="7d", interval="1d", group_by="ticker",
+                        auto_adjust=False, threads=True, progress=False)
+    out: dict[str, float] = {}
+    for sym, iid in symbols.items():
+        try:
+            close = frame[sym]["Close"].dropna()
+        except KeyError:
+            continue
+        if len(close) >= 2 and float(close.iloc[-2]) > 0:
+            out[iid] = float(close.iloc[-1]) / float(close.iloc[-2]) - 1
+    return out
+
+
+def sector_headlines(as_of: str, naver: NaverNewsProvider | None,
+                     search: YahooSearch) -> list[dict[str, Any]]:
+    """A couple of newest headlines per main sector, Korean and US."""
+    out: list[dict[str, Any]] = []
+    if naver is not None and naver.configured:
+        snaps = kr_market_headlines(naver, as_of, LOOKBACK_DAYS, SECTORS_KR,
+                                    limit=SECTOR_HEADLINES * len(SECTORS_KR))
+        out += [_ko(s, f"업종: {s.payload.get('query', '')}") for s in snaps]
+    for query in SECTORS_US:
+        arts = yahoo_global_articles(as_of, LOOKBACK_DAYS, SECTOR_HEADLINES, [query], search)
+        out += [_en(a, f"업종: {query}") for a in arts]
     return out
 
 
 def collect(as_of: str, naver: NaverNewsProvider | None, search: YahooSearch = _yahoo_search,
-            stocks: Sequence[Stock] = ()) -> list[dict[str, Any]]:
-    """Candidate headlines, numbered: e1.. (Yahoo, English), k1.. (Naver, Korean), s1.. (about the
-    company's own stocks; `about` says which)."""
-    out: list[dict[str, Any]] = []
-    articles = yahoo_global_articles(as_of, LOOKBACK_DAYS, YAHOO_POOL, GLOBAL_NEWS_QUERIES, search)
-    for n, a in enumerate(articles, start=1):
-        pub = a.get("pub_date")
-        out.append({"id": f"e{n}", "lang": "en", "publisher": a.get("publisher") or "",
-                    "published": pub.astimezone(KST).strftime("%m-%d %H:%M") if pub else "",
-                    "title": a["title"], "summary": str(a.get("summary") or ""),
-                    "url": a.get("link") or ""})
-    if naver is not None and naver.configured:
-        snaps = kr_market_headlines(naver, as_of, LOOKBACK_DAYS, NAVER_QUERIES,
-                                    limit=NAVER_PER_QUERY * len(NAVER_QUERIES))
-        for n, s in enumerate(snaps, start=1):
-            p = s.payload
-            out.append({"id": f"k{n}", "lang": "ko", "publisher": "",
-                        "published": s.observed_at.astimezone(KST).strftime("%m-%d %H:%M"),
-                        "title": p["title"], "summary": p.get("description") or "",
-                        "url": p.get("link") or ""})
-    return out + stock_headlines(stocks, as_of, naver, search)
+            stocks: Sequence[Stock] = (), moves: Moves | None = None) -> list[dict[str, Any]]:
+    """Candidate headlines, numbered by kind: e (market-wide, English), k (market-wide, Korean),
+    s (our stocks and the session's big movers; `about` says which), u (sector sweep)."""
+    world = yahoo_global_articles(as_of, LOOKBACK_DAYS, YAHOO_POOL, GLOBAL_NEWS_QUERIES, search)
+    korea = (kr_market_headlines(naver, as_of, LOOKBACK_DAYS, NAVER_QUERIES,
+                                 limit=NAVER_PER_QUERY * len(NAVER_QUERIES))
+             if naver is not None and naver.configured else [])
+    labels: dict[str, tuple[str, int]] = {
+        iid: (f"{role}: {display_name(iid)}", STOCK_HEADLINES) for iid, role in stocks}
+    for market in ("KR", "US"):
+        if moves is None:
+            break
+        try:
+            moved = movers(moves(market))
+        except Exception as exc:
+            log.warning("%s movers failed: %s", market, type(exc).__name__)
+            continue
+        for iid, change in moved:
+            tag = f"{'급등' if change > 0 else '급락'} {change:+.1%} (최근 거래일)"
+            label, count = labels.get(iid, (display_name(iid), MOVER_HEADLINES))
+            labels[iid] = (f"{label} · {tag}" if iid in labels else f"{tag}: {label}", count)
+    return (_numbered([_en(a) for a in world], "e") + _numbered([_ko(s) for s in korea], "k")
+            + _numbered(stock_headlines([(i, lab, n) for i, (lab, n) in labels.items()],
+                                        as_of, naver, search), "s")
+            + _numbered(sector_headlines(as_of, naver, search), "u"))
 
 
 # --------------------------------------------------------------------------------- model
@@ -195,6 +269,11 @@ PROMPT = """너는 주식을 전혀 모르는 사장님께 시장 소식을 들�
    - 우리 회사 종목(아래 목록)에 영향을 주는 소식을 우선한다. 보유 종목에 중요한 소식이 있으면
      꼭 넣는다. 그 종목 자체의 기사(about이 있는 기사)뿐 아니라 그 종목이 속한 업종·테마의
      소식도 본다. 예) 보유 종목이 화장품 회사면 중국 소비 소식, 은행이면 금리 소식.
+   - about이 "급등"/"급락"인 기사는 최근 거래일에 크게 움직인 종목이다. 왜 움직였는지 설명하는
+     기사가 있으면 넣어라(우리가 가지지 않은 종목이라도). 이유를 모르면 추측하지 마라.
+   - about이 "업종"인 기사는 주요 업종을 고르게 훑은 것이다. 조용한 업종의 큰 소식(정책, 수주,
+     규제)을 놓치지 마라.
+   - 한 업종에 쏠리지 말고 다양하게: 같은 업종은 최대 3개.
    - 같은 사건을 다룬 기사는 하나로 묶고 source_ids에 함께 적어라.
    - 연예·스포츠·광고성 기사, 관계없는 작은 회사의 홍보 기사는 빼라.
 2. 각 소식마다 title, summary, story, why, markets, sectors, direction, our_stocks를 써라.
@@ -317,7 +396,8 @@ def title_for(market: str, day: date) -> str:
 def write(conn: sqlite3.Connection, market: str, day: date, now: datetime,
           naver: NaverNewsProvider | None, writer: Writer | None,
           budget_ok: Callable[[], bool] = lambda: True,
-          search: YahooSearch = _yahoo_search, stocks: Sequence[Stock] = ()) -> int | None:
+          search: YahooSearch = _yahoo_search, stocks: Sequence[Stock] = (),
+          moves: Moves | None = None) -> int | None:
     """Collect, summarise and file this slot's briefing once. Returns the inbox id (None when it
     was already filed). Failures are filed as such, never raised."""
     key = dedupe_key(market, day)
@@ -327,7 +407,8 @@ def write(conn: sqlite3.Connection, market: str, day: date, now: datetime,
                                "session": day.isoformat(), "news": [], "briefing_status": "OK"}
     summary = ""
     try:
-        candidates = collect(now.astimezone(KST).date().isoformat(), naver, search, stocks)
+        candidates = collect(now.astimezone(KST).date().isoformat(), naver, search, stocks,
+                             moves)
     except Exception as exc:
         log.exception("market briefing %s: collecting failed", key)
         candidates = []
@@ -399,6 +480,7 @@ def tick(service: Any, settings: Any, now: datetime) -> None:
             continue
         write(service.inbox.conn, market, day, now, naver_from(settings),
               writer_for(service, settings, market, day), lambda: _budget_ok(service),
+              moves=yahoo_moves,
               stocks=our_stocks(service.inbox.conn, lambda m: held_by(service.inbox, m)))
 
 
@@ -417,7 +499,7 @@ def held_by(inbox: Any, market: str) -> list[str]:
 
 def _budget_ok(service: Any) -> bool:
     status = service.budget()
-    return status is None or status.remaining_usd >= ESTIMATE_USD
+    return status is None or status.remaining_usd >= RESERVE_USD
 
 
 def naver_from(settings: Any) -> NaverNewsProvider:
@@ -453,6 +535,7 @@ def main(argv: list[str]) -> int:
                else first_session_opening_after(Market(market), now).day)
         item = write(service.inbox.conn, market, day, now, naver_from(settings),
                      writer_for(service, settings, market, day), lambda: _budget_ok(service),
+              moves=yahoo_moves,
                      stocks=our_stocks(service.inbox.conn, lambda m: held_by(service.inbox, m)))
         print(f"{market} {day}: {'filed #' + str(item) if item else 'already filed'}")
     return 0

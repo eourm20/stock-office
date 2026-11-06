@@ -172,3 +172,22 @@ def test_our_held_and_watched_stocks_are_read_and_tagged(tmp_path: Path) -> None
     assert "보유: 삼성전자, 마이크로소프트" in prompt and "관심: 엔비디아" in prompt
     assert '"about": "보유: 삼성전자"' in prompt and '"about": "관심: 엔비디아"' in prompt
     assert payload["news"][0]["our_stocks"] == [{"name": "삼성전자", "role": "보유"}]
+
+
+def test_movers_and_sector_sweep_widen_the_pool() -> None:
+    from stock_office.market_news import SECTORS_KR, SECTORS_US, collect, movers
+
+    moves = {"KR:KRX:005930": -0.051, "KR:KRX:000660": 0.02, "KR:KRX:042660": 0.12,
+             "KR:KRX:012450": 0.08, "KR:KRX:000270": 0.031, "KR:KRX:005380": 0.035,
+             "KR:KRX:035420": -0.2}
+    assert movers(moves) == [("KR:KRX:042660", 0.12), ("KR:KRX:012450", 0.08),
+                             ("KR:KRX:005380", 0.035),                  # top 3 up (≥ 3%)
+                             ("KR:KRX:035420", -0.2), ("KR:KRX:005930", -0.051)]
+    rows = collect("2026-11-06", naver(), yahoo, stocks=[("KR:KRX:005930", "보유")],
+                   moves=lambda m: moves if m == "KR" else {})
+    about = [r["about"] for r in rows if r["id"].startswith("s")]
+    assert "보유: 삼성전자 · 급락 -5.1% (최근 거래일)" in about   # our stock that also moved
+    assert any(a.startswith("급등 +12.0% (최근 거래일): ") for a in about)
+    sectors = {r["about"] for r in rows if r["id"].startswith("u")}
+    assert {f"업종: {q}" for q in SECTORS_KR} <= sectors and f"업종: {SECTORS_US[0]}" in sectors
+    assert len({r["id"] for r in rows}) == len(rows)                   # ids stay unique

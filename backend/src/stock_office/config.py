@@ -51,8 +51,9 @@ class Settings(BaseSettings):
     # Hard cap on real-engine runs (manual + scheduled) in any rolling 24 h.
     # 2026-10-20: research team, 3 국장 + 3 미장 meetings a day (+ manual) → 10 in any 24 h.
     max_paid_runs_per_day: int = 10
-    # Monthly LLM budget (Korea calendar month), a hard stop for every paid run. ≈ 10,000 KRW.
-    monthly_budget_usd: Decimal = Decimal("7")
+    # Monthly LLM budget (Korea calendar month), a hard stop for every paid run. ≈ 13,000 KRW
+    # (owner, 2026-11-06: $7 → $9 so the mock-trading month's last meetings are not cut).
+    monthly_budget_usd: Decimal = Decimal("9")
 
     # Paper book cost assumptions (shown as assumptions in ⚙ and on the portfolio screen).
     paper_kr_commission: Decimal = Decimal("0.00015")
