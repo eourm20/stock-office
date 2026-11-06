@@ -461,9 +461,10 @@ def usages_in_month(conn: sqlite3.Connection, month: str) -> list[dict[str, Any]
     for row in conn.execute("SELECT at, token_usage FROM news_polls WHERE token_usage IS NOT NULL"):
         if month_key(datetime.fromisoformat(row["at"])) == month:
             out.append(json.loads(row["token_usage"]))
+    from stock_office import closing_feedback
     from stock_office.stock_profiles import usages
 
-    out += usages(conn, month)
+    out += usages(conn, month) + closing_feedback.usages(conn, month)
     for row in conn.execute("SELECT payload, created_at FROM inbox_items WHERE dedupe_key LIKE ?",
                             (f"{DEDUPE_PREFIX}%",)):
         if month_key(datetime.fromisoformat(row["created_at"])) != month:

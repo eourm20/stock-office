@@ -18,7 +18,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from typing import Any
 
-from stock_office import breaking, market_news
+from stock_office import breaking, closing_feedback, market_news
 from stock_office.config import Settings, get_settings
 from stock_office.db import connect
 from stock_office.domain.models import AnalysisRun, CreateRunRequest
@@ -215,6 +215,10 @@ def briefing_loop(settings: Settings, clock: Callable[[], datetime],
             breaking.tick(service, settings, clock())   # every 30 minutes, day and night
         except Exception:
             log.exception("breaking news failed")
+        try:
+            closing_feedback.tick(service, settings, clock())   # after each closing report
+        except Exception:
+            log.exception("closing feedback failed")
         time.sleep(every_s)
 
 
