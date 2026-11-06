@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { GLOSSARY, splitTerms } from "../lib/glossary";
+import { humanizeTickers } from "../office/names";
 
 /** Text whose hard words are dotted-underlined; tapping one shows its plain meaning in place. */
 export function Explained({ text, extra }: { text: string; extra?: Record<string, string> }) {
@@ -39,7 +40,7 @@ export function EasyStory({ story, lines, terms, dark = false }: {
       <p className="mt-1 text-[15px] leading-relaxed">
         {sentences.map((l, i) => (
           <span key={i} className={shown === i ? (dark ? "rounded bg-amber-900/60" : "rounded bg-[#f4e2a8]") : ""}>
-            <Explained text={l.text} extra={terms} />
+            <Explained text={humanizeTickers(l.text)} extra={terms} />
             {l.basis && (
               <button type="button" aria-expanded={shown === i} aria-label="원문 표현 보기"
                       onClick={() => setShown(shown === i ? null : i)}

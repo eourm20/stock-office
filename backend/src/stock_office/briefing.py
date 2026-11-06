@@ -23,6 +23,7 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel, Field
 
+from stock_office.domain.instruments import display_name
 from stock_office.domain.models import AnalysisRun, EventType, InvestmentDecision
 from stock_office.engine.adapter import AGENT_CATALOG
 from stock_office.events.sanitize import redact_text
@@ -103,6 +104,22 @@ class BriefingWriter(Protocol):
 
 # ------------------------------------------------------------------------------- input
 
+def what_happens(action: str, held: bool) -> str:
+    """What the company does with this conclusion (inbox/desk rules), in plain words. The story
+    ends with this, not with the committee's own sizing words ("trim part of it")."""
+    if action == "REVIEW":
+        return "판단을 보류해서 주문은 없어요."
+    if not held:
+        return ("회사 규칙에 따라 새로 사는 결재안이 올라가요(수량과 가격은 회사 규칙으로 정해요)."
+                if action == "BUY" else
+                "회사가 이 종목을 갖고 있지 않아서 주문은 없어요(없는 주식을 파는 공매도는 하지 "
+                "않아요).")
+    return {"BUY": "갖고 있는 종목을 조금 더 사는 결재안이 올라가요(회사 비중 규칙 안에서).",
+            "SELL": "회사 규칙에 따라 갖고 있는 주식을 전부 파는 결재안이 올라가요.",
+            "HOLD": "계속 들고 가요. 새 손절가·목표가가 나왔으면 그 선을 바꾸는 결재안이 "
+                    "올라가요."}.get(action, "회사 규칙에 따라 처리해요.")
+
+
 def collect_input(repo: RunRepository, run: AnalysisRun) -> dict[str, Any] | None:
     """Everything the briefing may use, from storage only. None when there is no decision."""
     decision: InvestmentDecision | None = repo.get_decision(run.id)
@@ -120,8 +137,12 @@ def collect_input(repo: RunRepository, run: AnalysisRun) -> dict[str, Any] | Non
          "turn": e.payload.get("turn"), "text": str(e.payload.get("text", ""))[:1500]}
         for e in repo.events.read(run.id) if e.type is EventType.DEBATE_MESSAGE
     ]
+    # The engine saves the holdings it was given only when the stock was held at meeting time.
+    held = (repo.root / run.id / "portfolio_context.md").exists()
     return {
         "instrument": run.instrument_id,
+        "company": {"name": display_name(run.instrument_id), "held_at_meeting": held,
+                    "what_happens": what_happens(decision.action.value, held)},
         "decision": {"action": decision.action.value, "rating": decision.engine_rating,
                      "risk_flags": decision.risk_flags,
                      "final_report": (reports.get("portfolio_manager") or decision.rationale)
@@ -145,7 +166,9 @@ PROMPT = """너는 투자위원회 회의 결과를 임원에게 보고하는 �
   이 회사가 지금 어떤 상황이고, 직원들이 무엇을 보고 어떤 걱정과 기대를 나눴고, 그래서 왜 이렇게
   결정했는지를 순서대로. 동네 가게·과일 장사·등산 같은 일상 비유를 한두 번 써서, 비유임을
   드러내라("비유하자면", "마치 ~처럼"). 전문 용어(RSI, 이동평균, PER, 손절, Overweight 등)는
-  쓰지 말고 풀어서 말하라. 숫자는 꼭 필요한 것만 입력 그대로.
+  쓰지 말고 풀어서 말하라. 숫자는 꼭 필요한 것만 입력 그대로. 종목은 company.name으로 부르고
+  티커(TXN 같은 영문 약자)를 쓰지 마라. 마지막 문장은 company.what_happens를 쉬운 말로 전하라.
+  위원회 보고서의 "일부 축소", "비중 몇 %" 같은 표현을 회사가 실제로 하는 일처럼 쓰지 마라.
 - story의 각 문장에 basis를 붙여라: 그 문장이 풀어 쓴 보고서·토론 속 전문 표현을 입력에서 글자
   그대로 짧게 인용한다(예: "RSI 58", "50일선 위에서 지지", "Overweight"). 비유 문장처럼 근거가
   되는 표현이 없으면 빈 문자열.

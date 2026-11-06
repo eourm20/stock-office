@@ -103,3 +103,19 @@ def test_story_and_terms_are_kept_clipped_and_capped() -> None:
     assert list(b.terms) == [f"용어{n}" for n in range(MAX_TERMS)]
     assert [x["basis"] for x in b.story_lines] == ["", "trend up", ""]   # only real wording
     assert "이야기처럼" in build_prompt(PAYLOAD)
+
+
+def test_the_story_is_told_what_the_company_actually_does(tmp_path: Path) -> None:
+    """A SELL on a stock the company does not hold places no order, whatever the committee wrote
+    about trimming; the meeting's saved holdings input tells held from not held."""
+    from stock_office.briefing import collect_input
+
+    repo, run = _seed(tmp_path)
+    repo.save_decision(InvestmentDecision(run_id="r1", action="SELL", rationale="r",
+                                          model_version="m", created_at=NOW))
+    company = (collect_input(repo, run) or {})["company"]
+    assert company["held_at_meeting"] is False and "주문은 없어요" in company["what_happens"]
+    (repo.root / "r1" / "portfolio_context.md").write_text("보유 3주", encoding="utf-8")
+    company = (collect_input(repo, run) or {})["company"]
+    assert company["held_at_meeting"] is True and "전부 파는" in company["what_happens"]
+    assert "company.what_happens" in build_prompt(collect_input(repo, run) or {})
