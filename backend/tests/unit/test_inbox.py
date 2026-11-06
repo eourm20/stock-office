@@ -145,3 +145,27 @@ def test_emergency_meetings_are_capped_and_spaced(
     ids = ["KR:KRX:000660", "KR:KRX:035420", "KR:KRX:005380"]
     started = [start_emergency(service, iid, 3 + n, now) for n, iid in enumerate(ids)]
     assert sum(1 for s in started if s) == MAX_EMERGENCY_PER_DAY - 1
+
+
+def test_past_meetings_can_be_reported_but_never_as_orders(
+        make_service: Callable[..., RunService]) -> None:
+    from stock_office.inbox import report_runs
+
+    def past_meeting(rating: str) -> tuple[RunService, str]:
+        service = make_service(demo_engine=DemoEngine(rating=rating))
+        run = service.create_run(CreateRunRequest(instrument_id="KR:KRX:005930", engine="demo"))
+        service.reporter = None                  # it ended before reports were filed
+        service.execute(run.id)
+        stored = service.repo.get_run(run.id)
+        assert stored is not None
+        service.repo.save_run(stored.model_copy(update={"demo": False}))   # a real meeting
+        return service, run.id
+
+    service, run_id = past_meeting("Hold")
+    [line] = report_runs(service, [run_id])
+    assert "[회의 결과] 삼성전자" in line
+    assert [i.run_id for i in service.inbox.list()] == [run_id]
+    service, run_id = past_meeting("Buy")
+    assert "매수 의견이라 건너뜀" in report_runs(service, [run_id])[0]
+    assert run_id not in [i.run_id for i in service.inbox.list()]
+    assert report_runs(service, ["nope"]) == ["nope: 회의 결과 없음"]

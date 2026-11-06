@@ -772,16 +772,49 @@ class Inbox:
         return cur.rowcount
 
 
-def main() -> int:
-    """File every real meeting that has no inbox document yet (oldest first).
+def report_runs(service: Any, run_ids: list[str]) -> list[str]:
+    """Put finished meetings in the inbox as [회의 결과] reports, with the plain story rewritten
+    first (owner, 2026-11-06: meetings that ended before reports were filed for every meeting).
+    Refuses anything that could become an order: a buy opinion, or a stock held now."""
+    out = []
+    for run_id in run_ids:
+        run = service.repo.get_run(run_id)
+        decision = service.repo.get_decision(run_id) if run else None
+        if run is None or decision is None or run.demo:
+            out.append(f"{run_id}: 회의 결과 없음")
+            continue
+        if decision.action is DecisionAction.BUY:
+            out.append(f"{run_id}: 매수 의견이라 건너뜀 (주문이 생길 수 있음)")
+            continue
+        if service.inbox.position_context(run.instrument_id) is not None:
+            out.append(f"{run_id}: 보유 종목이라 건너뜀 (주문이 생길 수 있음)")
+            continue
+        service.brief(run)
+        item_id = service.inbox.file_run(run, service.clock())
+        item = service.inbox.get(item_id) if item_id else None
+        out.append(f"{run_id}: " + (f"#{item_id} {item.title}" if item else "올릴 것 없음"))
+    return out
+
+
+def main(argv: list[str] | None = None) -> int:
+    """File every real meeting that has no inbox document yet (oldest first), or, with
+    `report <run_id>...`, only those meetings as reports (see `report_runs`).
 
     Past deadlines are kept: such documents arrive as EXPIRED, for reference only.
         uv run python -m stock_office.inbox
+        uv run python -m stock_office.inbox report <run_id> [...]
     """
+    import sys
+
     from stock_office.config import get_settings
     from stock_office.wiring import build_service
 
+    args = sys.argv[1:] if argv is None else argv
     service = build_service(get_settings())
+    if args[:1] == ["report"]:
+        for line in report_runs(service, args[1:]):
+            print(line)
+        return 0
     filed = 0
     for run in reversed(service.repo.list_runs()):
         if run.demo or run.status.value != "COMPLETED":
