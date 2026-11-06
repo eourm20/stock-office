@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { decideInbox, getBriefing, getInboxItem, markRead, type Briefing, type InboxItem, type MarketNews } from "../../../lib/api";
+import { decideInbox, getBriefing, getInboxItem, markRead, type Briefing, type InboxItem } from "../../../lib/api";
 import { approvalLine, buyPlan, deadlineLabel, kstDateTime, mockLine, MOCK_STATUS_KO, money, ORDER_STATUS_KO, paperLine, pnlTone, ROLE_KO, sellPlan, shares, signedWon, STATUS_KO, STATUS_TONE, adjustLine, adjustPlan } from "../../../inbox/model";
 import { FLAG_KO, RATING_KO } from "../../../office/explain";
 import { humanizeTickers } from "../../../office/names";
 import { itemMarket, MARKET_KO, marketOf, useMarket } from "../../../lib/market";
+import NewsCards from "../../../news/NewsCards";
 import NavBar from "../../NavBar";
 
 type Act = "approve" | "defer" | "reject";
@@ -305,61 +306,14 @@ function Stamps({ item }: { item: InboxItem }) {
   );
 }
 
-const DIRECTION_TONE: Record<MarketNews["direction"], string> = {
-  좋음: "bg-[#e5efe6] text-[#2f6b3d]", 나쁨: "bg-[#f6e3e3] text-[#9b2f3a]", 엇갈림: "bg-[#ece7da] text-[#6b6455]",
-};
-
-/** Only web links from the collected headlines are opened (never other schemes). */
-const webUrl = (url: string) => (/^https?:\/\//i.test(url) ? url : null);
-
-/** [시장 브리핑]: up to 10 market-moving stories, each explained with an everyday analogy. */
+/** [시장 브리핑] opened from an older link: the same cards as the news tab. */
 function MarketBriefing({ item }: { item: InboxItem }) {
   const news = item.payload.news ?? [];
   if (item.payload.briefing_status !== "OK" || news.length === 0) return null;
   return (
     <div className="space-y-3">
-      <p className="text-[12px] leading-snug text-[#6b6455]">
-        AI가 지난 하루 국내외 경제 기사 {item.payload.candidates ?? "여러"}건(우리 보유·관심 종목 기사 포함)의 제목과 요약을 읽고,
-        주식에 영향이 큰 소식을 골라 쉽게 풀었습니다. 영어 기사는 번역했습니다. 비유는 이해를 돕기 위한 것이고, 투자 권유가 아닙니다.
-      </p>
-      <ol className="space-y-3">
-        {news.map((n) => (
-          <li key={n.rank} className="rounded-lg border border-[#e1dac9] bg-[#fbf9f3] p-3">
-            <div className="flex items-start gap-2">
-              <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#1c2a48] text-[12px] font-bold text-white">{n.rank}</span>
-              <h2 className="min-w-0 flex-1 text-[15px] font-bold leading-snug">{n.title}</h2>
-            </div>
-            <div className="mt-1.5 flex flex-wrap gap-1 pl-8 text-[11px]">
-              {n.our_stocks?.map((s) => (
-                <span key={s.name} className={`rounded px-1.5 font-semibold ${s.role === "보유" ? "bg-amber-200 text-amber-900" : "bg-[#dde8f3] text-[#2b5c8a]"}`}>{s.role} {s.name}</span>
-              ))}
-              <span className={`rounded px-1.5 font-semibold ${DIRECTION_TONE[n.direction]}`}>{n.direction}</span>
-              {n.markets.map((m) => <span key={m} className="rounded bg-[#dde8f3] px-1.5 text-[#2b5c8a]">{MARKET_KO[m]}</span>)}
-              {n.sectors.map((s) => <span key={s} className="rounded bg-[#efe9da] px-1.5 text-[#6b6455]">{s}</span>)}
-            </div>
-            <p className="mt-2 text-[13px] leading-relaxed">{n.summary}</p>
-            {n.story && (
-              <div className="mt-2 rounded-lg bg-[#fff6dc] px-3 py-2 text-[13px] leading-relaxed">
-                <div className="mb-0.5 text-[11px] font-bold text-[#7a5a17]">쉽게 말하면</div>
-                {n.story}
-              </div>
-            )}
-            {n.why && <p className="mt-2 text-[13px] leading-relaxed"><b>왜 중요해요?</b> {n.why}</p>}
-            <ul className="mt-2 space-y-0.5 text-[11px] text-[#6b6455]">
-              {n.sources.map((s) => {
-                const href = webUrl(s.url);
-                const label = `${s.title}${s.publisher ? ` · ${s.publisher}` : ""}${s.lang === "en" ? " · 영어" : ""}${s.published ? ` · ${s.published}` : ""}`;
-                return (
-                  <li key={s.url || s.title} className="truncate">
-                    원문: {href ? <a href={href} target="_blank" rel="noopener noreferrer" className="underline">{label}</a> : label}
-                  </li>
-                );
-              })}
-            </ul>
-          </li>
-        ))}
-      </ol>
-      {item.payload.model && <p className="text-[11px] text-[#9a9384]">AI 요약 · 모델 {item.payload.model}</p>}
+      <p className="text-[12px] text-[#6b6455]">뉴스 탭에서 하루 단위로 볼 수 있습니다. <Link href="/news" className="underline">뉴스 탭 →</Link></p>
+      <NewsCards news={news} />
     </div>
   );
 }

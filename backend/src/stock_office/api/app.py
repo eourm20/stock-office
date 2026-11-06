@@ -160,6 +160,11 @@ def create_app(
         inbox.expire_due(service.clock())
         return inbox.list()
 
+    @app.get("/api/v1/news")
+    def list_news(limit: int = 20) -> list[InboxItem]:
+        """The news tab: market briefings ([시장 브리핑]), newest first."""
+        return inbox.briefings(limit)
+
     @app.get("/api/v1/inbox/{item_id}")
     def get_inbox_item(item_id: int) -> InboxItem:
         inbox.expire_due(service.clock())

@@ -356,6 +356,8 @@ export interface OfficeNow {
 }
 
 export const getInbox = () => getJson<InboxItem[]>("/api/v1/inbox");
+/** 뉴스 탭: market briefings, newest first. */
+export const getNews = (limit = 20) => getJson<InboxItem[]>(`/api/v1/news?limit=${limit}`);
 export const getInboxItem = (id: number | string) => getJson<InboxItem>(`/api/v1/inbox/${id}`);
 export const getRecords = (includeTest = false) =>
   getJson<RecordRow[]>(`/api/v1/records${includeTest ? "?include_test=true" : ""}`);

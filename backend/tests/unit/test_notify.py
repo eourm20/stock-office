@@ -241,5 +241,7 @@ def test_a_written_market_briefing_is_notified_a_failed_one_is_not(tmp_path: Pat
             "VALUES ('daily', '[시장 브리핑] 11/6(금)', '반도체 걱정', ?, 'INFO', ?, ?)",
             (json.dumps({"type": "market_briefing", "briefing_status": status}), key, at))
     n.collect(T0 + timedelta(minutes=2))
-    rows = [tuple(r) for r in n.conn.execute("SELECT category, title, body FROM notifications")]
-    assert rows == [("briefing", "[시장 브리핑] 11/6(금)", "반도체 걱정")]
+    rows = [tuple(r) for r in
+            n.conn.execute("SELECT category, title, body, url FROM notifications")]
+    item = n.conn.execute("SELECT id FROM inbox_items WHERE dedupe_key LIKE '%KR%'").fetchone()[0]
+    assert rows == [("briefing", "[시장 브리핑] 11/6(금)", "반도체 걱정", f"/news?id={item}")]

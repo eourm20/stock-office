@@ -130,6 +130,8 @@ def main(clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> None:
     if scheduling:
         threading.Thread(target=desk_loop, args=(settings, clock), daemon=True,
                          name="kiwoom-mock-desks").start()
+        threading.Thread(target=briefing_loop, args=(settings, clock), daemon=True,
+                         name="market-briefing").start()
     last_tick = 0.0
     while True:
         drain(service)
@@ -140,10 +142,6 @@ def main(clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> None:
             schedule_tick(service, clock(), notifier)
             if team is not None:
                 research_tick(team, service, clock(), notifier)
-            try:
-                market_news.tick(service, settings, clock())
-            except Exception:
-                log.exception("market briefing failed")
             if settler is not None:
                 for result in settler.tick(clock()):
                     log.info("settle %s %s -> %s (%d fills) %s", result.market, result.session,
@@ -199,6 +197,19 @@ def desk_loop(settings: Settings, clock: Callable[[], datetime], every_s: float 
             log.exception("heartbeat failed")
         desks.tick(now)
         desks.record_nav(now)
+        time.sleep(every_s)
+
+
+def briefing_loop(settings: Settings, clock: Callable[[], datetime],
+                  every_s: float = 60.0) -> None:
+    """Market briefings on their own thread and connection: meetings run for minutes in the main
+    loop, and the 07:20 briefing must not wait for the morning's meetings (or miss the open)."""
+    service = build_service(settings)
+    while True:
+        try:
+            market_news.tick(service, settings, clock())
+        except Exception:
+            log.exception("market briefing failed")
         time.sleep(every_s)
 
 

@@ -564,10 +564,19 @@ class Inbox:
             "SELECT value FROM company_settings WHERE key='ops_start'").fetchone()
         return str(row["value"]) if row else None
 
+    def briefings(self, limit: int = 20) -> list[InboxItem]:
+        """The news tab: market briefings, newest first (each stays; two new ones a day)."""
+        rows = self.conn.execute(
+            "SELECT * FROM inbox_items WHERE dedupe_key LIKE 'market-briefing:%' "
+            "ORDER BY created_at DESC, id DESC LIMIT ?", (min(max(limit, 1), 100),))
+        return [self._row(r) for r in rows]
+
     def list(self, limit: int = 100, include_test: bool = False) -> list[InboxItem]:
+        """Decisions and reports. Market briefings live in the news tab (`briefings`)."""
         start = None if include_test else self.ops_start()
         rows = self.conn.execute(
             "SELECT * FROM inbox_items WHERE created_at >= ? "
+            "AND dedupe_key NOT LIKE 'market-briefing:%' "
             "ORDER BY created_at DESC, id DESC LIMIT ?", (start or "", limit)
         )
         return [self._row(r) for r in rows]

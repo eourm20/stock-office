@@ -170,7 +170,7 @@ class Notifier:
                 continue
             self.enqueue(f"inbox:{r['id']}", "briefing", r["title"],
                          r["summary"] or "오늘 주식에 영향을 줄 소식을 정리했습니다.",
-                         f"/inbox/{r['id']}", now)
+                         f"/news?id={r['id']}", now)
 
     def budget_skipped(self, slot_key: str, instrument_id: str, now: datetime) -> None:
         with transaction(self.conn):

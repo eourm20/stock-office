@@ -75,3 +75,24 @@ def test_hold_meeting_files_a_daily_report_only(make_client: Callable[..., TestC
     assert {r["run_id"] for r in client.get("/api/v1/records").json()} >= {run_id}
     assert client.get("/api/v1/inbox/999").status_code == 404
 
+
+
+def test_market_briefings_live_in_the_news_tab_not_the_inbox(
+        client: TestClient, settings: object) -> None:
+    import json
+
+    from stock_office.db import connect
+
+    conn = connect(settings.data_dir)  # type: ignore[attr-defined]
+    for n, at in enumerate(("2026-11-05T22:20:00+00:00", "2026-11-06T13:00:00+00:00")):
+        conn.execute(
+            "INSERT INTO inbox_items (kind, title, summary, payload, status, dedupe_key, "
+            "created_at) VALUES ('daily', ?, '분위기', ?, 'INFO', ?, ?)",
+            (f"[시장 브리핑] {n}", json.dumps({"type": "market_briefing", "briefing_status": "OK",
+                                               "news": []}), f"market-briefing:X:{n}", at))
+    run_demo(client, "KR:KRX:005930")
+    inbox = client.get("/api/v1/inbox").json()
+    assert inbox and not any(i["title"].startswith("[시장 브리핑]") for i in inbox)
+    news = client.get("/api/v1/news").json()
+    assert [i["title"] for i in news] == ["[시장 브리핑] 1", "[시장 브리핑] 0"]   # newest first
+    assert news[0]["payload"]["type"] == "market_briefing"
