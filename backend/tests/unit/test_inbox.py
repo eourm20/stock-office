@@ -102,3 +102,29 @@ def test_a_meeting_that_orders_nothing_is_still_reported(
     assert item.kind == "daily" and item.status == "INFO" and item.plan is None
     assert item.title.endswith("유지 의견 · 주문 없음")
     assert "주문은 없습니다" in item.payload["note"]
+
+
+def test_an_emergency_meeting_never_adds_to_a_position(
+        make_service: Callable[..., RunService]) -> None:
+    service = make_service(demo_engine=DemoEngine(rating="Buy"))
+    run = service.create_run(CreateRunRequest(instrument_id="KR:KRX:005930", engine="demo"),
+                             trigger="breaking", schedule_slot="breaking:1")
+    service.execute(run.id)
+    [item] = service.inbox.list()
+    assert item.kind == "daily" and item.plan is None
+    assert item.title.endswith("긴급 회의 (추가 매수 안 함)")
+
+
+def test_emergency_meetings_are_capped_and_spaced(
+        make_service: Callable[..., RunService]) -> None:
+    from stock_office.breaking import MAX_EMERGENCY_PER_DAY, start_emergency
+
+    service = make_service()
+    now = service.clock()
+    service.engines = lambda name: DemoEngine()   # type: ignore[method-assign,assignment]
+    first = start_emergency(service, "KR:KRX:005930", 1, now)
+    assert first is not None
+    assert start_emergency(service, "KR:KRX:005930", 2, now) is None   # met < 6 h ago
+    ids = ["KR:KRX:000660", "KR:KRX:035420", "KR:KRX:005380"]
+    started = [start_emergency(service, iid, 3 + n, now) for n, iid in enumerate(ids)]
+    assert sum(1 for s in started if s) == MAX_EMERGENCY_PER_DAY - 1

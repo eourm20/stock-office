@@ -245,3 +245,16 @@ def test_a_written_market_briefing_is_notified_a_failed_one_is_not(tmp_path: Pat
             n.conn.execute("SELECT category, title, body, url FROM notifications")]
     item = n.conn.execute("SELECT id FROM inbox_items WHERE dedupe_key LIKE '%KR%'").fetchone()[0]
     assert rows == [("briefing", "[시장 브리핑] 11/6(금)", "반도체 걱정", f"/news?id={item}")]
+
+
+def test_breaking_news_goes_out_in_quiet_hours_the_rest_waits(tmp_path: Path) -> None:
+    sender = FakeSender()
+    n, _ = setup(tmp_path, sender)
+    n.subscribe(APPLE, "p", "a", T0)
+    night = datetime(2026, 10, 20, 17, 0, tzinfo=UTC)   # 02:00 KST
+    n.enqueue("k0", "meeting_end", "[회의 끝] 0", "", "/records", night)
+    n.enqueue("k1", "breaking", "[속보] 정책 충격", "이유", "/news?id=9", night)
+    assert n.is_quiet(night) and n.flush(night) == 1
+    assert [m["title"] for _, m in sender.sent] == ["[속보] 정책 충격"]
+    morning = datetime(2026, 10, 20, 22, 0, tzinfo=UTC)
+    assert n.flush(morning) == 1 and sender.sent[-1][1]["title"] == "[회의 끝] 0"

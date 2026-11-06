@@ -9,13 +9,15 @@ const DIRECTION_TONE: Record<MarketNews["direction"], string> = {
 const webUrl = (url: string) => (/^https?:\/\//i.test(url) ? url : null);
 
 /** [시장 브리핑] stories: what happened, an everyday analogy, why it matters, our stocks, sources. */
-export default function NewsCards({ news }: { news: MarketNews[] }) {
+export default function NewsCards({ news, breaking = false }: { news: MarketNews[]; breaking?: boolean }) {
   return (
     <ol className="space-y-3">
       {news.map((n) => (
-        <li key={n.rank} className="rounded-lg border border-[#e1dac9] bg-[#fbf9f3] p-3 text-[#1c1b17]">
+        <li key={`${n.rank}-${n.title}`} className={`rounded-lg border bg-[#fbf9f3] p-3 text-[#1c1b17] ${breaking ? "border-l-4 border-[#e1dac9] border-l-rose-500" : "border-[#e1dac9]"}`}>
           <div className="flex items-start gap-2">
-            <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#1c2a48] text-[12px] font-bold text-white">{n.rank}</span>
+            {breaking
+              ? <span className="mt-0.5 shrink-0 rounded bg-rose-600 px-1.5 text-[11px] font-bold leading-6 text-white">속보</span>
+              : <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#1c2a48] text-[12px] font-bold text-white">{n.rank}</span>}
             <h2 className="min-w-0 flex-1 text-[15px] font-bold leading-snug">{n.title}</h2>
           </div>
           <div className="mt-1.5 flex flex-wrap gap-1 pl-8 text-[11px]">

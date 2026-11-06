@@ -112,7 +112,7 @@ export default function InboxDocument() {
             {(item.summary || briefing?.headline) && (
               <p className="border-l-4 border-[#c9bfa6] pl-3 text-[15px] font-semibold leading-snug">{humanizeTickers(briefing?.headline || item.summary)}</p>
             )}
-            {item.payload.type === "market_briefing" && <MarketBriefing item={item} />}
+            {(item.payload.type === "market_briefing" || item.payload.type === "breaking") && <MarketBriefing item={item} />}
             {item.payload.sections?.map((sec) => (
               <div key={sec.title}>
                 <h2 className="mb-1 text-sm font-bold">{sec.title}</h2>
@@ -309,11 +309,11 @@ function Stamps({ item }: { item: InboxItem }) {
 /** [시장 브리핑] opened from an older link: the same cards as the news tab. */
 function MarketBriefing({ item }: { item: InboxItem }) {
   const news = item.payload.news ?? [];
-  if (item.payload.briefing_status !== "OK" || news.length === 0) return null;
+  if ((item.payload.type === "market_briefing" && item.payload.briefing_status !== "OK") || news.length === 0) return null;
   return (
     <div className="space-y-3">
       <p className="text-[12px] text-[#6b6455]">뉴스 탭에서 하루 단위로 볼 수 있습니다. <Link href="/news" className="underline">뉴스 탭 →</Link></p>
-      <NewsCards news={news} />
+      <NewsCards news={news} breaking={item.payload.type === "breaking"} />
     </div>
   );
 }

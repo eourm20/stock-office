@@ -285,6 +285,39 @@ MIGRATIONS: list[str] = [
     DROP TABLE notifications;
     ALTER TABLE notifications_v10 RENAME TO notifications
     """,
+    # 11: breaking news (owner's request, 2026-11-06): headlines already looked at, each poll's
+    # model usage (counted in the budget), and a seventh outbox category "breaking" that is sent
+    # even in quiet hours
+    """
+    CREATE TABLE news_seen (
+        key TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        seen_at TEXT NOT NULL
+    );
+    CREATE TABLE news_polls (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        at TEXT NOT NULL,
+        new_headlines INTEGER NOT NULL,
+        alerts INTEGER NOT NULL,
+        token_usage TEXT,
+        note TEXT
+    );
+    CREATE TABLE notifications_v11 (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        dedupe_key TEXT NOT NULL UNIQUE,
+        category TEXT NOT NULL CHECK (category IN ('meeting_start', 'meeting_end', 'approval',
+                                                    'order', 'system', 'briefing', 'breaking')),
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        url TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        sent_at TEXT,
+        outcome TEXT
+    );
+    INSERT INTO notifications_v11 SELECT * FROM notifications;
+    DROP TABLE notifications;
+    ALTER TABLE notifications_v11 RENAME TO notifications
+    """,
 ]
 
 

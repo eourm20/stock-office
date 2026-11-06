@@ -23,6 +23,8 @@ export function briefingsOn(items: InboxItem[], day: string): InboxItem[] {
     .sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
 }
 
+export const isBreaking = (i: InboxItem) => i.payload.type === "breaking";
+
 /** "아침" before 15:00 KST, "저녁" after; the slot name stays in the title. */
 export function slotLabel(item: InboxItem): string {
   const hour = Number(new Date(Date.parse(item.created_at)).toLocaleString("en-US", { timeZone: TZ, hour: "2-digit", hour12: false }));

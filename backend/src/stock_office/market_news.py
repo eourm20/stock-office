@@ -319,13 +319,15 @@ class Writer(Protocol):
 
 
 class QuickModelWriter:
-    """The engine's quick-tier model (same provider/config as the meetings), structured output."""
+    """The engine's quick-tier model (same provider/config as the meetings), structured output
+    (`schema`: the briefing's draft, or breaking news' alerts)."""
 
-    def __init__(self, config: dict[str, Any]) -> None:
-        self.config = config
+    def __init__(self, config: dict[str, Any], schema: type[BaseModel] = MarketBriefingDraft
+                 ) -> None:
+        self.config, self.schema = config, schema
         self.model = str(config.get("quick_think_llm", ""))
 
-    def __call__(self, prompt: str) -> tuple[MarketBriefingDraft, dict[str, Any] | None]:
+    def __call__(self, prompt: str) -> tuple[Any, dict[str, Any] | None]:
         from langchain_core.callbacks import UsageMetadataCallbackHandler
 
         from stock_office.engine.upstream import import_tradingagents
@@ -335,10 +337,10 @@ class QuickModelWriter:
 
         usage = UsageMetadataCallbackHandler()
         llm = create_tier_client(self.config, "quick").get_llm()
-        result = llm.with_structured_output(MarketBriefingDraft).invoke(
+        result = llm.with_structured_output(self.schema).invoke(
             prompt, config={"callbacks": [usage]})
-        if not isinstance(result, MarketBriefingDraft):
-            raise TypeError("structured output did not return a MarketBriefingDraft")
+        if not isinstance(result, self.schema):
+            raise TypeError(f"structured output did not return a {self.schema.__name__}")
         return result, {k: dict(v) for k, v in usage.usage_metadata.items()}
 
 
@@ -451,10 +453,14 @@ def write(conn: sqlite3.Connection, market: str, day: date, now: datetime,
 
 
 def usages_in_month(conn: sqlite3.Connection, month: str) -> list[dict[str, Any]]:
-    """Token usage of this month's briefings (Korea time), for the budget."""
+    """Token usage of this month's briefings and breaking-news polls (Korea time), for the
+    budget."""
     from stock_office.budget import month_key
 
     out: list[dict[str, Any]] = []
+    for row in conn.execute("SELECT at, token_usage FROM news_polls WHERE token_usage IS NOT NULL"):
+        if month_key(datetime.fromisoformat(row["at"])) == month:
+            out.append(json.loads(row["token_usage"]))
     for row in conn.execute("SELECT payload, created_at FROM inbox_items WHERE dedupe_key LIKE ?",
                             (f"{DEDUPE_PREFIX}%",)):
         if month_key(datetime.fromisoformat(row["created_at"])) != month:
@@ -509,7 +515,8 @@ def naver_from(settings: Any) -> NaverNewsProvider:
     )
 
 
-def writer_for(service: Any, settings: Any, market: str, day: date) -> Writer | None:
+def writer_for(service: Any, settings: Any, market: str, day: date,
+               schema: type[BaseModel] = MarketBriefingDraft) -> Writer | None:
     from stock_office.engine.adapter import EngineNotConfiguredError
 
     engine = service.engines("tradingagents")
@@ -518,7 +525,7 @@ def writer_for(service: Any, settings: Any, market: str, day: date) -> Writer | 
     except EngineNotConfiguredError:
         return None
     work = settings.data_dir / "market_briefings" / f"{market}-{day.isoformat()}"
-    return QuickModelWriter(engine.build_config(work))
+    return QuickModelWriter(engine.build_config(work), schema)
 
 
 def main(argv: list[str]) -> int:

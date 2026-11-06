@@ -18,7 +18,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from typing import Any
 
-from stock_office import market_news
+from stock_office import breaking, market_news
 from stock_office.config import Settings, get_settings
 from stock_office.db import connect
 from stock_office.domain.models import AnalysisRun, CreateRunRequest
@@ -202,14 +202,19 @@ def desk_loop(settings: Settings, clock: Callable[[], datetime], every_s: float 
 
 def briefing_loop(settings: Settings, clock: Callable[[], datetime],
                   every_s: float = 60.0) -> None:
-    """Market briefings on their own thread and connection: meetings run for minutes in the main
-    loop, and the 07:20 briefing must not wait for the morning's meetings (or miss the open)."""
+    """Market briefings and breaking news on their own thread and connection: meetings run for
+    minutes in the main loop, and the 07:20 briefing or a breaking story must not wait for them.
+    An emergency meeting is only queued here; the main loop runs it."""
     service = build_service(settings)
     while True:
         try:
             market_news.tick(service, settings, clock())
         except Exception:
             log.exception("market briefing failed")
+        try:
+            breaking.tick(service, settings, clock())   # every 30 minutes, day and night
+        except Exception:
+            log.exception("breaking news failed")
         time.sleep(every_s)
 
 

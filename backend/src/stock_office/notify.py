@@ -1,6 +1,6 @@
 """Phone notifications: only what the CEO should not miss, as Web Push to the installed web app.
 
-Six categories, nothing else (owner's choices, 2026-10-20; briefing 2026-11-06):
+Seven categories, nothing else (owner's choices, 2026-10-20; briefing 2026-11-06):
 - meeting_start: a scheduled real meeting started (or could not start: budget hard stop).
 - meeting_end: a real meeting ended with its verdict, or failed. A meeting that filed nothing to
   the inbox (no action on a stock not held) says "보유 종목이 아니어서 결재 올릴 것이 없습니다".
@@ -11,6 +11,7 @@ Six categories, nothing else (owner's choices, 2026-10-20; briefing 2026-11-06):
 - system: the company stopped working (worker down, meeting stuck, no research, no account value);
   checked and sent by the API process (`health.py`), so it still arrives when the worker is down.
 - briefing: the market briefing is ready (twice a day, before each market opens; `market_news`).
+- breaking: important breaking news ([속보], `breaking`), sent at once even in quiet hours.
 The internal paper book's settlement and DEMO meetings are inbox/portfolio only.
 
 The worker collects new events into an outbox (`notifications`, one row per event, idempotent)
@@ -49,7 +50,9 @@ PUSH_HOSTS = ("push.apple.com", "fcm.googleapis.com", "push.services.mozilla.com
               "notify.windows.com")
 DIGEST_LINES = 6
 NOTHING_TO_APPROVE = "보유 종목이 아니어서 결재 올릴 것이 없습니다."
-WORKER_CATEGORIES = ("meeting_start", "meeting_end", "approval", "order", "briefing")
+WORKER_CATEGORIES = ("meeting_start", "meeting_end", "approval", "order", "briefing",
+                     "breaking")
+URGENT = ("breaking",)   # sent in quiet hours too
 
 
 class Sender(Protocol):
@@ -113,11 +116,18 @@ class Notifier:
             since = self._since(now)
             self._orders(since, now)
             self._briefings(since, now)
+            self._breaking(since, now)
             for run in self.repo.list_runs():
                 if run.demo:
                     continue
                 name = display_name(run.instrument_id)
                 started, done = run.started_at, run.completed_at
+                if run.trigger == "breaking" and started is not None and _iso(started) > since:
+                    self.enqueue(f"start:{run.id}", "meeting_start",
+                                 f"[긴급 회의 시작] {name}",
+                                 "속보로 보유 종목 긴급 회의를 엽니다. "
+                                 "결론이 나오면 알려 드립니다.",
+                                 "/office", now)
                 if run.trigger == "schedule" and started is not None and _iso(started) > since:
                     self.enqueue(f"start:{run.id}", "meeting_start",
                                  f"[회의 시작] {name} 정기 회의",
@@ -172,6 +182,14 @@ class Notifier:
                          r["summary"] or "오늘 주식에 영향을 줄 소식을 정리했습니다.",
                          f"/news?id={r['id']}", now)
 
+    def _breaking(self, since: str, now: datetime) -> None:
+        """Breaking news: sent at once, quiet hours or not (owner, 2026-11-06)."""
+        for r in self.conn.execute(
+                "SELECT id, title, summary FROM inbox_items WHERE created_at > ? "
+                "AND dedupe_key LIKE 'breaking:%' ORDER BY id", (since,)):
+            self.enqueue(f"inbox:{r['id']}", "breaking", r["title"], r["summary"] or "",
+                         f"/news?id={r['id']}", now)
+
     def budget_skipped(self, slot_key: str, instrument_id: str, now: datetime) -> None:
         with transaction(self.conn):
             self.enqueue(f"budget:{slot_key}", "meeting_start",
@@ -186,12 +204,13 @@ class Notifier:
         return (start <= hour or hour < end) if start > end else start <= hour < end
 
     def flush(self, now: datetime) -> int:
-        """Send waiting rows (one summary when several). Returns how many rows were handled."""
-        if self.is_quiet(now):
-            return 0
+        """Send waiting rows (one summary when several). Returns how many rows were handled.
+        In quiet hours only breaking news goes out; the rest waits for the morning."""
+        quiet = self.is_quiet(now)
         rows = [r for r in self.conn.execute(
             "SELECT * FROM notifications WHERE sent_at IS NULL ORDER BY id")
-            if self.categories is None or r["category"] in self.categories]
+            if (self.categories is None or r["category"] in self.categories)
+            and (not quiet or r["category"] in URGENT)]
         if not rows:
             return 0
         message = compose(current(rows))

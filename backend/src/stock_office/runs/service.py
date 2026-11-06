@@ -115,7 +115,7 @@ class RunService:
         return sum(1 for r in self.repo.list_runs() if not r.demo and r.requested_at >= since)
 
     def create_run(self, request: CreateRunRequest, *,
-                   trigger: Literal["manual", "schedule"] = "manual",
+                   trigger: Literal["manual", "schedule", "breaking"] = "manual",
                    schedule_slot: str | None = None) -> AnalysisRun:
         instrument = get_instrument(request.instrument_id)
         now = self.clock()

@@ -234,7 +234,12 @@ class Inbox:
                 plan_body = {**change, "valid_until": _iso(expires)}
                 held_qty = format_qty(position.get("qty") or "0")
                 title = f"[결재] {name} 손절가·목표가 변경 (보유 {held_qty}주)"
-        if decision.action is DecisionAction.BUY:
+        if decision.action is DecisionAction.BUY and run.trigger == "breaking":
+            # An emergency meeting guards a held stock; it never adds to the position.
+            payload["note"] = ("속보로 연 긴급 회의는 보유 종목 점검용이라 추가 매수는 하지 "
+                               "않습니다. 다음 정기 회의에서 다시 판단합니다.")
+            title += " · 긴급 회의 (추가 매수 안 함)"
+        elif decision.action is DecisionAction.BUY:
             plan_body, reasons = self._buy_plan(run, inst.market, decision.engine_rating, kiwoom)
             if plan_body is not None:
                 plan_body["side"] = "BUY"
@@ -378,6 +383,16 @@ class Inbox:
             "",
             "## 이전 결재안과 결과 (오래된 순)",
         ]
+        from stock_office.breaking import alerts_for
+
+        alerts = alerts_for(self.conn, instrument_id, datetime.now(UTC))
+        if alerts:
+            # An emergency meeting: the breaking news that called it comes first.
+            lines[1:1] = ["", "## 이 회의를 소집한 속보 (장중 긴급 회의)"] + [
+                f"- {a['at'][:16]} {a['title']}: {a['summary']} 영향: {a['why']} "
+                f"(출처 기사: {'; '.join(a['sources'])})" for a in alerts] + [
+                "- 이 속보가 보유 판단(유지·전량 매도·손절가 조정)을 바꾸는지 먼저 판단하라. "
+                "기사 제목·요약만 확인된 것이며 본문은 읽지 않았다.", ""]
         for r in self.conn.execute(
                 "SELECT i.id, i.title, i.summary, i.created_at, i.status, p.body "
                 "FROM inbox_items i JOIN plans p ON p.item_id=i.id "
@@ -565,18 +580,20 @@ class Inbox:
         return str(row["value"]) if row else None
 
     def briefings(self, limit: int = 20) -> list[InboxItem]:
-        """The news tab: market briefings, newest first (each stays; two new ones a day)."""
+        """The news tab: market briefings and breaking news ([속보]), newest first."""
         rows = self.conn.execute(
             "SELECT * FROM inbox_items WHERE dedupe_key LIKE 'market-briefing:%' "
-            "ORDER BY created_at DESC, id DESC LIMIT ?", (min(max(limit, 1), 100),))
+            "OR dedupe_key LIKE 'breaking:%' "
+            "ORDER BY created_at DESC, id DESC LIMIT ?", (min(max(limit, 1), 200),))
         return [self._row(r) for r in rows]
 
     def list(self, limit: int = 100, include_test: bool = False) -> list[InboxItem]:
-        """Decisions and reports. Market briefings live in the news tab (`briefings`)."""
+        """Decisions and reports. Market briefings and breaking news live in the news tab
+        (`briefings`)."""
         start = None if include_test else self.ops_start()
         rows = self.conn.execute(
             "SELECT * FROM inbox_items WHERE created_at >= ? "
-            "AND dedupe_key NOT LIKE 'market-briefing:%' "
+            "AND dedupe_key NOT LIKE 'market-briefing:%' AND dedupe_key NOT LIKE 'breaking:%' "
             "ORDER BY created_at DESC, id DESC LIMIT ?", (start or "", limit)
         )
         return [self._row(r) for r in rows]

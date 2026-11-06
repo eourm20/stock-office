@@ -309,8 +309,10 @@ export interface InboxItem {
              /** Closing report: titled lists (account, today's trades, holdings, meeting feedback). */
              sections?: { title: string; lines: string[] }[];
              /** [시장 브리핑]: AI summary of market-moving headlines, shown on both desks. */
-             type?: "market_briefing"; briefing_status?: string; news?: MarketNews[];
-             candidates?: number; model?: string };
+             type?: "market_briefing" | "breaking"; briefing_status?: string; news?: MarketNews[];
+             candidates?: number; model?: string;
+             /** [속보]: importance (5 market-wide, 4 a held stock) and emergency meetings it called. */
+             score?: number; meetings?: { instrument_id: string; name: string; run_id: string }[] };
   status: InboxStatus;
   expires_at: string | null;
   read_at: string | null;
