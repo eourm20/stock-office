@@ -365,11 +365,24 @@ export function plainPlan(item: InboxItem, deadline = ""): string[] {
   const up = ((Number(buy.target) / Number(buy.limit)) - 1) * 100;
   const down = Number(buy.stop_distance) * 100;
   const addOn = (item.plan as { add_on?: boolean; held_qty?: string } | null);
+  const WHY: Record<string, string> = {
+    "기본 비중 10% × 등급 계수 × AI 제시 배수": "수량은 계좌의 10%를 기본으로 두고, AI 의견이 얼마나 강한지에 맞춰 정했어요.",
+    "손절 시 손실을 자산의 1% 이내로": "수량은 '떨어지면 판다' 선에서 팔게 되더라도 계좌 손해가 1%를 넘지 않게 맞췄어요.",
+    "한 종목 최대 20% (보유분 포함)": "한 종목에 계좌의 20%보다 많이 넣지 않는 규칙 때문에 이만큼만 사요.",
+    "현금 20% 이상 유지": "현금을 계좌의 20% 이상 남겨 두는 규칙 때문에 이만큼만 사요.",
+  };
+  const RATING: Record<string, string> = { Buy: "적극적으로 사자", Overweight: "조금 더 사자" };
+  const defaults = (["target", "stop"] as const).filter((k) => buy.sources?.[k] === "policy")
+    .map((k) => (k === "target" ? "오르면 팔 가격" : "떨어지면 팔 가격"));
   return [
     `${name} ${shares(a.qty)}를 한 주에 ${money(buy.limit, buy.currency)} 이하로 사요. 모두 ${money(a.notional_krw, acct)}이에요.`
       + (addOn?.add_on ? ` 이미 ${shares(addOn.held_qty ?? "0")}를 갖고 있어서 조금 더 사는 거예요.` : ""),
     `${money(buy.target, buy.currency)}까지 오르면 팔아서 이익을 챙겨요(산 값보다 약 ${up.toFixed(1)}% 위).`,
     `${money(buy.stop, buy.currency)}까지 떨어지면 팔아서 손해를 막아요(약 ${down.toFixed(1)}% 아래). 그때 손해는 최대 ${money(a.max_loss_krw, acct)}이에요.`,
+    ...(a.binding && WHY[a.binding] ? [WHY[a.binding]!] : []),
+    ...(buy.rating ? [`AI 위원회 의견은 '${RATING[buy.rating] ?? buy.rating}'였어요.`
+                      + (buy.horizon ? ` ${buy.horizon} 정도 들고 갈 생각이에요.` : "")] : []),
+    ...(defaults.length ? [`${defaults.join("과 ")}은 AI가 숫자를 주지 않아 회사 기본값으로 정했어요.`] : []),
     ...(deadline ? [`${deadline}까지 그 가격에 사지 못하면 주문은 취소돼요.`] : []),
   ];
 }

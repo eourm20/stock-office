@@ -17,7 +17,7 @@ import json
 import sqlite3
 from collections.abc import Callable
 from dataclasses import asdict
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -651,10 +651,21 @@ class Inbox:
                  "reviews": "kind='daily' AND title LIKE '[검토 필요]%'"}
 
     def hide_reports(self, market: str, what: str, now: datetime) -> int:
-        """Clear one desk's reports of a kind from the inbox. They stay in the database (hidden,
-        not deleted)."""
+        """Clear one desk's reports of a kind from the inbox. Sharp moves are deleted (owner,
+        2026-11-06: no need to keep them; only their key stays 3 days so the same move is not
+        reported again); review reports stay in the database, hidden (they are meeting results)."""
         if market not in ("KR", "US") or what not in self.CLEARABLE:
             return 0
+        if what == "moves":
+            where = f"{self.CLEARABLE[what]} AND instrument_id LIKE ?"
+            with transaction(self.conn):
+                self.conn.execute("DELETE FROM cleared_keys WHERE at < ?",
+                                  (_iso(now - timedelta(days=3)),))
+                self.conn.execute(f"INSERT OR IGNORE INTO cleared_keys (key, at) "
+                                  f"SELECT dedupe_key, ? FROM inbox_items WHERE {where}",
+                                  (_iso(now), f"{market}:%"))
+                return int(self.conn.execute(f"DELETE FROM inbox_items WHERE {where}",
+                                             (f"{market}:%",)).rowcount)
         with transaction(self.conn):
             return int(self.conn.execute(
                 f"UPDATE inbox_items SET hidden_at=? WHERE hidden_at IS NULL "

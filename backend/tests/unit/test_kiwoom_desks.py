@@ -437,6 +437,12 @@ def test_sharp_moves_are_reported_once_and_only_for_held_stocks(tmp_path: Path) 
     fake.move = "-4.00"                               # back above −5%: nothing new
     desks.tick(KR_OPEN + timedelta(minutes=12))
     assert titles(desks) == ["[급변] 삼성전자 −3.4%", "[급변] 삼성전자 −5.1%"]
+    from stock_office.inbox import Inbox
+
+    Inbox(desks.conn, repo=None).hide_reports("KR", "moves", KR_OPEN)  # type: ignore[arg-type]
+    fake.move = "-5.20"
+    desks.tick(KR_OPEN + timedelta(minutes=20))       # deleted today: not reported again
+    assert titles(desks) == []
     keys = [r[0] for r in desks.conn.execute("SELECT dedupe_key FROM inbox_items")]
     assert all(k.startswith("watch:") for k in keys)  # reports, not order notifications
 

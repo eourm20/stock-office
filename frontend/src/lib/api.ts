@@ -319,8 +319,6 @@ export interface InboxItem {
              candidates?: number; model?: string;
              /** [속보]: importance (5 market-wide, 4 a held stock) and emergency meetings it called. */
              score?: number; meetings?: { instrument_id: string; name: string; run_id: string }[];
-             /** Research report told plainly, each sentence with the expert wording it retells. */
-             story_lines?: { text: string; basis: string }[];
              /** Research report: stock name → instrument id, so a named stock can be explained. */
              stocks?: Record<string, string> };
   status: InboxStatus;

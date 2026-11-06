@@ -161,14 +161,20 @@ describe("plainPlan", () => {
   it("tells a buy in plain words from the plan's numbers", () => {
     const item = { ...base, plan: {
       side: "BUY", currency: "KRW", account_currency: "KRW", limit: "50000", target: "55000", stop: "47500",
-      stop_distance: "0.05", allocation: { qty: "19", notional_krw: "950000", max_loss_krw: "47500", blocked: null },
+      stop_distance: "0.05", allocation: { qty: "19", notional_krw: "950000", max_loss_krw: "47500", blocked: null,
+                                           binding: "현금 20% 이상 유지" },
+      rating: "Overweight", horizon: "2~4주", sources: { limit: "ai", target: "policy", stop: "ai" },
     } } as unknown as InboxItem;
     const lines = plainPlan(item, "11/7 15:30");
+    expect(lines.slice(3, 6)).toEqual([
+      "현금을 계좌의 20% 이상 남겨 두는 규칙 때문에 이만큼만 사요.",
+      "AI 위원회 의견은 '조금 더 사자'였어요. 2~4주 정도 들고 갈 생각이에요.",
+      "오르면 팔 가격은 AI가 숫자를 주지 않아 회사 기본값으로 정했어요."]);
     expect(lines[0]).toBe("삼성전자 19주를 한 주에 50,000원 이하로 사요. 모두 950,000원이에요.");
     expect(lines[1]).toContain("55,000원까지 오르면");
     expect(lines[1]).toContain("10.0% 위");
     expect(lines[2]).toContain("최대 47,500원");
-    expect(lines[3]).toBe("11/7 15:30까지 그 가격에 사지 못하면 주문은 취소돼요.");
+    expect(lines[6]).toBe("11/7 15:30까지 그 가격에 사지 못하면 주문은 취소돼요.");
   });
   it("tells a sell and a stop/target change", () => {
     const sell = { ...base, plan: { side: "SELL", currency: "KRW", qty: "7", avg_price: "48000", value_krw: "350000", venue: "kiwoom_mock" } } as unknown as InboxItem;

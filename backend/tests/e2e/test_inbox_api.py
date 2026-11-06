@@ -121,7 +121,10 @@ def test_the_ceo_clears_one_desks_sharp_move_and_review_reports(
     assert {"[급변] 엔비디아", "[회의 결과] 삼성전자 · 유지 의견"} <= titles
     assert not titles & {"[급변] 삼성", "[급변] 하이닉스", "[검토 필요] 삼성전자 매수 제안"}
     assert conn.execute("SELECT COUNT(*) FROM inbox_items WHERE hidden_at IS NOT NULL"
-                        ).fetchone()[0] == 3                  # hidden, not deleted
+                        ).fetchone()[0] == 1                  # the review: hidden, kept
+    assert conn.execute("SELECT COUNT(*) FROM inbox_items WHERE title LIKE '[급변]%'"
+                        ).fetchone()[0] == 1                  # KR moves deleted, US kept
+    assert conn.execute("SELECT COUNT(*) FROM cleared_keys").fetchone()[0] == 2
 
 
 def test_stock_profile_route_serves_the_cache_and_says_when_it_cannot(

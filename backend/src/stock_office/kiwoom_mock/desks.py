@@ -690,6 +690,10 @@ class Desks:
             if not crossed:
                 continue
             step = crossed[-1]
+            key = f"move:{instrument_id}:{day}:{'up' if move > 0 else 'down'}{step}"
+            if self.conn.execute("SELECT 1 FROM cleared_keys WHERE key=?",
+                                 (f"watch:{key}",)).fetchone():
+                continue   # the CEO deleted this report: not again
             name = display_name(instrument_id)
             ref = {"instrument_id": instrument_id, "id": None, "item_id": None}
             with transaction(self.conn):
@@ -698,8 +702,7 @@ class Desks:
                 self._notice(ref, "adhoc", f"[급변] {name} {sign}{abs(move)}%",
                              f"전일 대비 {'상승' if move > 0 else '하락'} {step}% 이상 · "
                              f"현재가 {now_price}",
-                             f"move:{instrument_id}:{day}:{'up' if move > 0 else 'down'}{step}",
-                             now, prefix="watch")
+                             key, now, prefix="watch")
 
     def _mood(self, now: datetime) -> str | None:
         """The market's mood for the closing report: the latest market briefing written in the

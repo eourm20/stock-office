@@ -332,6 +332,14 @@ MIGRATIONS: list[str] = [
         created_at TEXT NOT NULL
     )
     """,
+    # 14: deleted sharp-move reports (owner, 2026-11-06: "no need to keep them"): only their key
+    # stays a few days, so the same move is not reported again the same day
+    """
+    CREATE TABLE cleared_keys (
+        key TEXT PRIMARY KEY,
+        at TEXT NOT NULL
+    )
+    """,
 ]
 
 

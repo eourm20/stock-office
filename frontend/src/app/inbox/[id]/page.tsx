@@ -106,14 +106,9 @@ export default function InboxDocument() {
               </ul>
             </section>
           )}
-          {briefing?.story && (
+          {briefing?.story && item.kind !== "approval" && (
             <div className="border-b border-[#d8d2c2] p-4">
               <EasyStory story={briefing.story} lines={briefing.story_lines} terms={briefing.terms} stocks={stocks} />
-            </div>
-          )}
-          {!briefing?.story && item.payload.story_lines && item.payload.story_lines.length > 0 && (
-            <div className="border-b border-[#d8d2c2] p-4">
-              <EasyStory story={item.payload.story_lines.map((l) => l.text).join(" ")} lines={item.payload.story_lines} stocks={stocks} />
             </div>
           )}
           {(item.payload.note || (item.payload.review_reasons?.length ?? 0) > 0) && (
